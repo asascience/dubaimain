@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns:fx="http://ns.adobe.com/mxml/2009" verticalScrollPolicy="off" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" fontSize="11" color="0x58595b" borderVisible="false"
+		 xmlns:util="widgets.OilSpill.components.util.*" backgroundColor="0xE5E5E5" creationComplete="init()"
+		 xmlns:mx="library://ns.adobe.com/flex/mx" alpha="1" xmlns:warnings="widgets.WarningViewer.warnings.*">
+	<fx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			
+			import widgets.LayerViewer.warnings.AdvisoryLabel;
+			import widgets.LayerViewer.warnings.WarningLabel;
+						
+			import mx.controls.Alert;
+			
+			public var warningsingleArray:Object = new Object;
+			
+			protected function init():void
+			{	
+				if(warningsingleArray.wave00 == 2 || warningsingleArray.wind00 == 3)
+				{	
+					var warning:WarningLabel = new WarningLabel;
+					warning12a.addChild(warning);
+				}					
+					
+				if(warningsingleArray.wave06 == 2 || warningsingleArray.wind06 == 3)
+				{	
+					var warning:WarningLabel = new WarningLabel;
+					warning6a.addChild(warning);
+				}
+				if(warningsingleArray.wave12 == 2 || warningsingleArray.wind12 == 3)
+				{	
+					var warning:WarningLabel = new WarningLabel;
+					warning12p.addChild(warning);
+				}
+				if(warningsingleArray.wave18 == 2 || warningsingleArray.wind18 == 3)
+				{	
+					var warning:WarningLabel = new WarningLabel;
+					warning18p.addChild(warning);
+				}
+				
+				//advisory
+				if(warningsingleArray.wave00 == 1 || warningsingleArray.wind00 == 2|| warningsingleArray.wind00 == 1)
+				{	
+					var advisory:AdvisoryLabel = new AdvisoryLabel;
+					warning12a.addChild(advisory);
+				}
+				if(warningsingleArray.wave06 == 1 || warningsingleArray.wind06 == 2|| warningsingleArray.wind00 == 1)
+				{	
+					var advisory:AdvisoryLabel = new AdvisoryLabel;
+					warning6a.addChild(advisory);
+				}
+				if(warningsingleArray.wave12 == 1 || warningsingleArray.wind12 == 2|| warningsingleArray.wind00 == 1)
+				{	
+					var advisory:AdvisoryLabel = new AdvisoryLabel;
+					warning12p.addChild(advisory);
+				}
+				if(warningsingleArray.wave18 == 1 || warningsingleArray.wind18 == 2|| warningsingleArray.wind00 == 1)
+				{	
+					var advisory:AdvisoryLabel = new AdvisoryLabel;
+					warning18p.addChild(advisory);
+				}
+				
+			//create label for 12am
+				if(warningsingleArray.wave00 != "none")
+				{
+					if(warningsingleArray.wave00 == 2)
+					{
+						totalwarnings12a.text = totalwarnings12a.text + "- Wave Warning ";
+					}
+					if(warningsingleArray.wave00 == 1)
+					{
+						totalwarnings12a.text = totalwarnings12a.text + "- Wave Advisory ";
+					}
+					if(totalwarnings12a.text.search("Craft") == -1)
+					{
+						totalwarnings12a.text = totalwarnings12a.text +"- Craft Advisory ";
+					}
+				}
+				
+				if(warningsingleArray.wind00 != "none")
+				{
+					if(warningsingleArray.wind00 == 2)
+					{
+						totalwarnings12a.text = totalwarnings12a.text + "- Wind Advisory ";
+					}
+					if(warningsingleArray.wind00 == 3)
+					{
+						totalwarnings12a.text = totalwarnings12a.text + "- Wind Warning ";
+					}
+					if(totalwarnings12a.text.search("Craft") == -1)
+					{
+						totalwarnings12a.text = totalwarnings12a.text +"- Craft Advisory ";
+					}
+				}
+				
+			//create label for 12pm
+				if(warningsingleArray.wave12 != "none")
+				{
+					if(warningsingleArray.wave12 == 2)
+					{
+						totalwarnings12p.text = totalwarnings12p.text + "- Wave Warning ";
+					}
+					if(warningsingleArray.wave12 == 1)
+					{
+						totalwarnings12p.text = totalwarnings12p.text + "- Wave Advisory ";
+					}
+					if(totalwarnings12p.text.search("Craft") == -1)
+					{
+						totalwarnings12p.text = totalwarnings12p.text +"- Craft Advisory ";
+					}
+				}
+				
+				if(warningsingleArray.wind12 != "none")
+				{
+					if(warningsingleArray.wind12 == 2)
+					{
+						totalwarnings12p.text = totalwarnings12p.text + "- Wind Advisory ";
+					}
+					if(warningsingleArray.wind12 == 3)
+					{
+						totalwarnings12p.text = totalwarnings12p.text + "- Wind Warning ";
+					}
+					if(totalwarnings12p.text.search("Craft") == -1)
+					{
+						totalwarnings12p.text = totalwarnings12p.text +"- Craft Advisory ";
+					}
+				}
+				
+			//create label for 6pm
+				if(warningsingleArray.wave18 != "none")
+				{
+					if(warningsingleArray.wave18 == 2)
+					{
+						totalwarnings6p.text = totalwarnings6p.text + "- Wave Warning ";
+					}
+					if(warningsingleArray.wave18 == 1)
+					{
+						totalwarnings6p.text = totalwarnings6p.text + "- Wave Advisory ";
+					}
+					if(totalwarnings6p.text.search("Craft") == -1)
+					{
+						totalwarnings6p.text = totalwarnings6p.text +"- Craft Advisory ";
+					}
+				}
+				
+				if(warningsingleArray.wind18 != "none")
+				{
+					if(warningsingleArray.wind18 == 2)
+					{
+						totalwarnings6p.text = totalwarnings6p.text + "- Wind Advisory ";
+					}
+					if(warningsingleArray.wind18 == 3)
+					{
+						totalwarnings6p.text = totalwarnings6p.text + "- Wind Warning ";
+					}
+					if(totalwarnings6p.text.search("Craft") == -1)
+					{
+						totalwarnings6p.text = totalwarnings6p.text +"- Craft Advisory ";
+					}
+				}
+				
+			//create label for 6am
+				if(warningsingleArray.wave06 != "none")
+				{
+					if(warningsingleArray.wave06 == 2)
+					{
+						totalwarnings6a.text = totalwarnings6a.text + "- Wave Warning ";
+					}
+					if(warningsingleArray.wave06 == 1)
+					{
+						totalwarnings6a.text = totalwarnings6a.text + "- Wave Advisory ";
+					}
+					if(totalwarnings6a.text.search("Craft") == -1)
+					{
+						totalwarnings6a.text = totalwarnings6a.text +"- Craft Advisory ";
+					}
+				}
+				
+				if(warningsingleArray.wind06 != "none")
+				{
+					if(warningsingleArray.wind06 == 2)
+					{
+						totalwarnings6a.text = totalwarnings6a.text + "- Wind Advisory ";
+					}
+					if(warningsingleArray.wind06 == 3)
+					{
+						totalwarnings6a.text = totalwarnings6a.text + "- Wind Warning ";
+					}
+					if(totalwarnings6a.text.search("Craft") == -1)
+					{
+						totalwarnings6a.text = totalwarnings6a.text +"- Craft Advisory ";
+					}
+				}
+				
+				//set as no warnings if none
+				if(totalwarnings6a.text == "")
+				{
+					totalwarnings6a.text = "No warnings or advisories at this time";
+				}
+				if(totalwarnings6p.text == "")
+				{
+					totalwarnings6p.text = "No warnings or advisories at this time";
+				}
+				if(totalwarnings12a.text == "")
+				{
+					totalwarnings12a.text = "No warnings or advisories at this time";
+				}
+				if(totalwarnings12p.text == "")
+				{
+					totalwarnings12p.text = "No warnings or advisories at this time";
+				}
+			}
+			
+		]]>
+	</fx:Script>
+	<mx:LinkBar dataProvider="{viewstack1}" width="100%"
+				horizontalAlign="center" textSelectedColor="0x3D9BBF" disabledColor="0x3D9BBF" fontSize="12" backgroundColor="0xE5E5E5"/>
+	<mx:ViewStack id="viewstack1" creationPolicy="all"
+				  x="0" y="-2" width="205"
+				  selectedIndex="1" height="170">
+		<mx:VBox label="6am" id="warning6a" paddingLeft="0" horizontalAlign="center" verticalScrollPolicy="auto" horizontalScrollPolicy="off"
+				 width="100%" height="100%">
+			<s:Label id="totalwarnings6a" text="" fontWeight="bold" fontSize="11" width="180"/>			
+			<mx:HRule width="100%"/>
+		</mx:VBox>
+		<mx:VBox id="warning12p" label="12pm" paddingLeft="0" horizontalAlign="center" verticalScrollPolicy="auto" horizontalScrollPolicy="off"
+				 width="100%" height="100%">
+			<s:Label id="totalwarnings12p" text="" fontWeight="bold" fontSize="11"  width="180"/>			
+			<mx:HRule width="100%"/>
+		</mx:VBox>
+		<mx:VBox id="warning18p" label="6pm" paddingLeft="0" horizontalAlign="center" verticalScrollPolicy="auto" horizontalScrollPolicy="off"
+				 width="100%" height="100%">
+			<s:Label id="totalwarnings6p" text="" fontWeight="bold" fontSize="11" width="180"/>			
+			<mx:HRule width="100%"/>
+		</mx:VBox>
+		<mx:VBox label="12am" id="warning12a" paddingLeft="0" horizontalAlign="center" verticalScrollPolicy="auto" horizontalScrollPolicy="off"
+				 height="100%">
+			<s:Label id="totalwarnings12a" text="" fontWeight="bold" fontSize="11" width="180"/>			
+			<mx:HRule width="100%"/>
+		</mx:VBox>
+	</mx:ViewStack>
+</mx:VBox>

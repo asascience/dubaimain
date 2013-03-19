@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<chartClasses:DataTip xmlns:fx="http://ns.adobe.com/mxml/2009" 
+					  xmlns:s="library://ns.adobe.com/flex/spark" 
+					  xmlns:mx="library://ns.adobe.com/flex/mx" xmlns:chartClasses="mx.charts.chartClasses.*"
+					  backgroundColor="#FFFEE9"
+					  paddingTop="5"
+					  paddingRight="10"
+					  paddingLeft="10">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+</chartClasses:DataTip>

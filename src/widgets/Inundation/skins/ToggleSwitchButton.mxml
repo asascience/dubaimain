@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas
+	xmlns:mx="http://www.adobe.com/2006/mxml" 
+	xmlns:text="flash.text.*" 
+	currentState="off"
+	verticalScrollPolicy="off" horizontalScrollPolicy="off" width="{_componentWidth}" height="{_componentHeight}">
+	<!--STATES-->
+	<mx:states>
+		<mx:State name="on"/>
+		<mx:State name="off"/>
+	</mx:states>
+	<!--MARKUP-->
+	<mx:Canvas id="holder" styleName="{_holderStyleName}" verticalScrollPolicy="off" horizontalScrollPolicy="off" width="{_componentWidth}" height="{_componentHeight}">
+		<mx:Canvas id="onLabelBackground" width="50%" height="100%" left="0" styleName="{_onCanvasStyleName}"/>
+		<mx:Canvas id="offLabelBackground" width="50%" height="100%" right="0" styleName="{_offCanvasStyleName}"/>
+		<mx:HBox width="100%" height="100%" paddingBottom="0" paddingLeft="0" paddingRight="0" paddingTop="0" horizontalAlign="center" verticalAlign="middle">
+			<mx:Label text="{onLabelTitle}" width="50%" textAlign="center" styleName="{_onToggleLabelStyleName}"/>
+			<mx:Label text="{offLabelTitle}" width="50%" textAlign="center" styleName="{_offToggleLabelStyleName}"/>
+		</mx:HBox>
+		<mx:Button id="toggleButton" styleName="{_buttonStyleName}" click="toggle()" buttonMode="true" useHandCursor="true" height="100%"/>
+	</mx:Canvas>
+	<!--TRANSITIONS-->
+	<mx:transitions>
+		<mx:Transition fromState="*" toState="off" effect="{initOff}"/>
+		<mx:Transition fromState="*" toState="on" effect="{initOn}"/>
+		<mx:Transition fromState="on" toState="off" effect="{off}"/>
+		<mx:Transition fromState="off" toState="on" effect="{on}"/>
+	</mx:transitions>
+	<!--EFFECTS-->
+	<mx:AnimateProperty id="initOn" target="{toggleButton}" property="x" toValue="{_componentWidth - toggleButton.width - _rightGutter}" fromValue="0" duration="0"/>
+	<mx:AnimateProperty id="initOff" target="{toggleButton}" property="x" toValue="0" fromValue="{_componentWidth - toggleButton.width - _leftGutter}" duration="0"/>
+	<mx:AnimateProperty id="on" target="{toggleButton}" property="x" toValue="{_componentWidth - toggleButton.width - _rightGutter}" fromValue="0" easingFunction="Sine.easeInOut" duration="150"/>
+	<mx:AnimateProperty id="off" target="{toggleButton}" property="x" toValue="0" fromValue="{_componentWidth - toggleButton.width - _leftGutter}" easingFunction="Sine.easeInOut" duration="150"/>
+	<!--METADATA-->
+	<mx:Metadata>
+		//Styles
+		/**
+		 *  Style name for the Canvas that contains the two canvases, the two labels, and the button
+		 * 
+		 *  @default toggleSwitchButtonHolderDefaultStyleName 
+		 */
+		[Style(name="holderStyleName", type="String", inherit="no")]
+		/**
+		 *  Style name for the Canvas that sits behind the on label
+		 * 
+		 *  @default toggleSwitchButtonOnCanvasDefaultStyleName 
+		 */
+		[Style(name="onCanvasStyleName", type="String", inherit="no")]
+		/**
+		 *  Style name for the Canvas that sits behind the off label
+		 * 
+		 *  @default toggleSwitchButtonOffCanvasDefaultStyleName 
+		 */
+		[Style(name="offCanvasStyleName", type="String", inherit="no")]
+		/**
+		 *  Style name for the on label
+		 * 
+		 *  @default toggleSwitchButtonDefaultStyleName 
+		 */
+		[Style(name="onToggleLabelStyle", type="String", inherit="no")]
+		/**
+		 *  Style name for the off label
+		 * 
+		 *  @default toggleSwitchButtonDefaultStyleName 
+		 */
+		[Style(name="offToggleLabelStyle", type="String", inherit="no")]
+		/**
+		 *  Style name for the Button component
+		 * 
+		 *  @default toggleSwitchButtonDefaultStyleName 
+		 */
+		[Style(name="buttonStyleName", type="String", inherit="no")]
+		//Not needed now, but I can see this being a feature request in the future
+		//[Style(name="buttonWidth", type="String", inherit="no")]
+		//Events
+		/**
+		 *  Dispatched when the user presses the Button control and toggles the control to the off state.
+		 *
+		 *  @eventType flash.events.Event
+		 */
+		[Event(name="toggleSwitchedOff",type="flash.events.Event")]
+		/**
+		 *  Dispatched when the user presses the Button control and toggles the control to the on state.
+		 *
+		 *  @eventType flash.events.Event
+		 */
+		[Event(name="toggleSwitchedOn",type="flash.events.Event")]
+	</mx:Metadata>
+	<!--STYLES-->
+	<mx:Style>
+		/*THESE ARE DEFAULT STYLES TO BE OVERRIDEN BY A STYLESHEET*/
+		/*I'm giving them crazy names so no one accidentally names their style the same thing*/
+		.toggleSwitchButtonHolderDefaultStyleName
+		{
+			borderColor: "0x666666";
+			borderStyle: outset;
+			borderThickness: 1;
+			color: #000000;
+			cornerRadius: 0;
+		}
+		.toggleSwitchButtonOnCanvasDefaultStyleName
+		{
+			backgroundColor: "0x0000FF";
+		}
+		.toggleSwitchButtonOffCanvasDefaultStyleName
+		{
+			backgroundColor: "0xFFFFFF";
+		}
+		.toggleSwitchButtonDefaultStyleName
+		{
+			themeColor: #AAAAAA;
+			cornerRadius: 0;
+			fillAlphas: 1.0, 1.0, 1.0, 1.0;
+			fillColors: #666666, #ABABAB;	
+		}
+		.onToggleLabelStyleDefaultStyle
+		{
+			color: #FFFFFF;		
+		}
+		.offToggleLabelStyleDefaultStyle
+		{
+			color: #000000;			
+		}
+	</mx:Style>
+	<!--NERDSTUFFS-->
+	<mx:Script>
+		<![CDATA[
+			import mx.effects.easing.Sine;
+			//Event Name Constants
+			public static const TOGGLE_SWICHED_OFF:String = "toggleSwitchedOff";
+			public static const TOGGLE_SWICHED_ON:String = "toggleSwitchedOn";
+			//Public properties
+			//You can use this to determine programatically what the state of the button is in
+			public function get isToggledOn():Boolean
+			{
+				return _isToggledOn;
+			}
+			//You can use this setter to set an initial state for the toggle
+			/**
+			 * @example
+			 * <skins:ToggleSwitchButton isToggledOn="true"/>
+			 **/
+			public function set isToggledOn(value:Boolean):void
+			{
+				_isToggledOn = value;
+				if(_isToggledOn == true)
+				{
+					currentState = "on";
+				}
+				else
+				{
+					currentState = "off";
+				}
+			}
+			protected var _isToggledOn:Boolean;
+			[Bindable] public var onLabelTitle:String = "ON";
+			[Bindable] public var offLabelTitle:String = "OFF";
+			//Measurements
+			[Bindable] protected var _componentWidth:Number;
+			[Bindable] protected var _componentHeight:Number;
+			[Bindable] protected var _rightGutter:Number;
+			[Bindable] protected var _leftGutter:Number;
+			[Bindable] protected var _buttonWidth:Number;
+			[Bindable] protected var _minWidth:Number = 60;
+			[Bindable] protected var _minHeight:Number = 20;	
+			//Styles
+			[Bindable] protected var _holderStyleName:String = "toggleSwitchButtonHolderDefaultStyleName";
+			[Bindable] protected var _onCanvasStyleName:String = "toggleSwitchButtonOnCanvasDefaultStyleName";
+			[Bindable] protected var _offCanvasStyleName:String = "toggleSwitchButtonOffCanvasDefaultStyleName";
+			[Bindable] protected var _onToggleLabelStyleName:String = "onToggleLabelStyleDefaultStyle";
+			[Bindable] protected var _offToggleLabelStyleName:String = "offToggleLabelStyleDefaultStyle";
+			[Bindable] protected var _buttonStyleName:String = "toggleSwitchButtonDefaultStyleName";
+			/**
+			 * @private
+			 **/
+			override protected function updateDisplayList(unscaledWidth:Number, unscaledHeight:Number):void
+			{				
+				super.updateDisplayList(unscaledWidth,unscaledHeight);
+				//Enforcing a minimum width here. 
+				(unscaledWidth > _minWidth ? _componentWidth = unscaledWidth : _componentWidth = _minWidth);
+				//Enforcing a minimum height here.
+				(unscaledHeight > _minHeight ? _componentHeight = unscaledHeight : _componentHeight = _minHeight);
+				//Trying to determine the holder's border width to use in animating the toggle buttons position
+				//Without this the button will overlap the edge
+				_rightGutter = holder.borderMetrics.right;
+				_leftGutter = holder.borderMetrics.left;
+				//For some reason you I couldn't get percent based layout to work for this button
+				//So I am manually setting the height here based on the components width
+				toggleButton.width = _componentWidth*0.5;
+				//Handling getting styles from CSS in anther function so my updateDisplayList function isn't a million lines long
+				handleStyles();
+			} 
+			/**
+			 * Used to switch between the two states <code>on</code> and <code>off</>
+			 * this function dispatches an event to notify the application of it's current state
+			 */
+			public function toggle():void
+			{
+				if(currentState == "off")
+				{
+					isToggledOn = true;
+					currentState = "on";					
+					dispatchEvent(new Event(TOGGLE_SWICHED_ON,true,true));
+				}
+				else
+				{
+					isToggledOn = false;
+					currentState = "off";
+					dispatchEvent(new Event(TOGGLE_SWICHED_OFF,true,true));
+				}
+			}
+			/**
+			 * @private
+			 * Breakout method used in the updateDisplayList function to parse styles
+			 */ 
+			protected function handleStyles():void
+			{
+				if(getStyle("holderStyleName"))
+				{
+					_holderStyleName = getStyle("holderStyleName");
+				}	
+				
+				if(getStyle("onCanvasStyleName"))
+				{
+					_onCanvasStyleName = getStyle("onCanvasStyleName");
+				}
+				
+				if(getStyle("offCanvasStyleName"))
+				{
+					_offCanvasStyleName = getStyle("offCanvasStyleName");
+				}
+				
+				if(getStyle("onToggleLabelStyle"))
+				{
+					_onToggleLabelStyleName = getStyle("onToggleLabelStyle");
+				}
+				
+				if(getStyle("offToggleLabelStyle"))
+				{
+					_offToggleLabelStyleName = getStyle("offToggleLabelStyle");
+				}
+				
+				if(getStyle("buttonStyleName"))
+				{
+					_buttonStyleName = getStyle("buttonStyleName");
+				}
+				
+				if(getStyle("buttonWidth"))
+				{
+					_buttonWidth = getStyle("buttonWidth");
+				}
+			}
+		]]>
+	</mx:Script>
+</mx:Canvas>

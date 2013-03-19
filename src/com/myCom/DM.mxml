@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:TitleWindow chromeColor="0x7F7F7F" titleStyleName="myPanelTitle1" cornerRadius="10" 
+				titleIcon="@Embed(source='assets/images/lock.png')"  horizontalAlign="center"
+				showCloseButton="true" xmlns:mx="http://www.adobe.com/2006/mxml" autoLayout="true" 
+				close="titleWindow_close(event);" >
+	<mx:VBox paddingBottom="5" paddingTop="15" horizontalAlign="center" width="250">
+		<mx:Text id="loginError" color="0xFF0000"/>
+	</mx:VBox>
+	<mx:VBox paddingBottom="10"  horizontalAlign="center">
+		<mx:Button chromeColor="0xFFFFFF" label="Ok" id="okButton" click="close()" />
+	</mx:VBox>
+	<mx:Script>
+		<![CDATA[
+			import mx.core.IFlexDisplayObject;
+			import mx.events.CloseEvent;
+			import mx.managers.PopUpManager;
+			
+			[Bindable]
+			public var source:String;
+			
+			private function init():void {
+				PopUpManager.centerPopUp(this);
+				this.setFocus();
+			}
+			private function close():void {
+				PopUpManager.removePopUp(this as IFlexDisplayObject);
+			}
+			private function titleWindow_close(evt:CloseEvent):void {
+				PopUpManager.removePopUp(evt.target as IFlexDisplayObject);
+			}
+		]]>
+	</mx:Script>
+	<mx:Style>
+		.myPanelTitle1 {
+			fontSize: 15;
+			fontWeight: bold;
+			color: white;
+		}
+	</mx:Style>
+</mx:TitleWindow>

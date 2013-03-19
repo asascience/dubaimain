@@ -1,0 +1,38 @@
+<mx:UIComponent initialize = "init()" xmlns:mx = "http://www.adobe.com/2006/mxml">
+
+	<mx:Script>
+		<![CDATA[
+			private var gradientColorsArray:Array = [ 0x333333, 0x333333 ];
+
+			private var cornerRadius:uint = 5;
+
+			private var lineWeight:Number = 2;
+
+			override protected function updateDisplayList(unscaledWidth:Number, unscaledHeight:Number):void
+			{
+				graphics.clear();
+//				graphics.lineStyle(lineWeight, rectFill);
+				var matrix:Matrix = new Matrix();
+				matrix.createGradientBox(unscaledWidth, unscaledHeight, (Math.PI / 180) * 90);
+				graphics.beginGradientFill(GradientType.LINEAR, gradientColorsArray, [ 1, 1 ], [ 0, 255 ], matrix);
+				graphics.drawRoundRect(0, unscaledHeight / 4 - 1, unscaledWidth, unscaledHeight / 2, cornerRadius, cornerRadius);
+			}
+
+			private function init():void
+			{
+				if (StyleManager.getStyleDeclaration('.SliderHighlightTrackSkin'))
+				{
+					gradientColorsArray = StyleManager.getStyleDeclaration('.SliderHighlightTrackSkin').getStyle('backgroundGradientColors');
+					cornerRadius = StyleManager.getStyleDeclaration('.SliderHighlightTrackSkin').getStyle('cornerRadius');
+					this.alpha = StyleManager.getStyleDeclaration('.SliderHighlightTrackSkin').getStyle('backgroundAlpha');
+				}
+
+				if (parent.parent)
+					this.height = parent.parent.height;
+				else
+					this.height = 20;
+			}
+		]]>
+	</mx:Script>
+
+</mx:UIComponent>

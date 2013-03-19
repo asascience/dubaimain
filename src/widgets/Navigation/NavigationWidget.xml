@@ -1,0 +1,11 @@
+<?xml version="1.0" ?>
+<configuration>
+    <panwheel visible="true" fullextlabel="Full Extent" 
+        panuplabel="Pan up" pandownlabel="Pan down" panrightlabel="Pan right" panleftlabel="Pan left"  
+        fullexticon="assets/images/i_globe.png"  />
+    <prevextbutton visible="true" label="Previous Extent" />
+    <nextextbutton visible="true" label="Next Extent" />
+    <panbutton visible="true" label="Pan" icon="assets/images/i_pan.png" />
+    <zoominbutton visible="true" label="Zoom In" icon="assets/images/i_zoomin.png" />
+    <zoomoutbutton visible="true" label="Zoom Out" icon="assets/images/i_zoomout.png" />
+</configuration>

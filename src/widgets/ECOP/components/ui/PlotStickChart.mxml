@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas 
+	xmlns:mx="http://www.adobe.com/2006/mxml" 
+	xmlns:axiis="http://www.axiis.org/2009" 
+	xmlns:degrafa="http://www.degrafa.com/2007"
+	xmlns:geometry="com.degrafa.geometry.*" label="Stick Plot" xmlns:ui="widgets.ECOP.components.ui.*" 
+	xmlns:scale="org.axiis.extras.layouts.scale.*" xmlns:charts="org.axiis.extras.charts.*" 
+	> 
+	<mx:Script>
+		<![CDATA[
+			import com.degrafa.paint.SolidStroke;
+			
+			import mx.collections.ArrayCollection;
+			import mx.core.UIComponent;
+			//backgroundColor="0xB2B2B2" 
+			import org.alivepdf.display.Display;
+			import org.alivepdf.images.ImageFormat;
+			import org.alivepdf.images.PDFImage;
+			import org.alivepdf.layout.Resize;
+			import org.alivepdf.layout.Size;
+			import org.alivepdf.pdf.PDF;
+			import org.alivepdf.saving.Method;
+			
+			[Bindable] 
+			public var windDataAC:ArrayCollection = new ArrayCollection;
+
+			private var nVariable:int;
+			[Bindable] 
+			private var maxPercentage:Number; 
+			
+			private function init():void
+			{
+				var len:uint = windDataAC.length 
+				maxPercentage=0; 
+				for (var i:int=0; i < len; i++) 
+				{ 
+					maxPercentage = Math.max(maxPercentage, windDataAC.getItemAt(i).SPEED);
+				}			
+				//110 value can change based on size of compass
+				nVariable = 120/maxPercentage;
+			}
+			private function printPDF():void
+			{
+				var reportPDF:PDF = new PDF("Portrait", "Mm", Size.LETTER);
+				reportPDF.setDisplayMode(Display.FULL_PAGE);
+				reportPDF.addPage();
+				
+				reportPDF.addImage(masterCanvas,null ,0,0,0,0,0,1,true,ImageFormat.JPG,50);
+				
+				var bytes:ByteArray = reportPDF.save(Method.LOCAL);
+				var f:FileReference = new FileReference();
+				f.save(bytes,"ECOP_CHART.pdf");
+			}
+			
+		]]>
+	</mx:Script>
+	
+	<mx:Style source="styles/chartStyles.css"/>
+	
+	<!-- Common calculations used by geometries 
+	<axiis:NumericExpression id="boundsRadius" value="{Math.min(this.height,this.width)}"/>-->
+	
+	<!-- Background template 
+	<ui:Background width="{this.width}" height="{this.height}" title="Magnitude" subTitle="Direction"/>
+	-->
+	<mx:HBox id="topBox" borderVisible="true" horizontalAlign="center" >
+		<mx:Button label="Save" click="printPDF();" x="11" y="0"/>
+		<mx:HSlider id="zoomSlider" bottom="0" toolTip="Zoom" minimum="1" width="89" x="71" maximum="1.5" value="0" snapInterval="0.25"  tickValues="[1,1.5]"/>
+		<mx:Label text="Direction and Magnitude (knots)" color="0xEDDC12" x="315"/>
+	</mx:HBox>
+	<mx:VBox width="100%" height="100%" paddingLeft="10" id="masterCanvas"  
+			 horizontalAlign="center" 
+			 paddingBottom="1" >
+		<axiis:DataCanvas id="dc" alpha="1" 
+						  width="98%"
+						  height="100%"  
+						  horizontalCenter="0" scaleX="{zoomSlider.value}"
+						  scaleY="{zoomSlider.value}"  
+						  >
+			<mx:Label color="0xEDDC12" text="{maxPercentage}" x="{radialLayout.width-62}" y="{dc.height/2-maxPercentage*nVariable-8}"/>
+			<mx:Label color="0xEDDC12" text="{'-'+maxPercentage}" x="{radialLayout.width-62}" y="{dc.height/2+maxPercentage*nVariable}"/>
+			<mx:Label color="0xEDDC12" text="{windDataAC.getItemAt(0).TIME.substr(0,10)}" x="3" y="{dc.height-46}"/>
+			<mx:Label color="0xEDDC12" text="{windDataAC.getItemAt(windDataAC.length/2).TIME.substr(0,10)}" x="{radialLayout.width/2-25}" y="{dc.height-46}"/>
+			<mx:Label color="0xEDDC12" text="{windDataAC.getItemAt(windDataAC.length-1).TIME.substr(0,10)}" x="{radialLayout.width-95}" y="{dc.height-46}"/>
+			<axiis:layouts> 
+				<axiis:BaseLayout id="radialLayout"  preRender="init();" 
+								  itemClick="{this.dispatchEvent(event)}" 
+								  width="{dc.width}" dataProvider="{windDataAC}"
+								  height="{dc.height}"  dataField="DIRECTION" 
+								  showDataTips="false"> 
+					<!-- REPEATER - ACTS LIKE A LOOP 
+					<axiis:referenceRepeater> 
+						<axiis:GeometryRepeater> 
+							<axiis:geometry> 
+								<geometry:Wedge id="referenceWedge" 
+												centerX="50" 
+												centerY="{height/2}" 
+												innerRadius="0" 
+												outerRadius="{outerRadius.value * 
+												(radialLayout.currentDatum.SPEED * 2)}" 
+												startAngle="0" stroke="{lineStroke}"
+												arc="0"/> 
+							</axiis:geometry>  
+						</axiis:GeometryRepeater> 
+					</axiis:referenceRepeater>  -->
+					<!-- DRAWING GEOMETRIES - OUR VISUAL PLOTS --> 
+					<axiis:drawingGeometries> 
+						<!-- MAIN WEDGE - PER DATUM --> 
+						
+						<geometry:Wedge id="SPEED" 
+										stroke="{lineStroke}"
+										centerX="{radialLayout.currentIndex*7+20}" 
+										centerY="{radialLayout.height/2}" 
+										innerRadius="0"
+										outerRadius="{radialLayout.currentDatum.SPEED*nVariable}" 
+										startAngle="{radialLayout.currentDatum.DIRECTION-90}" arc=".1"
+										fill="{myFill0_5}"/> 
+						<!-- ROLL OVER LABEL --> 
+						<degrafa:RasterText id="dLabel" width="255"
+											visible="false"  
+											size="14" 
+											textColor="0xFFFFFF" 
+											stroke="{lineStroke}" text="{radialLayout.currentValue + 'º ' + 
+											(radialLayout.currentDatum.SPEED) + ' knots '+(radialLayout.currentDatum.TIME)}"
+										    x="{topBox.x +185}" y="{topBox.y -30}"
+											/> 
+					</axiis:drawingGeometries> 
+					<axiis:axiisStates> 
+						<axiis:AxiisState enterStateEvent="mouseOver" 
+										  exitStateEvent="mouseOut" 
+										  targets="{[dLabel]}"  
+										  properties="['visible']" 
+										  values="[true]"/> 
+					</axiis:axiisStates> 
+					
+				</axiis:BaseLayout> 
+			</axiis:layouts> 
+			<axiis:backgroundGeometries > 
+				<degrafa:Line stroke="{axisStroke1}" 
+							  x="{dc.width -18}" 
+							  y="10" 
+							  x1="{dc.width -18}" 
+							  y1="{dc.height-10}"> 
+					<degrafa:decorators> 
+						<degrafa:SVGDashLine dashArray="{[2,5]}"/> 
+					</degrafa:decorators> 
+				</degrafa:Line>
+				<degrafa:Line stroke="{axisStroke}" 
+							  x="12" 
+							  y="{dc.height/2}" 
+							  x1="{dc.width - 20}" 
+							  y1="{dc.height/2}"> 
+				</degrafa:Line>
+				<degrafa:Line stroke="{axisStroke1}" 
+							  x="12" 
+							  y="{dc.height-28}" 
+							  x1="{dc.width - 24}" 
+							  y1="{dc.height-28}"> 
+					<degrafa:decorators> 
+						<degrafa:SVGDashLine  dashArray="{[2,5]}"/> 
+					</degrafa:decorators> 
+				</degrafa:Line> 
+			</axiis:backgroundGeometries>
+		</axiis:DataCanvas>
+		<mx:HBox>
+		</mx:HBox>
+	</mx:VBox>
+	<degrafa:SolidStroke id="lineStroke" 
+						 color="0xFF412B" 
+						 alpha=".8"/> 
+	<degrafa:SolidStroke id="axisStroke" 
+						 color="0xEFEFFF" 
+						 weight="2.5" 
+						 pixelHinting="true" 
+						 alpha="1"/> 
+	<degrafa:SolidStroke id="axisStroke1" 
+						 color="0xEFEFFF" 
+						 weight="1" 
+						 pixelHinting="true" 
+						 alpha="1"/> 
+	<mx:Number id="innerRadius">14</mx:Number> 
+	<axiis:NumericExpression id="radiusStep" value="{(outerRadius.value - 
+							 innerRadius)/2}"/> 
+	<axiis:NumericExpression id="outerRadius" 
+							 value="{Math.min(dc.width,dc.height) / 2}"/> 
+	<axiis:NumericExpression id="arc" value="10"/> 
+	<degrafa:SolidFill alpha=".1" id="myFill0_5" color="#007ab5" /> 
+</mx:Canvas> 

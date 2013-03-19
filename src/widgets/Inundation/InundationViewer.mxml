@@ -1,0 +1,648 @@
+<?xml version="1.0" encoding="utf-8"?>
+<viewer:BaseWidget xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				   xmlns:s="library://ns.adobe.com/flex/spark"
+				   xmlns:net="flash.net.*"
+				   xmlns:mx="library://ns.adobe.com/flex/mx" xmlns:viewer="com.esri.viewer.*" layout="absolute"
+				   initialize="basewidget1_initializeHandler(event)" cornerRadius="0" dropShadowVisible="false"
+ 				   remove="basewidget1_removeHandler(event)" xmlns:esri="http://www.esri.com/2008/ags" xmlns:skins="widgets.WarningViewer.skins.*" 
+				   widgetConfigLoaded="init()"
+				   xmlns:WarningViewer="widgets.WarningViewer.*" >
+
+	<fx:Style>
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		mx|DataGrid
+		{
+			color: #58595b;
+		}
+	</fx:Style>
+	<fx:Metadata>
+		[ResourceBundle("LayerViewer")]
+	</fx:Metadata>
+	<fx:Script>
+		<![CDATA[
+			import com.asa.components.DataUtilities;
+			import com.esri.ags.Graphic;
+			import com.esri.ags.Map;
+			import com.esri.ags.events.DrawEvent;
+			import com.esri.ags.events.ExtentEvent;
+			import com.esri.ags.events.LayerEvent;
+			import com.esri.ags.geometry.MapPoint;
+			import com.esri.ags.layers.GraphicsLayer;
+			import com.esri.ags.layers.Layer;
+			import com.esri.ags.symbols.SimpleFillSymbol;
+			import com.esri.ags.symbols.SimpleLineSymbol;
+			import com.esri.ags.symbols.SimpleMarkerSymbol;
+			import com.esri.ags.tools.DrawTool;
+			import com.esri.viewer.AppEvent;
+			import com.esri.viewer.ViewerContainer;
+			import com.esri.viewer.utils.Hashtable;
+			import com.myCom.DateFormatterWrapper;
+			
+			import mx.collections.ArrayCollection;
+			import mx.collections.Sort;
+			import mx.collections.SortField;
+			import mx.containers.Canvas;
+			import mx.controls.Alert;
+			import mx.controls.CheckBox;
+			import mx.controls.DataGrid;
+			import mx.controls.Label;
+			import mx.controls.TabBar;
+			import mx.controls.Text;
+			import mx.events.CloseEvent;
+			import mx.events.FlexEvent;
+			import mx.events.IndexChangedEvent;
+			import mx.events.ListEvent;
+			import mx.formatters.DateFormatter;
+			import mx.managers.CursorManager;
+			import mx.managers.ToolTipManager;
+			import mx.resources.ResourceManager;
+			import mx.utils.StringUtil;
+			
+			import org.vanrijkom.dbf.*;
+			
+			import spark.components.TitleWindow;
+			import spark.components.supportClasses.ButtonBase;
+			import spark.events.IndexChangeEvent;
+			
+			import widgets.ShapeFiles.ShpHeader;
+			import widgets.ShapeFiles.ShpLine;
+			import widgets.ShapeFiles.ShpPolygon;
+			import widgets.ShapeFiles.ShpReader;
+			import widgets.ShapeFiles.nochump.util.zip.ZipEntry;
+			import widgets.ShapeFiles.nochump.util.zip.ZipFile;
+			import widgets.TimeSlider.components.util.DateTimeUtilities;
+			
+			
+			public var drawTool:DrawTool;
+			private var _params:URLVariables;
+			
+			[Bindable]
+			private var graph:Graphic = new Graphic;
+			private var hashTable:Hashtable;
+			[Bindable]
+			private var currentTime:Date=new Date();
+			private var _timeZone:Number;
+			private var idPoint:MapPoint;
+			
+			//the current display model layers
+			private var visibleModelLayers:String;
+			//current language id: 0 for english and 1 for chinese
+			private var currentLangID:int;
+			//for the serverURL in main config file or the widget's config file
+			private var _serverURL:String;
+			private var LayersTab:Boolean = false;
+			[Bindable]
+			private var induColor:uint;
+			private var clrmap:Array;
+			[Bindable]
+			private var LayerXML:XMLList;
+			[Bindable]
+			private var idLayer:String = new String;			
+				
+			[Bindable]
+			private var userArray:String = "guest";
+			[Bindable]
+			private var modeldisclaimer:String = new String;
+			[Bindable]
+			private var modeldescription:String = new String;
+			[Bindable]
+			private var modelText:String = new String;
+			
+			
+			protected function basewidget1_initializeHandler(event:FlexEvent):void
+			{
+				ViewerContainer.addEventListener(AppEvent.TIME_ZONE_CHANGED, timeZoneChanged);
+				//Get hashTable
+				ViewerContainer.addEventListener(AppEvent.DATA_SENT, receivedData);
+				ViewerContainer.addEventListener(AppEvent.LANGUAGE_CHANGED, languageChanged);
+			}
+			
+			private function padding(num:Number):String
+			{
+				if(num==4)
+				{
+					return "04:00-10:00"; 
+				}
+				else if(num==10)
+				{
+					return "10:00-16:00"; 
+				}
+				else if(num==16)
+				{
+					return "16:00-22:00"; 
+				}
+				else{
+					return "22:00-04:00";
+				}
+			}
+			
+			protected function init():void
+			{				
+				fetchSharedData();
+				//init lang id
+				if(ResourceManager.getInstance().localeChain.toString()=="zh_CN")
+				{
+					currentLangID=1;
+				}
+				else
+				{
+					currentLangID=0;
+				}
+				
+				if(configXML)
+				{
+					//loading warning area shapefiles					
+					modeldisclaimer = configXML.inundationDisclaimer;
+					modeldescription = configXML.inundationwarningText;
+					modelText = configXML.inundationModelInfo;
+					
+					var configURLTextFile:String = configXML.configfileLocation;
+					
+					var congifurl:URLLoader = new URLLoader;
+					congifurl.load(new URLRequest(configURLTextFile));
+					//congifurl.addEventListener(IOErrorEvent.IO_ERROR, onSoundIOError, false, 0, true);
+					congifurl.addEventListener(Event.COMPLETE, httpService_result);	
+					
+					function httpService_result(evt:Event):void 
+					{
+						var windresult:String = evt.currentTarget.data as String;
+						var windarray:Array = windresult.split("\n");
+						
+						var currentD:Date = new Date();
+						
+						var dateLabel1:Label =new Label;
+						dateLabel1.setStyle("fontWeight", 'bold');
+						dateLabel1.setStyle("fontSize", '14');
+						dateLabel1.text = DateTimeUtilities.convertDateEuronoTime(currentD);
+						
+						var dateLabel2:Label =new Label;
+						dateLabel2.setStyle("fontWeight", 'bold');
+						dateLabel2.setStyle("fontSize", '14');
+						dateLabel2.text = DateTimeUtilities.convertDateEuronoTime(new Date(currentD.getTime() +1000 * 60 * 60 * 24));
+						
+						var dateLabel3:Label =new Label;
+						dateLabel3.setStyle("fontWeight", 'bold');
+						dateLabel3.setStyle("fontSize", '14');
+						dateLabel3.text = DateTimeUtilities.convertDateEuronoTime(new Date(currentD.getTime() +1000 * 60 * 60 * 24*2));
+						
+						date1.addChild(dateLabel1);
+						date2.addChild(dateLabel2);
+						date3.addChild(dateLabel3);
+						
+						//if no inundations are selected for day
+						var noInundat:Label = new Label;
+						noInundat.text = " No inundation predicted";  
+						var noInundat2:Label = new Label;
+						noInundat2.text = " No inundation predicted";  
+						var noInundat3:Label = new Label;
+						noInundat3.text = " No inundation predicted";  
+												
+						if(windarray.length>2)
+						{
+							var dataArray:Array = [];
+							
+							for(var i:uint = 0; i< windarray.length; i++)
+							{	
+								var dataRecord:Object = {};
+								var indrecordarray:Array = String(windarray[i]).split(",");
+								
+								//format time to add 4 hours to shift to Dubai time
+								var dt:Array = indrecordarray[0].toString().split(' ');
+								var indate:Array = dt[0].toString().split('-');
+								var tm:Array = dt[1].toString().split(':');
+								
+								var dformatted:Date = new Date(Number(indate[2]),DateTimeUtilities.numbertoMonth(indate[1].toString().toUpperCase()),Number(indate[0]),Number(tm[0]));
+								var updatedDate:Date = new Date(dformatted.getTime()+1000 * 60 * 60*4);
+								
+								var inundLable:CheckBox = new CheckBox;	
+								inundLable.name = "";
+								
+								var recomendedScenario:String = padding(updatedDate.hours) + "  No inundation predicted";
+								
+								//LayerXML.Layer[1].Layer[0].appendChild(<Layer pId="20" colr="0x008FCA" type="inund" src="assets/dubai_shp/inundation/scenario1_eez_1.shp" pName="1-Year Storm: 2.1m &lt;= elevation &lt; 2.3 m" pParentID="18" checked="0"/>);
+								if(indrecordarray[1]>=2.1&&indrecordarray[1]<2.3)
+								{
+									recomendedScenario = padding(updatedDate.hours) + " - 1 Year Storm (2.1m <= elevation < 2.3m DMD)";
+									inundLable.id = "100";
+									inundLable.name = "assets/dubai_shp/inundation/scenario1_eez_1.shp";
+									//recomendedScenario = updatedDate.hours+":00 " + " - Scenario 1: 2.1m";
+								}
+								if(indrecordarray[1]>=2.3&&indrecordarray[1]<2.7)
+								{
+									recomendedScenario = padding(updatedDate.hours) + " - 1 Year Storm + SLR (2.3m <= elevation < 2.7m DMD)";
+									inundLable.id = "200";
+									inundLable.name = "assets/dubai_shp/inundation/scenario5_eez_1.shp";
+									//recomendedScenario = updatedDate.hours+":00 " + " - Scenario 2: 2.3m";
+								}
+								if(indrecordarray[1]>=2.7&&indrecordarray[1]<2.8)
+								{
+									recomendedScenario = updatedDate.hours+":00 " + " - 50 Year Storm (2.7m <= elevation < 2.8m DMD)";
+									inundLable.id = "300";
+									inundLable.name = "assets/dubai_shp/inundation/scenario9_eez_1.shp";
+									//recomendedScenario = updatedDate.hours+":00 " + " - Scenario 5: 2.7m";
+								}
+								if(indrecordarray[1]>=2.8&&indrecordarray[1]<2.9)
+								{
+									recomendedScenario = padding(updatedDate.hours) + " - 100 Year Storm (2.8m <= elevation < 2.9m DMD)";
+									inundLable.id = "400";
+									inundLable.name = "assets/dubai_shp/inundation/scenario2_eez_1.shp";
+									//recomendedScenario = updatedDate.hours+":00 " + " - 1 Year Storm (2.1m <= elevation < 2.3m DMD)";
+								}
+								if(indrecordarray[1]>=2.9&&indrecordarray[1]<3.0)
+								{
+									recomendedScenario= padding(updatedDate.hours) + " - 50 Year Storm + SLR (2.9m <= elevation < 3m DMD)";
+									inundLable.id = "500";
+									inundLable.name = "assets/dubai_shp/inundation/scenario6_eez_1.shp";
+									//recomendedScenario = updatedDate.hours+":00 " + " - Scenario 6: 2.9m";
+								}
+								if(indrecordarray[1]>=3.0&&indrecordarray[1]<3.1)
+								{
+									recomendedScenario= padding(updatedDate.hours) + " - 100 Year Storm + SLR (3m <= elevation < 3.1m DMD)";
+									inundLable.id = "600";
+									inundLable.name = "assets/dubai_shp/inundation/scenario10_eez_1.shp";
+									//recomendedScenario = updatedDate.hours+":00 " + " - 1 Year Storm (2.1m <= elevation < 2.3m DMD)";
+								}
+								if(indrecordarray[1]>=3.1&&indrecordarray[1]<3.3)
+								{
+									recomendedScenario= padding(updatedDate.hours) + " - 1 Year Storm + wave runup (3.1m <= elevation < 3.3m DMD)";
+									inundLable.id = "700";
+									inundLable.name = "assets/dubai_shp/inundation/scenario3_nogaps.shp";
+									//recomendedScenario = updatedDate.hours+":00 " + " - Scenario 3: 2.1m – 5.0m";
+								}
+								if(indrecordarray[1]>=3.3&&indrecordarray[1]<3.7)
+								{
+									recomendedScenario= padding(updatedDate.hours) + " - 1 Year Storm + all allowances (3.3m <= elevation < 3.7m DMD)";
+									inundLable.id = "800";
+									inundLable.name = "assets/dubai_shp/inundation/scenario7_nogaps.shp";
+									//recomendedScenario = updatedDate.hours+":00 " + " - Scenario 4: 2.3m – 5.2m";
+								}
+								if(indrecordarray[1]>=3.7&&indrecordarray[1]<3.8)
+								{
+									recomendedScenario= padding(updatedDate.hours) + " - 50 Year Storm + wave runup (3.7m <= elevation < 3.8m DMD)";
+									inundLable.id = "900";
+									inundLable.name = "assets/dubai_shp/inundation/scenario11_nogaps.shp";
+									//recomendedScenario = updatedDate.hours+":00 " + " - Scenario 7: 2.7m – 5.6m";
+								}
+								if(indrecordarray[1]>=3.8&&indrecordarray[1]<3.9)
+								{
+									recomendedScenario= padding(updatedDate.hours) + " - 100 Year Storm + wave runup (3.8m <= elevation < 3.9m DMD)";
+									inundLable.id = "1000";
+									inundLable.name = "assets/dubai_shp/inundation/scenario4_nogaps.shp";
+									//recomendedScenario = updatedDate.hours+":00 " + " - 1 Year Storm (2.1m <= elevation < 2.3m DMD)";
+								}
+								if(indrecordarray[1]>=3.9&&indrecordarray[1]<4)
+								{
+									recomendedScenario= padding(updatedDate.hours) + " - 50 Year Storm + all allowances (3.9  <= elevation < 4m DMD)";
+									inundLable.id = "1100";
+									inundLable.name = "assets/dubai_shp/inundation/scenario8_nogaps.shp";
+									//recomendedScenario = updatedDate.hours+":00 " + " - Scenario 8: 2.7m – 5.8m";
+								}
+								if(indrecordarray[1]>=4)
+								{
+									recomendedScenario= padding(updatedDate.hours) + " - 100 Year Storm + all allowances (elevation >= 4m DMD)";
+									inundLable.id = "1200";
+									inundLable.name = "assets/dubai_shp/inundation/scen12_nogaps.shp";
+									//recomendedScenario = updatedDate.hours+":00 " + " - 1 Year Storm (2.1m <= elevation < 2.3m DMD)";
+								}
+								inundLable.addEventListener(Event.CHANGE, inundationClick);
+								inundLable.label = recomendedScenario;
+								inundLable.setStyle("fontSize",12);
+								
+								if(indate[0]+" " +indate[1].toString().toUpperCase()+" "+indate[2] == dateLabel1.text.toUpperCase() && inundLable.name !="")
+								{
+									date1.addChild(inundLable);
+								}
+								if(indate[0]+" " +indate[1].toString().toUpperCase()+" "+indate[2] == dateLabel2.text.toUpperCase() && inundLable.name !="")
+								{
+									date2.addChild(inundLable);
+								}
+								if(indate[0]+" " +indate[1].toString().toUpperCase()+" "+indate[2] == dateLabel3.text.toUpperCase() && inundLable.name !="")
+								{
+									date3.addChild(inundLable);
+								}
+							} 
+							
+							//Only add on "no predicted inundation" tag
+							if(date1.numChildren == 1)
+							{
+								date1.addChild(noInundat);
+							}
+							if(date2.numChildren == 1)
+							{
+								date2.addChild(noInundat2);
+							}
+							if(date3.numChildren == 1)
+							{
+								date3.addChild(noInundat3);
+							} 
+						}
+						else{
+							date1.addChild(noInundat);
+							date2.addChild(noInundat2);
+							date3.addChild(noInundat3);
+						}
+					} 
+				}
+				else
+				{
+				}
+				
+				if(hashTable.containsKey("timezone"))
+				{
+					_timeZone=hashTable.find("timezone") as Number;
+				}
+				else
+				{
+					//use computer's timezone
+					var tempDate:Date=new Date();
+					_timeZone=-tempDate.getTimezoneOffset()/60.0;
+					
+					//use utc
+					//_timeZone=0;
+				}
+			}
+			
+			protected function basewidget1_removeHandler(event:FlexEvent):void
+			{
+				for (var r:int = 0; r < map.layerIds.length; r++)
+				{
+					if(map.getLayer(map.layerIds[r]).name == "inundation")
+					{
+						map.getLayer(map.layerIds[r]).visible = false;
+					}
+				}
+				for(var e:int = 0; e < date1.numElements; e++)
+				{
+					var child:Object;
+					child = date1.getChildAt(e);	
+					if (child is CheckBox) {
+						child.selected = false;
+					}
+				}
+				for(var q:int = 0; q < date2.numElements; q++)
+				{
+					var child:Object;
+					child = date2.getChildAt(q);	
+					if (child is CheckBox) {
+						child.selected = false;
+					}
+				}
+				for(var w:int = 0; w < date3.numElements; w++)
+				{
+					var child:Object;
+					child = date3.getChildAt(w);	
+					if (child is CheckBox) {
+						child.selected = false;
+					}
+				}
+				//uncheck checked layers when removing widget 
+				/* LayerXML.Layer[1].Layer[1].Layer[0].@checked = 0;
+				LayerXML.Layer[1].Layer[1].Layer[1].@checked = 0;
+				LayerXML.Layer[1].Layer[1].Layer[2].@checked = 0;
+				LayerXML.Layer[1].Layer[2].Layer[0].@checked = 0;
+				LayerXML.Layer[1].Layer[2].Layer[1].@checked = 0;
+				LayerXML.Layer[1].Layer[2].Layer[2].@checked = 0;
+				LayerXML.Layer[1].Layer[3].Layer[0].@checked = 0;
+				LayerXML.Layer[1].Layer[3].Layer[1].@checked = 0;
+				LayerXML.Layer[1].Layer[3].Layer[2].@checked = 0;
+				LayerXML.Layer[1].Layer[0].Layer[0].@checked = 0;
+				LayerXML.Layer[1].Layer[0].Layer[1].@checked = 0;
+				LayerXML.Layer[1].Layer[0].Layer[2].@checked = 0; */
+				//grid file
+				LayerXML.Layer[0].@src = 0;
+			}
+			
+			private function receivedData(event:AppEvent):void
+			{
+				hashTable=event.data as Hashtable;
+				if(hashTable.containsKey("loginuser"))
+				{
+					userArray=hashTable.find("loginuser");
+				}
+				
+				if(userArray != "guest")
+				{
+					LayerXML = configXML.xmlforLayerList.Layer as XMLList;
+				}
+				else{
+				}
+				/* trPermissions.validateNow();
+				trPermissions.expandItem(LayerXML.Layer[1], true);
+				trPermissions.validateNow();
+				trPermissions.expandItem(LayerXML.Layer[1].Layer[0], true); */
+			}
+			
+			private function timeZoneChanged(event:AppEvent):void
+			{
+				if(hashTable.containsKey("timezone"))
+				{
+					_timeZone=hashTable.find("timezone") as Number;
+				}
+			}
+			
+			private function languageChanged(event:AppEvent):void
+			{
+				currentLangID=int(event.data);
+			}
+			
+			private function inundationClick(event:Event):void
+			{
+				idLayer = event.currentTarget.id;
+				induColor = 0x008FCA;
+				if(event.currentTarget.selected == true)
+				{
+					if(map.getLayer(event.currentTarget.id) == null){
+						layerLoader.visible = true;
+						layerLoader1.visible = true;
+						var filesource:String = event.currentTarget.name;
+						urlLoader.addEventListener(Event.COMPLETE,layercompleteHandler);
+						urlLoader.addEventListener(IOErrorEvent.IO_ERROR,errorHandler);
+						urlLoader.load( new URLRequest(filesource));
+						function errorHandler(eve:Event):void
+						{
+							layerLoader.visible = false;
+							layerLoader1.visible = false;
+						}
+					}
+					else{
+						mySymbol.color = induColor;
+						map.getLayer(event.currentTarget.id).visible = true;
+					}
+				}
+				else
+				{
+					if(map.getLayer(event.currentTarget.id) == null){
+					}
+					else
+					{
+						map.getLayer(event.currentTarget.id).visible = false;
+					}
+				}
+			}
+			
+		//Layer Tree Toggle Handler base on checked and type attribute
+			private function toggleLayer(event:ListEvent):void
+			{
+				idLayer = event.itemRenderer.data.@pId;
+				induColor = uint(event.itemRenderer.data.@colr);
+				if(event.itemRenderer.data.@type == "inund")
+				{
+					if(event.itemRenderer.data.@checked == "1"){
+						if(map.getLayer(idLayer) == null){
+							layerLoader.visible = true;
+							layerLoader1.visible = true;
+							var filesource:String = event.itemRenderer.data.@src;
+							urlLoader.addEventListener(Event.COMPLETE,layercompleteHandler);
+							urlLoader.addEventListener(IOErrorEvent.IO_ERROR,errorHandler);
+							urlLoader.load( new URLRequest(filesource));
+							function errorHandler(eve:Event):void
+							{
+								layerLoader.visible = false;
+								layerLoader1.visible = false;
+							}
+						}
+						else{
+							mySymbol.color = induColor;
+							map.getLayer(idLayer).visible = true;
+						}
+					}
+					else
+					{
+						if(map.getLayer(idLayer) == null){
+						}
+						else
+						{
+							map.getLayer(idLayer).visible = false;
+						}
+					}					
+				}				
+			}
+			
+			///Shapefile add for Inundation layers (no DBF attributes)
+			private function layercompleteHandler(event:Object):void
+			{
+				var shpByteArray:ByteArray = new ByteArray;
+				shpByteArray = urlLoader.data as ByteArray;
+				if (shpByteArray && shpByteArray.length > 0 )
+				{
+					loadShapefile_inun(shpByteArray);
+				}
+				else
+				{
+					Alert.show("Sorry, but there is a problem with the shapefile.");
+				}
+			}
+			private function loadShapefile_inun(shpByteArray:ByteArray):void
+			{
+				var index:int = 0;
+				var shpReader:ShpReader = new ShpReader(shpByteArray);
+				var shapeType:int = shpReader.readShpType();
+				var graphicsLayer:GraphicsLayer = new GraphicsLayer;
+				while (shpReader.hasMore()) {
+					if (shapeType == 5) {
+						var shpPolygon:ShpPolygon = shpReader.readShpPolygon();
+						graphicsLayer.add(new Graphic(shpPolygon.toPolygon()));
+						mySymbol.color = induColor;
+						graphicsLayer.symbol = mySymbol;
+						graphicsLayer.refresh();
+						index++;
+					}
+					else if (shapeType == 3) {
+						/* WC 7.21.2010 - shapefile type = polyline */
+						var shpLine:ShpLine = shpReader.readShpLine();
+						graphicsLayer.add(new Graphic(shpLine.toLine()));
+						graphicsLayer.symbol = lineGrid;
+						graphicsLayer.refresh();
+						index++;
+					}
+				}
+				graphicsLayer.addEventListener(LayerEvent.UPDATE_START,layerAdd);
+				graphicsLayer.addEventListener(LayerEvent.UPDATE_END,layerAddedEnd);
+				graphicsLayer.name = "inundation";
+				graphicsLayer.id = idLayer;
+				graphicsLayer.visible;
+				map.addLayer(graphicsLayer);
+				layerLoader.visible = false;
+				layerLoader1.visible = false;
+			}
+			
+			private function layerAdd(event:LayerEvent):void
+			{
+				layerLoader.visible = true;
+				layerLoader1.visible = true;
+			}
+			private function layerAddedEnd(event:LayerEvent):void
+			{
+				layerLoader.visible = false;
+				layerLoader1.visible = false;
+			}
+			private function showperc(item:Number):String
+			{
+				return Number(item)*100 + " %";
+			}
+			
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<net:URLLoader id="urlLoader" dataFormat="{URLLoaderDataFormat.BINARY}" />				
+		<mx:GlowFilter id = "glowFilter" color = "0x3D9BBF"
+					   blurX = "1" blurY = "1" quality = "1" alpha = "0.5" />
+		<esri:SimpleLineSymbol id="lineW" color="0x302522" width="2"/>
+		<esri:SimpleLineSymbol id="lineGrid" color="0x302522" width=".5"/>
+		<esri:SimpleLineSymbol id="lines" color="0x302522" width="1"/>
+		<esri:SimpleFillSymbol id="mySymbol" alpha="0.4" outline="{lines}" style="solid"/>
+		
+		<!--<s:Animate id="anim" duration="10000" repeatBehavior="loop"
+				   repeatCount="0" repeatDelay="500">
+			<s:motionPaths>
+				<s:SimpleMotionPath id="pth" property="horizontalScrollPosition" />
+			</s:motionPaths>
+		</s:Animate>-->
+	</fx:Declarations>
+	<viewer:WidgetTemplate  enableMinimizeButton="true" enableResizeButton="false" enableIcon="false" leftPadding="0" iconWidth="0" id="LayerViewerWT" 
+							width="458" height="355">
+		<viewer:layout>
+			<s:VerticalLayout gap="0" paddingTop="2"/>
+		</viewer:layout>
+		<mx:VBox label="{ResourceManager.getInstance().getString('LayerViewer','ecopTab')}"
+				 paddingTop="1" width="100%" height="100%">
+				<mx:VBox horizontalAlign="center" id="ecopLayerOption" label="{ResourceManager.getInstance().getString('LayerViewer','layers')}" width="100%" height="100%">	
+					<mx:Tree id="trPermissions" dataProvider="{LayerXML}" openItems="{LayerXML}"
+							 itemRenderer="widgets.Inundation.skins.TreeRenderer"
+							 showRoot="false" paddingTop="5" labelField="@pName" height="26" rowHeight="20"
+							 width="100%" folderClosedIcon="{null}" itemClick="toggleLayer(event)"
+							 folderOpenIcon="{null}" defaultLeafIcon="{null}"  mouseEnabled="false" borderStyle="none" verticalScrollPolicy="auto"/>
+					
+					<mx:VBox paddingTop="5" paddingLeft="4" fontSize="13" height="266" width="100%" id="inundates" borderStyle="solid" borderVisible="true" borderColor="0x666666">
+						<mx:VBox paddingTop="-1" width="100%" id="date1"/>
+						<mx:VBox paddingTop="-1" width="100%" id="date2"/>
+						<mx:VBox paddingTop="-1" width="100%" id="date3"/>
+					</mx:VBox>
+					
+					<!--<mx:DataGrid  verticalGridLines="true" width="100%" height="146" id="dg" rowHeight="23">
+						<mx:columns>
+							<mx:DataGridColumn  headerText="Time" width="90" fontSize="12" dataField="time"/>
+							<mx:DataGridColumn  headerText="Description" width="130" dataField="desc" fontSize="12"/>
+							<mx:DataGridColumn headerText="Value" width="9" dataField="value" fontSize="11"/>
+						</mx:columns>
+					</mx:DataGrid>-->
+				</mx:VBox>
+		</mx:VBox>
+		<mx:HBox height="17">
+			<mx:SWFLoader id="layerLoader" source="assets/images/loader.swf" horizontalCenter="0" bottom="1" width="18" height="18" visible="false"/>
+			<mx:Label visible="false" id="layerLoader1" fontWeight="bold" fontSize="11" text="Loading..."/>
+			<mx:Label paddingLeft="55" fontWeight="bold" visible="false" fontSize="11" text=" SLR = Sea Level Rise"/>
+		</mx:HBox>
+		
+		<!--
+		<mx:HRule width="100%"/>
+		<mx:VBox paddingTop="2" width="100%" paddingLeft="1" height="34" horizontalScrollPolicy="off" horizontalAlign="center" verticalAlign="middle" backgroundColor="0x666666">
+			<mx:HBox width="100%">
+				<mx:Label id="disclaimer2" text="{modeldescription}" fontSize="12" fontWeight="normal" paddingTop="1" width="100%" color="0xE7E9E9" />
+				<mx:Label id="disclaimer3" fontWeight="bold" fontSize="12" color="0xE7E9E9" width="100%" paddingTop="1" />				
+			</mx:HBox>
+			<mx:HRule  width="100%"/>
+			<mx:HBox paddingTop="2" width="100%" paddingLeft="2" height="10%" horizontalScrollPolicy="off" horizontalAlign="center" verticalAlign="middle" backgroundColor="0xcd1b21">
+		</mx:VBox>-->
+	</viewer:WidgetTemplate>
+</viewer:BaseWidget>

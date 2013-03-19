@@ -1,0 +1,430 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml"
+	width="100%" height="229" visible="true" label="Chart" color="0x000000" accentColor="0x000000"
+    x="10" horizontalScrollPolicy="off" verticalScrollPolicy="off" 
+	creationComplete="initChart()" xmlns:s="library://ns.adobe.com/flex/spark">
+	
+	<mx:Style>
+    .yesAxisStyle
+    {
+        showLabels: true;
+        tickPlacement: inside;
+        showLine: false;
+        axisWidth: "20";
+        axisBackgroundAlpha: "1";
+        axisBackgroundColor: "#CDE2F8";
+        labelAlign: "left"; 
+        labelFontSize: "10";
+        labelFontColor: "#FFFFFF";
+    }    
+    .noAxisStyle
+    {
+        showLine: true;
+        showLabels: false;
+        tickPlacement: outside;
+    }
+    
+    .mainChartStyle
+    {
+        gutterBottom: 25;
+    }
+    .gridlines
+    {
+        horizontalChangeCount: 2; 
+        verticalChangeCount: 2;
+        direction: both;
+    }
+
+    .hdividedbox
+    {
+        borderThickness: 1;
+        borderColor: #CCCCCC;
+        borderStyle: solid;
+    }
+
+    .linkbutton
+    {
+        paddingLeft: 0;
+        paddingRight: 0;
+        paddingTop: 0;
+        paddingBottom: 0;    
+    }
+	.datatip {
+		fontFamily: "Arial";
+		fontSize: 36; 
+		fontWeight:bold;
+		fontStyle:italic;            
+	}
+    .button
+    {
+        fillAlphas: 1,1;
+        cornerRadius: 2;
+    }
+
+  </mx:Style>        
+	
+	 <mx:Script>
+	 <![CDATA[
+		 import mx.charts.HitData;
+		 import mx.charts.chartClasses.CartesianChart;
+		 import mx.charts.events.ChartEvent;
+		 import mx.charts.series.AreaSeries;
+		 import mx.collections.ArrayCollection;
+		 import mx.controls.Alert;
+		 import mx.graphics.ImageSnapshot;
+		 import mx.graphics.SolidColor;
+		 import mx.graphics.Stroke;
+		 import mx.managers.CursorManager;
+		 import mx.printing.FlexPrintJob;
+		 import mx.printing.FlexPrintJobScaleType;
+		 import mx.utils.ObjectUtil;
+		 
+		 import org.alivepdf.display.Display;
+		 import org.alivepdf.display.PageMode;
+		 import org.alivepdf.layout.*;
+		 import org.alivepdf.pdf.PDF;
+		 import org.alivepdf.saving.Method;
+		 
+		 import spark.components.VGroup;
+		 import spark.primitives.BitmapImage;
+		 
+		 import widgets.ECOP.components.utils.ChartDataTip;
+		 import widgets.TimeSlider.components.util.DateTimeUtilities;
+     //can optioinally have 2 charts, one for speed and one for direction, for example
+     [Bindable]
+     private var upperChartData:ArrayCollection = new ArrayCollection();
+     [Bindable]
+     private var lowerChartData:ArrayCollection = new ArrayCollection();
+	 [Bindable]
+	 private var UPPER_CHART_HEIGHT:Number = 209;
+     [Bindable]
+     private var LOWER_CHART_HEIGHT:Number = 40;
+     [Bindable]
+     private var CHART_WIDTH:Number;
+     [Bindable] private var _selectedDate:String;
+     [Bindable] private var _selectedData:String;
+     [Bindable] private var _selectedPercent:String;
+     [Bindable] private var _varLabel:String;
+     [Bindable] private var _varUnits:String;
+     [Bindable] private var _altUnits:String;
+     [Bindable] private var _varTime:String;
+     [Bindable] private var _ChartName:String; 
+     private var initSeriesArray:Array = new Array();
+     private var level:Number = 1;
+     private var newSeries:Array;
+		 [Bindable]
+		 public var oneday:Boolean = false;
+		 
+	 [Bindable]	public var getfeature:Boolean = true;
+		 
+		 [Bindable]	public var areaSelected:String = "";
+          
+     public function set lowerData(a:ArrayCollection) : void {
+        lowerChartData = new ArrayCollection(a.source);
+      }
+      
+      public function set upperData(a:ArrayCollection) : void {
+        var tmpData:ArrayCollection = a;
+        upperChartData = new ArrayCollection(a.source);
+      }
+      
+      public function set altUnits(s:String) : void{
+      	_altUnits=s;
+      }
+      public function set varUnits(s:String) : void {
+        _varUnits = s;
+      }
+      
+      public function set varLabel(s:String) : void {
+        _varLabel = s;
+      }
+      
+      public function set varTime(s:String) : void {
+        _varTime = s;
+      }
+      
+      public function set chartTitle(s:String) : void {
+       _ChartName=s;
+      }
+      
+      public function set chartSize(n:Number) : void {
+              CHART_WIDTH = n;}
+
+      private function initChart():void
+      {
+		initSeriesArray = upperChart.series;
+		upperChart.setStyle("dataTipRenderer",ChartDataTip);
+				
+		getAverage();
+      }
+      
+       private function dateParse(value:String):Date
+      {
+          //"03-04-2010 12:00:00"
+		   if(oneday == true)
+		   {
+			   dateRend.axis = caxis2;
+			   dateRend.visible = false;
+		   }
+		   else{
+			   dateRend.axis = caxis;
+		   }
+          if(value==null) return new Date();
+          var date:Array = value.split(" ");
+          var dateStr:String = date[0];
+		  var dateArr:Array = dateStr.split("-");
+          var timeStr:String = date[1];
+		  var timeArr:Array = timeStr.split(":");
+          
+		  var repSlash:RegExp = /-/g;
+		  dateStr = dateStr.replace(repSlash, "/");
+		  timeStr = timeStr.replace("Z", "");
+          dateStr = dateStr + " " + timeStr;//.split(".")[0];
+		  return new Date(dateArr[2],Number(dateArr[1])-1,dateArr[0],timeArr[0],timeArr[1],timeArr[2]);		  
+	   } 
+      
+	  private function formatDateLabel(value:Number, prevValue:Number, axis:DateTimeAxis):String
+      {
+		 /*  var dateLabel:String = labelSummaryDateFormatterDM.format(value);
+		  //remove for no data stations
+		  if(dateLabel == "31/12/69")
+		  {
+			  dateLabel = "";
+		  }
+		  
+		  return dateLabel; */
+		  
+		var dateValue:Date = new Date();
+        dateValue.setTime(value);
+        switch(axis.labelUnits) {
+          case "months":
+            return labelMonthFormatter.format(dateValue);
+            break;
+          case "days":
+            return labelDayFormatter.format(dateValue);
+            break;
+          case "hours":
+            return labelHourFormatter.format(dateValue);
+            break;
+          default:
+            return labelSummaryDateFormatterDM.format(dateValue);
+            break;
+        } 
+      }
+
+     private function upperChartDataTip(hitSpot:HitData):String
+     {
+     	//TODO: really cool: if clicked right on a date, pop up a smaller chart showing this day's data
+     	//for now, show this date time and the y value at that point
+     	//trace(hitSpot.chartItem.toString());
+     	
+     	var thisTime:String = "<b>"+ hitSpot.item.TIME +"</b> \n";
+     	var thisSpeed:String = hitSpot.item.SPEED + " " + _varUnits + "\n";
+		
+		var thisDirection:String = "Direction: " + hitSpot.item.DIRECTION + " " + _altUnits;
+		if(_ChartName.search("Wave") == -1 && _varUnits.search("Level")==-1)
+		{
+			return thisTime + thisSpeed + thisDirection + "\n\n" + _selectedDate + "\n" + _selectedPercent;
+		}
+		else{
+			return thisTime + thisSpeed + "\n" + _selectedDate + "\n" + _selectedPercent;
+		}
+     }
+
+     private function getAverage():void
+     {
+     	var sum:Number = 0;
+        for(var i:int = 0; i < upperChart.dataProvider.length; i++)
+        { 
+           try
+           {
+              sum = sum + Number(upperChart.dataProvider.getItemAt(i)[this._varLabel]);
+              upperChart.series[0].getChildAt(i + 1).showRenderer(false);
+           }
+           catch(e:Error) {};
+        }
+        if (upperChartData.length != 0) {
+          _selectedDate = "<b>" + upperChart.dataProvider.getItemAt(0)[this._varTime] + ' - ' + 
+			  upperChart.dataProvider.getItemAt(upperChart.dataProvider.length - 1)[this._varTime] + "</b>";
+           _selectedPercent = "Avg: " + percentageFormatter.format(sum / upperChart.dataProvider.length) + " " + this._varUnits;
+           _selectedData = '';
+        }
+     }
+
+	 private function print():void
+	 {
+		 var now:Date = new Date();
+		 CursorManager.setBusyCursor();
+		 var p:FlexPrintJob = new FlexPrintJob;
+		 
+		 printButt.visible = false;
+		 SaveButt.visible = false;
+		 if (p.start())
+		 {
+			 try
+			 {		
+				 //this.setStyle("backgroundColor",'0x4C4C4C');
+				 //tex.text = "Printed on " + now.toLocaleString() + " - Dubai ";
+				 p.printAsBitmap = false;
+				 p.addObject(this, FlexPrintJobScaleType.NONE);
+				 p.send();
+				 printButt.visible = true;
+				 SaveButt.visible = true;
+				// tex.text = "Double click on chart to view full data";
+			 }
+			 catch (error:Error)
+			 {
+				 Alert.show(error.toString());
+				 CursorManager.removeBusyCursor();
+				 printButt.visible = true;
+				 SaveButt.visible = true;
+			 }
+			 finally
+			 {
+				 CursorManager.removeBusyCursor();
+			 }
+		 }
+		 else{
+			 CursorManager.removeBusyCursor();
+			 printButt.visible = true;
+			 SaveButt.visible = true;
+		 }
+	 }
+		 
+	 private function save():void
+	 {
+		 printButt.visible = false;
+		 SaveButt.visible = false;
+		 
+		 var d:Date = new Date();
+		 
+		 var now:Date = new Date();
+		 tex.text = "Printed on " + now.toLocaleString() + " - Dubai ";
+		 
+		 var exportPDF:PDF=new PDF(Orientation.LANDSCAPE,"Mm",Size.A4);
+		 var rs:Resize= new Resize("ResizePage","centered");
+		 exportPDF.setDisplayMode(Display.DEFAULT);
+		 exportPDF.addPage();
+		 exportPDF.addImage(this,rs,0,0,0,0,0,1,true,"PNG",100);
+		 var bytes:ByteArray=exportPDF.save(Method.LOCAL);
+		 var f:FileReference=new FileReference();
+		 
+		 f.save(bytes,"select_graph_"+d.date.toString()+"_"+(d.month+1).toString()+"_"+d.fullYear.toString() +".pdf");
+		 
+		 printButt.visible = true;
+		 SaveButt.visible = true;
+		 //tex.text = "Double click on chart to view full data";
+	 }
+		 
+     
+     ]]>
+     </mx:Script>
+       <!-- Define chart effects -->
+	    <mx:SeriesSlide 
+	        id="slideIn" 
+	        duration="500" direction="up"
+	    />
+	    <mx:SeriesSlide 
+	        id="slideOut" 
+	        duration="500" 
+	        direction="down"
+	    />
+
+      <!-- Date Formatters -->
+	  <mx:DateFormatter id="labelMonthFormatter" formatString="MM/YY" />
+	  <mx:DateFormatter id="labelDayFormatter" formatString="DD-MM-YY" />
+	  <mx:DateFormatter id="labelHourFormatter" formatString="JJ:NN" />
+	  <mx:DateFormatter id="labelMinuteFormatter" formatString="MM/DD/YY JJ:NN" />
+	  <mx:DateFormatter id="labelSummaryDateFormatterDM" formatString="DD/MM/YY" />
+	  
+	  <mx:NumberFormatter id="percentageFormatter" useNegativeSign="true" precision="2" />
+	  <mx:NumberFormatter id="verticalAxisFormat" precision="1" />
+	  <mx:NumberFormatter id="dataFormat" precision="2" />
+	  <mx:SolidColorStroke id="axisStroke" color="#000000" alpha=".1" weight="1"/>
+	
+   <mx:Canvas  id="upperChartContainer" x="0" y="15" width="100%" height="{UPPER_CHART_HEIGHT}" 
+       horizontalScrollPolicy="off" verticalScrollPolicy="off" >
+    
+     <mx:AreaChart paddingLeft="9" id="upperChart" paddingTop="8" paddingRight="18" fontSize="11" x="-2" 
+          showDataTips="true" dataTipFunction="upperChartDataTip" dataProvider="{upperChartData}"
+          width="100%" height="{UPPER_CHART_HEIGHT}">
+            
+		  <mx:horizontalAxisRenderers>
+			  <mx:AxisRenderer visible="true" id="dateRend" tickPlacement="outside" showLine="false" placement="bottom"
+							   minorTickStroke="{new Stroke(0x666666, 3)}" canDropLabels="true" axis="{caxis}" minorTickPlacement="outside" />
+			  <mx:AxisRenderer visible="true" fontSize="11" showLabels="true" id="dateRend2" tickPlacement="outside" showLine="true" placement="bottom"
+							   minorTickStroke="{new Stroke(0x666666, 3)}" canDropLabels="true" axis="{caxis2}" minorTickPlacement="outside" />
+		  </mx:horizontalAxisRenderers>
+		  
+        <mx:verticalAxis>
+			<mx:LinearAxis id="laMain" baseAtZero="false" />
+		</mx:verticalAxis>
+		  
+		  <mx:verticalAxisRenderers>
+			  <mx:AxisRenderer
+				  id="verticalAxisRenderer"
+				  axis="{laMain}"
+				  placement="bottom" tickStroke="{axisStroke}"
+				  minorTickPlacement="outside" 
+				  minorTickLength="1" 
+				  tickLength="1" 
+				  tickPlacement="outside"
+				  color="0x707275"
+				  labelGap="0">
+				  <mx:axisStroke>
+					  <mx:SolidColorStroke color="#000000" weight="1" alpha=".7" />
+				  </mx:axisStroke>
+			  </mx:AxisRenderer>
+			  
+		  </mx:verticalAxisRenderers>
+		  
+		  <mx:backgroundElements>
+			  <mx:GridLines gridDirection="both">
+				  <mx:horizontalStroke>{axisStroke}</mx:horizontalStroke>
+				  <mx:verticalStroke>{axisStroke}</mx:verticalStroke>
+			  </mx:GridLines>
+		  </mx:backgroundElements>
+		  
+        <mx:series>
+          <mx:AreaSeries id="upperSeries" name="{this._varLabel}" xField="{this._varTime}" yField="{this._varLabel}" 
+                         areaFill="{new SolidColor(0xCDE2F8, 0.40)}"
+                         areaStroke="{new Stroke(0x0066DD, 1)}"
+                         fill="{new SolidColor(0x0066DD, 1)}" 
+                         radius="3" form="curve" showDataEffect="slideIn"
+                         hideDataEffect="slideOut">
+			  <mx:horizontalAxis>
+				  <mx:DateTimeAxis id="caxis" parseFunction="dateParse" interval="1" alignLabelsToUnits="false" displayLocalTime="false"
+								   labelUnits="days" labelFunction="formatDateLabel" minorTickUnits="days"  />
+			  </mx:horizontalAxis>
+			</mx:AreaSeries>
+			
+			<!-- added second axis just to show hour ticks-->
+			<mx:AreaSeries id="upperSeries2" name="{this._varLabel}" xField="{this._varTime}" yField="{this._varLabel}" 
+						   areaFill="{new SolidColor(0xCDE2F8, 0.40)}"
+						   areaStroke="{new Stroke(0x0066DD, 1)}"
+						   fill="{new SolidColor(0x0066DD, 1)}" visible="false"
+						   radius="3" form="curve" showDataEffect="slideIn"
+						   hideDataEffect="slideOut">
+				<mx:horizontalAxis>
+					<mx:DateTimeAxis id="caxis2" alignLabelsToUnits="false" parseFunction="dateParse" displayLocalTime="true"
+									 labelUnits="hours" interval="4" labelFunction="formatDateLabel" minorTickUnits="hours" />
+				</mx:horizontalAxis>
+			</mx:AreaSeries>
+        </mx:series>
+        
+        <mx:annotationElements>
+            <mx:Canvas id="mainChartArea" width="100%" height="100%" buttonMode="true"/>
+             <!-- mouseDown="setMouseDown(upperChart);" -->
+        </mx:annotationElements>
+      </mx:AreaChart>
+       
+    </mx:Canvas>
+	<mx:HBox paddingBottom="5" paddingLeft="5" horizontalAlign="center" verticalAlign="middle">
+		<s:Button label="Print" id="printButt" fontSize="11" width="50" click="print()" chromeColor="0xE5E5E5"/>
+		<s:Button label="Save" id="SaveButt" fontSize="11" width="50" click="save()" chromeColor="0xE5E5E5"/>
+		<s:Label id="units" text="{_varUnits}" fontSize="13" paddingLeft="6"  paddingTop="3" />
+		<!--<mx:Legend dataProvider="{upperChart}" height="13" />-->
+	</mx:HBox>
+	<s:Label id="copyr" text="Copyright 2012. Dubai Municipality" x="182" y="20"/>
+	<s:Label paddingLeft="5" x="100" y="227" id="tex" text="Six Hour incremental averages for {_ChartName}"/>
+</mx:Canvas>

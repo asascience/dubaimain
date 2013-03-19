@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns:fx="http://ns.adobe.com/mxml/2009" verticalScrollPolicy="off" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" fontSize="12" color="0x58595b" borderVisible="false"
+		 xmlns:util="widgets.OilSpill.components.util.*" backgroundColor="0xE5E5E5" creationComplete="init()"
+		 xmlns:mx="library://ns.adobe.com/flex/mx" alpha="1" xmlns:warnings="widgets.WarningViewer.warnings.*">
+	<fx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			
+			import widgets.LayerViewer.warnings.AdvisoryLabel;
+			import widgets.LayerViewer.warnings.SwimWarningLabel;
+			import widgets.LayerViewer.warnings.WarningLabel;
+			
+			public var warningsingleArray:Object = new Object;
+			
+			protected function init():void
+			{	
+				if(warningsingleArray.swim00 > 0)
+				{	
+					var warning:SwimWarningLabel = new SwimWarningLabel;
+					warning12a.addChild(warning);
+				}					
+					
+				if(warningsingleArray.swim06 > 0)
+				{	
+					var warning:SwimWarningLabel = new SwimWarningLabel;
+					warning6a.addChild(warning);
+				}
+				if(warningsingleArray.swim12 > 0)
+				{	
+					var warning:SwimWarningLabel = new SwimWarningLabel;
+					warning12p.addChild(warning);
+				}
+				if(warningsingleArray.swim18 > 0)
+				{	
+					var warning:SwimWarningLabel = new SwimWarningLabel;
+					warning18p.addChild(warning);
+				}
+				
+			//create label for 12am
+				if(warningsingleArray.swim00 != "none")
+				{
+					totalwarnings12a.text = totalwarnings12a.text + " Swimming Warning ";
+				}
+				
+			//create label for 12pm
+				if(warningsingleArray.wave12 != "none")
+				{
+					totalwarnings12p.text = totalwarnings12p.text + " Swimming Warning ";
+				}
+				
+			//create label for 6pm
+				if(warningsingleArray.wave18 != "none")
+				{
+					totalwarnings6p.text = totalwarnings6p.text + " Swimming Warning ";
+				}
+				
+			//create label for 6am
+				if(warningsingleArray.wave06 != "none")
+				{
+					totalwarnings6a.text = totalwarnings6a.text + " Swimming Warning ";
+				}
+				
+				//set as no warnings if none
+				if(totalwarnings6a.text == "")
+				{
+					totalwarnings6a.text = "No warnings or advisories at this time";
+				}
+				if(totalwarnings6p.text == "")
+				{
+					totalwarnings6p.text = "No warnings or advisories at this time";
+				}
+				if(totalwarnings12a.text == "")
+				{
+					totalwarnings12a.text = "No warnings or advisories at this time";
+				}
+				if(totalwarnings12p.text == "")
+				{
+					totalwarnings12p.text = "No warnings or advisories at this time";
+				}
+			}
+			
+		]]>
+	</fx:Script>
+	<mx:LinkBar dataProvider="{viewstack1}" width="100%"
+				horizontalAlign="center" textSelectedColor="0x3D9BBF" disabledColor="0x3D9BBF" fontSize="12" backgroundColor="0xE5E5E5"/>
+	<mx:ViewStack id="viewstack1" creationPolicy="all"
+				  x="0" y="-2" width="205"
+				  selectedIndex="1" height="170">
+		<mx:VBox label="6am" id="warning6a" paddingLeft="0" horizontalAlign="center" verticalScrollPolicy="auto" horizontalScrollPolicy="off"
+				 width="100%" height="100%">
+			<s:Label id="totalwarnings6a" text="" fontWeight="bold" fontSize="13" width="180"/>			
+			<mx:HRule width="100%"/>
+		</mx:VBox>
+		<mx:VBox id="warning12p" label="12pm" paddingLeft="0" horizontalAlign="center" verticalScrollPolicy="auto" horizontalScrollPolicy="off"
+				 width="100%" height="100%">
+			<s:Label id="totalwarnings12p" text="" fontWeight="bold" fontSize="13"  width="180"/>			
+			<mx:HRule width="100%"/>
+		</mx:VBox>
+		<mx:VBox id="warning18p" label="6pm" paddingLeft="0" horizontalAlign="center" verticalScrollPolicy="auto" horizontalScrollPolicy="off"
+				 width="100%" height="100%">
+			<s:Label id="totalwarnings6p" text="" fontWeight="bold" fontSize="13" width="180"/>			
+			<mx:HRule width="100%"/>
+		</mx:VBox>
+		<mx:VBox label="12am" id="warning12a" paddingLeft="0" horizontalAlign="center" verticalScrollPolicy="auto" horizontalScrollPolicy="off"
+				 height="100%">
+			<s:Label id="totalwarnings12a" text="" fontWeight="bold" fontSize="13" width="180"/>			
+			<mx:HRule width="100%"/>
+		</mx:VBox>
+	</mx:ViewStack>
+</mx:VBox>

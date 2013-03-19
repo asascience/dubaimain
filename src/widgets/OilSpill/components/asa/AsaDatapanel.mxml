@@ -1,0 +1,758 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas 
+	xmlns:mx="http://www.adobe.com/2006/mxml"
+	xmlns:s="library://ns.adobe.com/flex/spark" 
+	xmlns:flexlib="widgets.OilSpill.components.flexlib.containers.*" 
+	width="100%" height="100%" initialize="canvas1_initializeHandler(event)" creationComplete="init()">
+	<mx:Metadata>
+		[ResourceBundle("AsaDatapanel")]
+	</mx:Metadata>
+	<mx:Style>
+		.mySkinnyScrollBar { 
+			thumbColor: white;
+			trackColor: white;
+			
+			/*  : ClassReference("com.esri.viewer.skins.CustomMXScrollBarThumbSkin");*/
+
+		}
+	</mx:Style>
+	
+	<mx:Script>
+		<![CDATA[
+			import com.esri.ags.Map;
+			import com.esri.ags.geometry.MapPoint;
+			import com.esri.viewer.AppEvent;
+			import com.esri.viewer.ViewerContainer;
+			import com.esri.viewer.utils.Hashtable;
+			
+			import mx.charts.AxisRenderer;
+			import mx.charts.series.AreaSeries;
+			import mx.collections.ArrayCollection;
+			import mx.collections.IViewCursor;
+			import mx.containers.Canvas;
+			import mx.containers.HBox;
+			import mx.controls.Alert;
+			import mx.controls.DataGrid;
+			import mx.controls.Menu;
+			import mx.controls.TextArea;
+			import mx.controls.dataGridClasses.DataGridColumn;
+			import mx.events.FlexEvent;
+			import mx.formatters.DateFormatter;
+			import mx.graphics.SolidColor;
+			import mx.graphics.Stroke;
+			import mx.resources.ResourceManager;
+			
+			import widgets.OilSpill.components.flexlib.containers.HAccordion;
+			import widgets.OilSpill.components.flexlib.controls.tabBarClasses.SuperTab;
+
+			// Click menu... populates on initMap() and just shows/hides on map dblclick
+			public var menu:Menu=null;
+			// The Last point that was clicked... used to query for data.
+			//public var lastLL:LonLat=null;
+			// Last X and Y clicked
+			private var _x:Number;
+			private var _y:Number;
+			// Current timeslider time.  Used as STARTTIME for the graphs.
+			private var _time:String=null;
+			// Global array holding data to graph
+			private var linedata:Array=[];
+			// Global array holding data to grid
+			[Bindable]
+			private var linedataGrid:Array=[];
+
+			//private var activeLayer:Layer;
+
+			private var holderSize:Number;
+
+			private var _oilspills:Array=[];
+
+			private var _chemspills:Array=[];
+
+			//[Embed(systemFont='Verdana', fontWeight="bold", fontName='accordionHeader', mimeType='application/x-font', advancedAntiAliasing='true')]
+			[Bindable]
+			[Embed(source='widgets/OilSpill/assets/fonts/Tahoma.ttf', fontName='accordionHeader', mimeType='application/x-font', embedAsCFF=false)]
+			private var font1:Class;
+			private var _timeZone:Number=0;
+			private var _hashTable:Hashtable;
+
+			private function init():void {
+				
+				ViewerContainer.addEventListener(AppEvent.MAP_RESIZE, changeSize);
+				ViewerContainer.addEventListener(AppEvent.TIME_SLIDER_TIME_CHANGED, setTime);
+				
+				//** this will turn data panels back on
+				//this.map.addEventListener(LayerEvent.LAYER_TREE_CLICKED, this.loadLayer);
+				
+			}
+			
+
+			private function dataTabsDone(event:FlexEvent):void
+			{
+
+				dataTabs.closePolicy=SuperTab.CLOSE_NEVER;
+
+			}
+			private function timeSeriesTabsDone(event:FlexEvent):void
+			{
+				
+				timeSeriesTabs.closePolicy=SuperTab.CLOSE_NEVER;
+				
+			}
+/*
+			private function loadLayer(e:LayerEvent):void
+			{
+				if ((e.layer) && (this.activeLayer != e.layer))
+				{
+					this.activeLayer=e.layer;
+					if (e.layer.name.toString().indexOf("CONVERT-") == -1)
+					{
+						model.text=e.layer.name;
+					}
+					else
+					{
+						model.text=ResourceManager.getInstance().getString('layers', e.layer.name);
+					}
+					if (e.layer.info.oilspill)
+					{
+						pointInfo.visible=false;
+						processSpill(e.layer);
+						info.text="";
+					}
+					else if (e.layer.info.chemspill)
+					{
+						pointInfo.visible=false;
+						processSpill(e.layer);
+						info.text="";
+					}
+					else if (e.layer.info.queryable)
+					{
+						Lat.text="";
+						Lng.text="";
+						pointInfo.visible=true;
+						info.text="";
+						if (e.layer.info.download)
+						{
+							linkButton.visible=true;
+							linkButton.addEventListener(MouseEvent.CLICK, function():void
+								{
+									goToURL(e.layer.info.download)
+								});
+						}
+						else
+						{
+							linkButton.visible=false;
+						}
+                        if (e.layer.info.download2)
+                        {
+                            linkButton2.visible=true;
+                            linkButton2.addEventListener(MouseEvent.CLICK, function():void
+                            {
+                                goToURL(e.layer.info.download2)
+                            });
+                        }
+                        else
+                        {
+                            linkButton2.visible=false;
+                        }
+					}
+					else
+					{
+						pointInfo.visible=false;
+						info.text=ResourceManager.getInstance().getString('datapanel', 'NODATA');
+					}
+				}
+			}
+			*/
+
+			private function goToURL(url:String):void
+			{
+				navigateToURL(new URLRequest(url));
+			}
+
+			private function checkData(v:Number):String
+			{
+				if ((v < -2000) || (v > 2000))
+					return null;
+				else
+					return v.toString();
+			}
+
+			private function setTime(event:AppEvent):void
+			{
+				trace("datapanel setTime");
+				trace(event.data);
+				
+				//this.time=event.time;
+			}
+
+			public function set time(value:String):void
+			{
+				this._time=value;
+			}
+
+			
+
+			private function getFutureTime(t:String, days:Number):String
+			{
+				var datNum:Array=t.split("T");
+				var dateStr:String=datNum[0];
+				var timeStr:String=datNum[1].replace("Z", "");
+				dateStr=dateStr.replace(/\-/g, "/");
+				dateStr=dateStr + " " + timeStr.split(".")[0];
+				var tmpDate:Date=new Date(Date.parse(dateStr));
+
+				tmpDate.time=tmpDate.time + (days * 1000 * 60 * 60 * 24)
+
+				var df:DateFormatter=new DateFormatter;
+				df.formatString="YYYY-MM-DDTJJ:NN";
+				var qd:String=df.format(tmpDate.toString());
+
+				var intTest:Array=qd.split("-");
+				if (intTest[0].length == 3)
+				{
+					intTest[0]=new Date().getFullYear().toString();
+					qd=intTest.join("-");
+				}
+
+				return qd;
+			}
+
+			public function processSpill(dataurl:String, modeltype:String, casename:String, location:String, clientKey:String):void
+			{
+				this.linedata=[];
+				var url:String = dataurl + "?";
+				url+="ClientName=" + clientKey + "&";
+				url+="ModelType=" + modeltype + "&";
+				url+="CaseName=" + casename + "&";
+				url+="Location=" + location  + "&";
+				
+				//** may need to allow proxy
+				//var finalRequest:String = "http://staging.asascience.com/proxy/Proxy.ashx?u=" + encodeURIComponent(url);
+				var finalRequest:String = url;
+				var loader:URLLoader=new URLLoader(new URLRequest(finalRequest));
+				loader.addEventListener(Event.COMPLETE, dataReady);
+
+				function dataReady(ev:Event):void
+				{
+					loadSpillData(ev, casename);
+				}
+			}
+
+			private function loadSpillData(e:Event, name:String):void
+			{
+				var s:String=e.currentTarget.data;
+				var fdata:Array=s.split(";");
+				var fline:Array=fdata[0].split(",");
+				var vars:Array=[];
+				var units:Array=[];
+				var sub:Array;
+				linedataGrid = [];
+				
+				for each (var o:String in fline)
+				{
+					if(o == 'Evaporated (Tonnes)'){
+						units.push('Tonnes');
+					}
+					else if(o == "Density"){
+						units.push("Density (kg/m³)");
+					}
+					else if(o == 'Total Area (km²)'){
+						units.push('Total Area (m²)');
+					}
+					else{
+						units.push(o);	
+					} 
+					
+					sub=o.split("(");
+					if (sub.length > 1)
+					{
+						vars.push((sub[0] as String).substr(0, (sub[0] as String).length - 1));
+						//units.push((sub[1] as String).substr(0, (sub[1] as String).length - 1));
+					}
+					else
+					{
+						vars.push(o);
+						//units.push(o);
+					}
+				}
+				var sd:Date=new Date(1979, 11, 31, 0, 0);
+				var zd:Date;
+				var df:DateFormatter=new DateFormatter();
+				df.formatString="YYYY-MM-DDTJJ:NN";
+				var lo:Object={};
+				var d:Array;
+				for (var i:int=1; i < fdata.length - 1; i++)
+				{
+					lo={};
+					d=fdata[i].split(",");
+					trace(fdata[i]);
+					for (var j:int=0; j < d.length; j++)
+					{
+						if (vars[j].split(" ")[0] == "Time")
+						{
+							zd=new Date();
+							zd.time=sd.time + Math.round(d[j]) * 60 * 1000;
+							//added by Xiaowen. convert to selected time zone
+							zd.hours+=int(_timeZone);
+							zd.minutes+=((_timeZone%1)*60);
+							//lo["TIME"]=df.format(zd.toLocaleString()) + ":00";
+							lo["TIME"]=dateFormatterFunction(zd) + ":00";
+						}
+						else
+						{
+							lo[vars[j]]=d[j];
+						}
+					}
+					//add an "Hour" series in linedata
+					if (lo != {})
+					{
+						lo["Hours"]=i-1;
+					}
+					if (lo != {})
+						linedata.push(lo);
+				}
+				
+				//seperated data provide to add units for datagrid:
+				for (var t:int=1; t < fdata.length - 1; t++)
+				{
+					lo={};
+					d=fdata[t].split(",");
+					for (var a:int=0; a < d.length; a++)
+					{
+						if (units[a].split(" ")[0] == "Time")
+						{
+							zd=new Date();
+							zd.time=sd.time + Math.round(d[a]) * 60 * 1000;
+							//added by Xiaowen. convert to selected time zone
+							zd.hours+=int(_timeZone);
+							zd.minutes+=((_timeZone%1)*60);
+							//lo["TIME"]=df.format(zd.toLocaleString()) + ":00";
+							lo["TIME"]=dateFormatterFunction(zd) + ":00";
+						}
+						else
+						{
+							lo[units[a]]=d[a];
+						}
+					}
+					//add an "Hour" series in linedata
+					if (lo != {})
+					{
+						lo["Hours"]=t-1;
+					}
+					if (lo != {})
+						linedataGrid.push(lo);
+				}
+
+				setupGrapher(name, linedataGrid);
+
+				//graph part
+				tabsFates.removeAllChildren();
+				tabsViscosity.removeAllChildren();
+				tabsThickness.removeAllChildren();
+				//tabsDensity.removeAllChildren();
+				tabsArea.removeAllChildren();
+				tabsVolume.removeAllChildren();
+				//createGraphs(vars, "TIME", linedata, units);
+				//use Hours series as x axis
+				createGraphs(vars, "Hours", linedata, units, name);
+			}
+			//for multilanguage
+			private function dateFormatterFunction(d:Date):String
+			{
+				var zd:Date = d;
+				var yea:String = zd.fullYear.toString();
+				var mon:String = (zd.month+1).toString().length == 1 ? "0" + (zd.month+1).toString() : (zd.month+1).toString();
+				var dat:String = zd.date.toString().length == 1 ? "0" + zd.date.toString() : zd.date.toString();
+				var hrs:String = zd.hours.toString().length == 1 ? "0" + zd.hours.toString() : zd.hours.toString();
+				var min:String = zd.minutes.toString().length == 1 ? "0" + zd.minutes.toString() : zd.minutes.toString();
+				var qd:String=yea + "-" + mon + "-" + dat + "T" + hrs + ":" + min;
+				return qd;
+			}
+			private function createGraphs(names:Array, timeVar:String, data:Array, units:Array,scenario:String):void
+			{
+				//added by Xiaowen
+				//add Hours in 
+				//Fates
+				var z:AsaFatesGraphing = new AsaFatesGraphing();
+				z.graphData = new ArrayCollection(data);
+				tabsFates.addChild(z);
+				z.chart.series = [];
+				z.scenarioNam = "Name: " +scenario;
+				//Viscosity
+				var vis:AsaFatesGraphing=new AsaFatesGraphing();
+				vis.graphData=new ArrayCollection(data);
+				tabsViscosity.addChild(vis);
+				vis.chart.series=[];
+				vis.scenarioNam = "Name: " +scenario;
+				//Thickness
+				var thi:AsaFatesGraphing=new AsaFatesGraphing();
+				thi.graphData=new ArrayCollection(data);
+				tabsThickness.addChild(thi);
+				thi.chart.series=[];
+				thi.scenarioNam = "Name: " +scenario;
+				//Density
+				/* var den:AsaFatesGraphing=new AsaFatesGraphing();
+				den.graphData=new ArrayCollection(data);
+				tabsDensity.addChild(den);
+				den.chart.series=[]; */
+				//TotalArea
+				var are:AsaFatesGraphing=new AsaFatesGraphing();
+				are.graphData=new ArrayCollection(data);
+				tabsArea.addChild(are);
+				are.chart.series=[];
+				are.scenarioNam = "Name: " +scenario;
+				//Volume
+				var vol:AsaFatesGraphing=new AsaFatesGraphing();
+				vol.graphData=new ArrayCollection(data);
+				tabsVolume.addChild(vol);
+				vol.chart.series=[];
+				vol.scenarioNam = "Name: " +scenario;
+				
+				var mySeries:Array = new Array();
+				var colors:Array = new Array(0x4DAF4A,0x377EB8,0xE41A1C,0x984EA3)
+				
+				var val:Number = 0;
+				for(var e:int=2;e<data.length;e++)
+				{
+					if(val<Number(data[e].Density))
+					{
+						val = Number(data[e].Density);
+					} 
+				}
+				
+				for (var k:int=1; k < names.length; k++)
+				{
+					var l:AreaSeries = new AreaSeries();
+					l.name = names[k];
+					l.xField = timeVar;
+					l.yField = names[k];
+					l.displayName = names[k];
+					switch (names[k])
+					{
+						case "Surface":
+							l.setStyle("areaFill", new SolidColor(colors[0], 1));
+							z.chart.series.push(l);
+							z.yAxis.title="Mass ("+units[k]+")";
+							break;
+						case "Water Col":
+							l.setStyle("areaFill", new SolidColor(colors[1], 1));
+							z.chart.series.push(l);
+							z.yAxis.title="Mass ("+units[k]+")";
+							break;
+						case "Ashore":
+							l.setStyle("areaFill", new SolidColor(colors[2], 1));
+							z.chart.series.push(l);
+							z.yAxis.title="Mass ("+units[k]+")";
+							break;
+						case "Evaporated":
+							l.setStyle("areaFill", new SolidColor(colors[3], 1));
+							z.chart.series.push(l);
+							z.yAxis.title="Mass ("+units[k]+")";
+							break;
+						case "Thickness":
+							l.setStyle("areaFill", new SolidColor(colors[0], 1));
+							thi.chart.series.push(l);
+							thi.yAxis.title="Thickness (m)";
+							break;
+						case "Total Area":
+							l.setStyle("areaFill", new SolidColor(colors[0], 1));
+							are.chart.series.push(l);
+							are.yAxis.title="Total Area (m^2)";
+							break;
+						//from model service is iscosity
+						case "Viscosity":
+							l.setStyle("areaFill", new SolidColor(colors[0], 1));
+							vis.chart.series.push(l);
+							vis.yAxis.title="Viscosity (cSt)";
+							break;
+						/* case "Density":
+							l.setStyle("areaFill", new SolidColor(colors[0], 1));
+							
+							den.chart.series.push(l);
+							den.yAxis.title="Density (gm/cm^3)";
+							den.yAxis.maximum = val+.2;
+							den.yAxis.minimum = .2;
+							
+							break; */
+						case "Volume":
+							l.setStyle("areaFill", new SolidColor(colors[0], 1));
+							vol.chart.series.push(l);
+							vol.yAxis.title="Total Volume - Oil & Water (m^3)";
+							break;
+						default :
+							break;
+					}
+				}
+			}
+			private function exportXML(dg:DataGrid):String
+			{
+				var data:String="<Results>\n";
+				var columns:Array=dg.columns;
+				var columnCount:int=columns.length;
+				var column:DataGridColumn;
+				var dataProvider:Object=dg.dataProvider;
+				var rowCount:int=dataProvider.length;
+				var dp:Object=null;
+				var cursor:IViewCursor=dataProvider.createCursor();
+				var j:int=0;
+				var headerGenerated:Boolean=false;
+				var header:Array=[];
+
+				//loop through rows
+				while (!cursor.afterLast)
+				{
+					var obj:Object=null;
+					obj=cursor.current;
+					data+="\t\t<Data>\n";
+					//loop through all columns for the row
+					for (var k:int=0; k < columnCount; k++)
+					{
+						column=columns[k];
+						//Exclude column data which is invisible (hidden)
+						if (!column.visible)
+						{
+							continue;
+						}
+						if (!headerGenerated)
+						{
+							header.push(column.headerText);
+						}
+						data+="\t\t\t\t<" + header[k] + ">" + column.itemToLabel(obj) + "</" + header[k] + ">\n";
+					}
+					data+="\t\t</Data>\n";
+					headerGenerated=true;
+					cursor.moveNext();
+				}
+				dataProvider=null;
+				columns=null;
+				column=null;
+
+				return (data + "</Results>");
+			}
+
+			private function exportCSV(dg:DataGrid, csvSeparator:String=",", lineSeparator:String="\n"):String
+			{
+				var data:String="";
+				var columns:Array=dg.columns;
+				var columnCount:int=columns.length;
+				var column:DataGridColumn;
+				var header:String="";
+				var headerGenerated:Boolean=false;
+				var dataProvider:Object=dg.dataProvider;
+				var rowCount:int=dataProvider.length;
+				var dp:Object=null;
+				var cursor:IViewCursor=dataProvider.createCursor();
+				var j:int=0;
+
+				//loop through rows
+				while (!cursor.afterLast)
+				{
+					var obj:Object=null;
+					obj=cursor.current;
+					//loop through all columns for the row
+					for (var k:int=0; k < columnCount; k++)
+					{
+						column=columns[k];
+						//Exclude column data which is invisible (hidden)
+						if (!column.visible)
+						{
+							continue;
+						}
+						data+=column.itemToLabel(obj);
+						if (k < (columnCount - 1))
+						{
+							data+=csvSeparator;
+						}
+						//generate header of CSV, only if it's not genereted yet
+						if (!headerGenerated)
+						{
+							header+=column.headerText;
+							if (k < columnCount - 1)
+							{
+								header+=csvSeparator;
+							}
+						}
+					}
+					headerGenerated=true;
+					if (j < (rowCount - 1))
+					{
+						data+=lineSeparator;
+					}
+					j++;
+					cursor.moveNext();
+				}
+				dataProvider=null;
+				columns=null;
+				column=null;
+
+				return (header + "\n" + data);
+			}
+
+			private function downloadTextData(s:String, ext:String):void
+			{
+				var fileRef:FileReference=new FileReference();
+				fileRef.save(s, "data_" + Math.round(Math.random() * 10000) + "." + ext);
+			}
+			private function setupGrapher(name:String, data:Array):void
+			{
+
+				/*
+				if (this.lastLL)
+				{
+					staticText.htmlText="<b>Longitude:</b><br />" + this.lastLL.lon.toPrecision(5).toString() + "<br /><br />";
+					staticText.htmlText+="<b>Latitude:</b><br />" + this.lastLL.lat.toPrecision(5).toString();
+				}
+				*/
+				gridData.dataProvider = null;
+				gridData.dataProvider=data;
+				csvText.text=exportCSV(gridData);
+				
+				//Remove XML download for DUBAI
+				
+				//xmlText.text=exportXML(gridData);
+
+				hacc.selectedIndex=1;
+			}
+
+			private function saveSize():void
+			{
+				this.holderSize=tabsFates.width;
+				this.holderSize=tabsViscosity.width;
+				this.holderSize=tabsThickness.width;
+				this.holderSize=tabsArea.width;
+				this.holderSize=tabsVolume.width;
+			}
+
+			public function changeSize(e:AppEvent):void
+			{
+				/*
+				var t:Array=tabs.getChildren();
+				for each (var z:AsaFatesGraphing in t)
+				{
+					z.chartSize=this.holderSize;
+				}
+				this.holderSize=tabs.width - 20;
+				*/
+			}
+			//get the boomsCol and overflightsCol from datamanager
+			private function refreshHashTable():void
+			{
+				ViewerContainer.addEventListener(AppEvent.DATA_SENT, receivedData);
+				//dispatch the event, methods in BaseWidget
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DATA_FETCH_ALL));
+			}
+			private function receivedData(event:AppEvent):void
+			{
+				_hashTable=event.data as Hashtable;
+			}
+
+			protected function canvas1_initializeHandler(event:FlexEvent):void
+			{
+				//added by Xiaowen
+				refreshHashTable();
+				if(_hashTable.containsKey("timezone"))
+				{
+					_timeZone=_hashTable.find("timezone") as Number;
+				}
+				else
+				{
+					var tempDate:Date=new Date();
+					_timeZone=-tempDate.getTimezoneOffset()/60;
+				}
+			}
+
+		]]>
+	</mx:Script>
+	<mx:HBox width="100%" height="100%" horizontalGap="0" horizontalAlign="left" id="panel"
+			 verticalScrollPolicy="off" horizontalScrollPolicy="off" styleName="controlBG" backgroundAlpha="1">
+		<!--<mx:Canvas label="{resourceManager.getString('datapanel', 'TIMESERIES')}" id="content" width="100%" height="100%" verticalScrollPolicy="off" horizontalScrollPolicy="off"
+			styleName="controlBG">
+			<mx:VBox textAlign="center" verticalGap="0" verticalScrollPolicy="off" horizontalScrollPolicy="off" paddingLeft="5"
+				paddingTop="5" verticalAlign="top" paddingRight="5" paddingBottom="5" height="100%"
+				styleName="transBox">
+				<mx:Text id="model"/>
+				<mx:Text id="info"/>
+				<mx:LinkButton id="linkButton" visible="false" fontWeight="bold" color="#000000" label="{resourceManager.getString('datapanel', 'DATAACCESS')}"/>
+                <mx:LinkButton id="linkButton2" visible="false" fontWeight="bold" color="#000000" label="{resourceManager.getString('datapanel', 'DATAACCESS2')}"/>
+				<mx:VBox id="pointInfo" width="100%" height="100%" visible="false" styleName="transBox">
+					<mx:Button id="pointToggle" label="{resourceManager.getString('datapanel', 'POINTCLICK')}" click="chooseDataSite(event)"/>
+					<mx:ComboBox id="seriesLength" selectedIndex="3">
+						<mx:ArrayCollection>
+							<mx:Object label="Instantaneous" data="0"/>
+							<mx:Object label="6 hours" data="0.25"/>
+							<mx:Object label="12 hours" data="0.5"/>
+							<mx:Object label="18 hours" data="0.75"/>
+							<mx:Object label="1 day" data="1"/>
+							<mx:Object label="1.5 days" data="1.5"/>
+							<mx:Object label="2 days" data="2"/>
+							<mx:Object label="3 days" data="3"/>
+							<mx:Object label="5 days" data="5"/>
+							<mx:Object label="7 days" data="7"/>
+						</mx:ArrayCollection>
+					</mx:ComboBox>
+					<mx:HBox id="latbox" visible="false" styleName="transBox">
+						<mx:Label id="latlabel" text="{resourceManager.getString('base', 'LATITUDE')}:"/>
+						<mx:Text id="Lat"/>
+					</mx:HBox>
+					<mx:HBox id="lonbox" visible="false" styleName="transBox">
+						<mx:Label id="lnglabel" text="{resourceManager.getString('base', 'LONGITUDE')}:"/>
+						<mx:Text id="Lng"/>
+					</mx:HBox>
+				</mx:VBox>
+			</mx:VBox>
+		</mx:Canvas>-->
+		<!--<flexlib:SuperTabNavigator id="maintabs" horizontalAlign="left" width="100%" height="100%" editableTabLabels="false" verticalScrollPolicy="off" horizontalScrollPolicy="off">-->
+		<mx:HBox width="100%" height="100%" styleName="controlBG">
+			<flexlib:HAccordion id="hacc" fontSize="12" textAlign="center" width="100%"  fontFamily="accordionHeader"
+								height="100%" creationPolicy="all" horizontalGap="0">
+				<flexlib:SuperTabNavigator id="dataTabs" label="Data" width="100%" chromeColor="0xFFFFFF" height="100%" creationPolicy="all" 
+										   creationComplete="dataTabsDone(event)" paddingTop="0">
+					<mx:VBox id="gridHolder" height="100%" width="100%" label="Table" >
+						<mx:DataGrid id="gridData" fontSize="10" height="100%" width="100%" dataProvider="{linedataGrid}">
+							<mx:columns>
+								<mx:DataGridColumn headerText="Hours" backgroundColor="0xCCCCCC" dataField="Hours"/>
+								<mx:DataGridColumn headerText="Time" backgroundColor="0xCCCCCC" dataField="TIME"/>
+								<mx:DataGridColumn headerText="Evaporated (tonnes)" dataField="Tonnes"/>
+								<mx:DataGridColumn headerText="Ashore(Tonnes)" dataField="Ashore (Tonnes)"/>
+								<mx:DataGridColumn headerText="Surface(Tonnes)" dataField="Surface (Tonnes)"/>
+								<mx:DataGridColumn headerText="Thickness(m)" dataField="Thickness (m)"/>
+								<mx:DataGridColumn headerText="Total Area(m²)" dataField="Total Area (m²)"/>
+								<mx:DataGridColumn headerText="Viscosity(cSt)" dataField="Viscosity (cSt)"/>
+								<mx:DataGridColumn headerText="Water Column(Tonnes)" dataField="Water Col (Tonnes)"/>
+								<mx:DataGridColumn headerText="Volume(m³)" dataField="Volume (m³)"/>
+							</mx:columns>
+						</mx:DataGrid>
+					</mx:VBox>
+					<mx:VBox id="csvHolder" height="100%" width="100%" label="CSV"  >
+						<mx:TextArea verticalScrollBarStyleName="mySkinnyScrollBar" id="csvText"  textAlign="left" height="100%" width="100%"/>
+						<mx:HBox width="100%" height="20"  paddingLeft="5" paddingBottom="5" paddingRight="5">
+							<mx:Button height="20" width="50%" label="{ResourceManager.getInstance().getString('AsaDatapanel','downloadCsv')}" click="{downloadTextData(csvText.text, 'csv')}" />
+							<mx:Button height="20" width="50%" label="{ResourceManager.getInstance().getString('AsaDatapanel','regenerateCsv')}" click="{csvText.text = exportCSV(this.gridData)}" />
+						</mx:HBox>
+					</mx:VBox>
+					<!--<mx:VBox visible="true" id="xmlHolder" height="100%" width="100%" label="XML" styleName="transBox">
+						<mx:TextArea id="xmlText" textAlign="left" height="100%" width="100%" />
+						<mx:HBox width="100%" height="20" styleName="transBox" paddingLeft="5" paddingBottom="5" paddingRight="5">
+							<mx:Button height="20" width="50%" label="{ResourceManager.getInstance().getString('AsaDatapanel','downloadXml')}" click="{downloadTextData(xmlText.text, 'xml')}" fontFamily="Arial"/>
+							<mx:Button height="20" width="50%" label="{ResourceManager.getInstance().getString('AsaDatapanel','regenerateXml')}" click="{xmlText.text = exportXML(this.gridData)}" fontFamily="Arial"/>
+						</mx:HBox>
+					</mx:VBox>-->
+				</flexlib:SuperTabNavigator>
+				
+				<flexlib:SuperTabNavigator id="timeSeriesTabs" label="Time Series" width="100%" height="100%" creationPolicy="all"
+										   creationComplete="timeSeriesTabsDone(event)" paddingTop="0">
+					<mx:VBox id="tabsFates" width="{hacc.width - 40}" height="100%" label="Fates" styleName="transBox" />
+					<mx:VBox id="tabsViscosity" width="{hacc.width - 40}" height="100%" label="Viscosity" styleName="transBox" />
+					<mx:VBox id="tabsThickness" width="{hacc.width - 40}" height="100%" label="Thickness" styleName="transBox" />
+					<!--<mx:VBox id="tabsDensity" width="{hacc.width - 40}" height="100%" label="Density" styleName="transBox" />-->
+					<mx:VBox id="tabsArea" width="{hacc.width - 40}" height="100%" label="Area" styleName="transBox" />
+					<mx:VBox id="tabsVolume" width="{hacc.width - 40}" height="100%" label="Volume" styleName="transBox" />
+				</flexlib:SuperTabNavigator>
+				<!--<flexlib:SuperTabNavigator width="{hacc.width - 40}" label="Timeseries" creationPolicy="all" id="tabs" name="Graphs"
+					horizontalAlign="left" height="100%" editableTabLabels="false" verticalScrollPolicy="off" horizontalScrollPolicy="off"
+					paddingLeft="8" paddingTop="0" />-->
+			</flexlib:HAccordion>
+		</mx:HBox>
+		<!--</flexlib:SuperTabNavigator>-->
+	</mx:HBox>
+</mx:Canvas>

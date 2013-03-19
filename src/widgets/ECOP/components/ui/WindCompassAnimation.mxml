@@ -1,0 +1,551 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas 
+	xmlns:mx="http://www.adobe.com/2006/mxml" 
+	xmlns:axiis="http://www.axiis.org/2009" height="400" width="220"
+	xmlns:degrafa="http://www.degrafa.com/2007" horizontalScrollPolicy="off" verticalScrollPolicy="off"
+	xmlns:geometry="com.degrafa.geometry.*" label="Compass"
+	> 
+	<mx:Script> 
+		<![CDATA[ 
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.core.UIComponent;
+			import mx.utils.ColorUtil;
+			
+			import org.axiis.core.AxiisSprite;
+			import org.axiis.events.LayoutItemEvent;
+			
+			[Bindable] 
+			private var _title:String = ""; 
+			[Bindable] 
+			private var _subTitle:String = "";
+			[Bindable] 
+			private var _units:String = "";
+			[Bindable]
+			private var tickinterval:Array = new Array();
+			
+			private function getTickInter():void
+			{
+				var tick1:Number = (windDataAC.length)/5;
+				trace(windDataAC.length)
+				var tick2:Number = tick1 + tick1;
+				var tick3:Number = tick2 + tick1;
+				var tick4:Number = tick3 + tick1;
+				var tick5:Number = tick4 + tick1;
+				var tickinterval:Array = new Array();
+				
+				tickinterval.push(0);
+				tickinterval.push(tick1);
+				tickinterval.push(tick2);
+				tickinterval.push(tick3);
+				tickinterval.push(tick4);
+				tickinterval.push(tick5);
+				trace(tickinterval.length)
+				dataslider.tickValues = tickinterval;
+			}
+			
+			public function set units(value:String):void 
+			{ 
+				_units = value 
+			} 
+			public function set title(value:String):void 
+			{ 
+				_title = value 
+			} 
+			public function set subTitle(value:String):void 
+			{ 
+				_subTitle = value 
+			} 
+			
+			//Play/Pause button for animation chart
+			[Embed(source="../../assets/button-play_24x24.png")]
+			[Bindable]
+			public var imgstreaming:Class;
+			
+			[Embed(source="../../assets/button-pause_24x24.png")]
+			[Bindable]
+			public var imgPause:Class;
+			[Bindable] private var pointer:int=1;
+			[Bindable] private var streaming:Boolean=false;
+			[Bindable] private var currTime:String = new String;
+			[Bindable] private var currSpd:String = new String;
+			[Bindable] private var currDir:String = new String;
+			
+			[Bindable] 
+			public var windDataAC:ArrayCollection = new ArrayCollection([   {
+				DIRECTION:150, 
+				TIME:.5, 
+				SPEED:.3
+			}]); 
+			/** 
+			 * Store the maximum percentage in any one direction so we can set 
+			 our axis 
+			 */ 
+			[Bindable] 
+			private var maxPercentage:Number; 
+			
+			//variable to handle difference in the compass scale magnitude.  
+			//handles difference between winds/currents.
+			private var nVariable:int;
+			
+			
+			private function onPreRender():void 
+			{ 
+				var len:uint = windDataAC.length 
+				maxPercentage=0; 
+				for (var i:int=0; i < len; i++) 
+				{ 
+					maxPercentage = Math.max(maxPercentage, windDataAC.getItemAt(i).SPEED);
+				}			
+				
+				//110 value can change based on size of compass
+				nVariable = 110/maxPercentage;
+				
+				radialLayout.dataProvider = windDataAC.getItemAt(pointer);
+				currTime = windDataAC.getItemAt(pointer).TIME;
+				currDir = windDataAC.getItemAt(pointer).DIRECTION;
+				currSpd = windDataAC.getItemAt(pointer).SPEED;
+				dateLabel.text = currTime;
+				dateLabel2.text = currDir + ' degree'; 
+				dateLabel3.text	= currSpd + ' m/s';
+				
+				//round to nearest ten above max 
+				maxPercentage = Math.ceil(maxPercentage * 10) / 10;
+				
+				getTickInter();	
+			} 
+			
+			public function invalidate():void 
+			{ 
+				radialLayout.invalidateDataProvider(); 
+			} 
+			
+			private function dataSliceFormatter(value:Number):String {
+				/* This function formats tooltip for date slider  */
+				dataslider.toolTip = windDataAC.getItemAt(dataslider.value).TIME.toString(); // Show hour & min
+				return dataslider.toolTip
+			}
+			
+			private function stream():void
+			{
+				if (pointer == windDataAC.length -1 )
+					pointer=0;
+				
+				currTime = windDataAC.getItemAt(pointer).TIME;
+				currDir = windDataAC.getItemAt(pointer).DIRECTION;
+				currSpd = windDataAC.getItemAt(pointer).SPEED;
+				windDataAC.refresh();
+				dataslider.value = pointer;		
+				this.invalidate();
+				
+				if (streaming)
+				{
+					pointer++;
+					setTimeout(stream, 600);
+				}
+				
+				dateLabel.text = currTime;
+				dateLabel2.text = currDir + ' degree'; 
+				dateLabel3.text	= currSpd + ' m/s';
+//				dateLabel2.text =radialLayout.currentValue + ' º\n';
+//				dateLabel3.text	=radialLayout.currentDatum.SPEED + ' knots';// + _units;
+			}
+			
+			private function sliceData():void {
+
+				var index:Number = dataslider.value;
+				pointer = index;
+				currTime = windDataAC.getItemAt(index).TIME;
+				currDir = windDataAC.getItemAt(index).DIRECTION;
+				currSpd = windDataAC.getItemAt(index).SPEED;
+				windDataAC.refresh();
+				this.invalidate();
+
+				dateLabel.text = currTime;
+				dateLabel2.text = currDir + ' degree'; 
+				dateLabel3.text	= currSpd + ' m/s';
+//				dateLabel2.text =radialLayout.currentValue + ' º\n'; 
+//				dateLabel3.text	=radialLayout.currentDatum.SPEED + ' ' + _units;
+			}
+			
+			//Commented out bellow is for multi range color magnitudes for the compass
+			//would be cool to introduce but a non-intuitive visualization
+		]]> 
+	</mx:Script> 
+	
+	<mx:HBox id="outerbox" width="100%" height="100%" 
+			 horizontalAlign="left" 
+			 paddingBottom="5" paddingTop="5" paddingLeft="5" paddingRight="8"> 
+		<mx:VBox id="dataarea" horizontalAlign="left" 
+				 paddingBottom="5" 
+				 paddingTop="3" 
+				 paddingLeft="10" 
+				 paddingRight="10" > 
+			<!--<mx:Label text="{_title}" fontWeight="bold" fontSize="15" horizontalCenter="0" 
+					  color="0x4C4C4C" /> -->
+			<mx:Label text="{_subTitle}" fontSize="15" fontWeight="bold" horizontalCenter="0" color="0x4C4C4C" />
+			<mx:Label id="dateLabel2"
+					  paddingTop="15"
+					  horizontalCenter="0"
+					  fontFamily="Myriad Pro"
+					  fontSize="13"
+					  color="0x4C4C4C"/>
+			<mx:Label id="dateLabel3"
+					  horizontalCenter="0"
+					  fontFamily="Myriad Pro"
+					  fontSize="13"
+					  color="0x4C4C4C"/>
+			<mx:Label text="Time Slider" paddingTop="15" textAlign="left" fontFamily="Myriad Pro" fontSize="16" verticalCenter="0" color="0x4C4C4C"/>
+			<mx:HSlider width="200"
+						id="dataslider"
+						minimum="0"
+						maximum="{windDataAC.length-1}"
+						tickValues="{tickinterval}"
+						value="0" 
+						dataTipFormatFunction='{dataSliceFormatter}'
+						snapInterval="1"
+						change="{sliceData();}"
+						showTrackHighlight="false"
+						verticalCenter="-5"/>
+			<!-- Controls the streaming/pause of our data stream -->
+			<mx:HBox paddingLeft="11" paddingTop="12">
+				<mx:Image id="streamingButton" toolTip="Animate"
+						  top="282" x="80"
+						  alpha=".9"
+						  buttonMode="true"
+						  source="{(streaming) ? imgPause:imgstreaming}"
+						  click="{streaming=!streaming; stream(); }"/>
+				<!-- Shows current date from our data stream -->
+				<mx:Label id="dateLabel"
+						  top="20"
+						  horizontalCenter="0"
+						  fontFamily="Myriad Pro"
+						  fontSize="16"
+						  color="0x4C4C4C"/>
+			</mx:HBox>
+			
+		</mx:VBox>
+		
+		<!-- DATA CANVAS - PRIMARY CONTAINER
+		width="248" 
+		height="250"
+		width="{dataarea.width}" 
+		height="{dataarea.height}"
+		width="100%" 
+		height="100%"
+		-->
+		<axiis:DataCanvas id="dc" alpha="1"
+						  width="89%" 
+						  height="90%"
+						  > 
+			<!-- BACKGROUND --> 
+			<axiis:backgroundGeometries > 
+				<degrafa:Line stroke="{VaxisStroke}" 
+							  x="{dc.width/2}" 
+							  y="{0}" 
+							  x1="{dc.width/2}" 
+							  y1="{dc.height}"> 
+					<degrafa:decorators> 
+						<degrafa:SVGDashLine  dashArray="{[2,5]}"/> 
+					</degrafa:decorators> 
+				</degrafa:Line> 
+				<degrafa:Line stroke="{VaxisStroke}" 
+							  x="{0}" 
+							  y="{dc.height/2}" 
+							  x1="{dc.width}" 
+							  y1="{dc.height/2}"> 
+					<degrafa:decorators> 
+						<degrafa:SVGDashLine  dashArray="{[2,5]}"/> 
+					</degrafa:decorators> 
+				</degrafa:Line> 
+				<degrafa:Circle centerX="{dc.width/2}" 
+								centerY="{dc.height/2}" 
+								stroke="{axisStroke}" 
+								radius="{dc.height*.1}"> 
+					<degrafa:decorators> 
+						<degrafa:SVGDashLine  dashArray="{[2,5]}"/> 
+					</degrafa:decorators> 
+				</degrafa:Circle> 
+				<degrafa:Circle centerX="{dc.width/2}" 
+								centerY="{dc.height/2}" 
+								stroke="{axisStroke}" 
+								radius="{dc.height*.2}"> 
+					<degrafa:decorators> 
+						<degrafa:SVGDashLine  dashArray="{[2,5]}"/> 
+					</degrafa:decorators> 
+				</degrafa:Circle> 
+				<degrafa:Circle centerX="{dc.width/2}" 
+								centerY="{dc.height/2}" 
+								stroke="{axisStroke}" 
+								radius="{dc.height*.3}"> 
+					<degrafa:decorators> 
+						<degrafa:SVGDashLine  dashArray="{[2,5]}"/> 
+					</degrafa:decorators> 
+				</degrafa:Circle> 
+				<degrafa:Circle centerX="{dc.width/2}" 
+								centerY="{dc.height/2}" 
+								stroke="{axisStroke}" 
+								radius="{dc.height*.4}"> 
+					<degrafa:decorators> 
+						<degrafa:SVGDashLine  dashArray="{[5,5]}"/> 
+					</degrafa:decorators> 
+				</degrafa:Circle> 
+				<degrafa:Circle centerX="{dc.width/2}" 
+								centerY="{dc.height/2}" 
+								stroke="{axisStroke}" 
+								radius="{dc.height*.5}"> 
+					<degrafa:decorators> 
+						<degrafa:SVGDashLine dashArray="{[5,5]}"/> 
+					</degrafa:decorators> 
+				</degrafa:Circle> 
+			</axiis:backgroundGeometries> 
+			
+			<!-- LAYOUTS --> 
+			<axiis:layouts> 
+				<!-- CUSTOM LAYOUT --> 
+				<axiis:BaseLayout id="radialLayout" 
+								  itemClick="{this.dispatchEvent(event)}" 
+								  preRender="onPreRender();" 
+								  dataProvider="{windDataAC.getItemAt(pointer)}" 
+								  dataField="DIRECTION" 
+								  width="{dc.width}" 
+								  height="{dc.height}" 
+								  showDataTips="false"> 
+					<!-- REPEATER - ACTS LIKE A LOOP --> 
+					<axiis:referenceRepeater> 
+						<axiis:GeometryRepeater> 
+							<axiis:geometry> 
+								<geometry:Wedge id="referenceWedge" 
+												centerX="{width/2}" 
+												centerY="{height/2}" 
+												innerRadius="0" 
+												outerRadius="{outerRadius.value * 
+												(radialLayout.currentDatum.SPEED * 2)}" 
+												startAngle="0" 
+												arc="0"/> 
+							</axiis:geometry> 
+							<!-- MODIFIERS - HOW WE ALTER GEOMETRY ON EACH LOOP 
+							<axiis:modifiers> 
+							<axiis:PropertyModifier modifier="{radiusStep.value}" 
+							modifierOperator="subtract" 
+							property="outerRadius"/> 
+							</axiis:modifiers>  -->
+						</axiis:GeometryRepeater> 
+					</axiis:referenceRepeater> 
+					<!-- DRAWING GEOMETRIES - OUR VISUAL PLOTS --> 
+					<axiis:drawingGeometries> 
+						<!-- MAIN WEDGE - PER DATUM --> 
+						<geometry:Wedge id="SPEED" 
+										centerX="{radialLayout.width/2}" 
+										centerY="{radialLayout.height/2}" 
+										innerRadius="0"
+										outerRadius="{radialLayout.currentDatum.SPEED*nVariable}" 
+										startAngle="{radialLayout.currentDatum.DIRECTION-90}" 
+										arc="{arc.value}"
+										fill="{myFill0_5}" stroke="{lineStroke}"/> 
+						
+						<!-- **This allows for multiple sections of the wedge to be represented by different colors (below) and values 
+						<geometry:Wedge id="wedge5_10" 
+										centerX="{radialLayout.width/2}" 
+										centerY="{radialLayout.height/2}" 
+										innerRadius="{radialLayout.currentReference['outerRadius'] 
+										* radialLayout.currentDatum.w_0_5 - .01}" 
+										outerRadius="{radialLayout.currentReference['outerRadius'] 
+										* radialLayout.currentDatum.w_5_10}" 
+										startAngle="{Number(radialLayout.currentValue)-arc.value/2}" 
+										arc="{arc.value}" 
+										fill="{myFill5_10}"/> 
+						<geometry:Wedge id="wedge10_15" 
+										centerX="{radialLayout.width/2}" 
+										centerY="{radialLayout.height/2}" 
+										innerRadius="{radialLayout.currentReference['outerRadius'] * 
+										radialLayout.currentDatum.w_5_10 - .01}" 
+										outerRadius="{radialLayout.currentReference['outerRadius'] * 
+										radialLayout.currentDatum.w_10_15}" 
+										startAngle="{Number(radialLayout.currentValue)-arc.value/2}" 
+										arc="{arc.value}" 
+										fill="{myFill10_15}"/> 
+						<geometry:Wedge id="wedge15_20" 
+										centerX="{radialLayout.width/2}" 
+										centerY="{radialLayout.height/2}" 
+										innerRadius="{radialLayout.currentReference['outerRadius'] * 
+										radialLayout.currentDatum.w_10_15 - .01}" 
+										outerRadius="{radialLayout.currentReference['outerRadius'] * 
+										radialLayout.currentDatum.w_15_20}" 
+										startAngle="{Number(radialLayout.currentValue)-arc.value/2}" 
+										arc="{arc.value}" 
+										fill="{myFill15_20}"/> 
+						<geometry:Wedge id="wedge20_25" 
+										centerX="{radialLayout.width/2}" 
+										centerY="{radialLayout.height/2}" 
+										innerRadius="{radialLayout.currentReference['outerRadius'] * 
+										radialLayout.currentDatum.w_15_20 - .01}" 
+										outerRadius="{radialLayout.currentReference['outerRadius'] * 
+										radialLayout.currentDatum.w_20_25}" 
+										startAngle="{Number(radialLayout.currentValue)-arc.value/2}" 
+										arc="{arc.value}" 
+										fill="{myFill20_25}"/> 
+						<geometry:Wedge id="wedge25_30" 
+										centerX="{radialLayout.width/2}" 
+										centerY="{radialLayout.height/2}" 
+										innerRadius="{radialLayout.currentReference['outerRadius'] * 
+										radialLayout.currentDatum.w_20_25 - .01}" 
+										outerRadius="{radialLayout.currentReference['outerRadius'] * 
+										radialLayout.currentDatum.w_25_30}" 
+										startAngle="{Number(radialLayout.currentValue)-arc.value/2}" 
+										arc="{arc.value}" 
+										fill="{myFill25_30}"/> 
+						<geometry:Wedge id="wedge30_40" 
+										centerX="{radialLayout.width/2}" 
+										centerY="{radialLayout.height/2}" 
+										innerRadius="{radialLayout.currentReference['outerRadius'] * 
+										radialLayout.currentDatum.w_25_30 - .01}" 
+										outerRadius="{radialLayout.currentReference['outerRadius'] * 
+										radialLayout.currentDatum.w_30_40}" 
+										startAngle="{Number(radialLayout.currentValue)-arc.value/2}" 
+										arc="{arc.value}" 
+										fill="{myFill30_40}"/> 
+						<geometry:Wedge id="wedge40_50" 
+										centerX="{radialLayout.width/2}" 
+										centerY="{radialLayout.height/2}" 
+										innerRadius="{radialLayout.currentReference['outerRadius'] * 
+										radialLayout.currentDatum.w_30_40 - .01}" 
+										outerRadius="{radialLayout.currentReference['outerRadius'] * 
+										radialLayout.currentDatum.w_40_50}" 
+										startAngle="{Number(radialLayout.currentValue)-arc.value/2}" 
+										arc="{arc.value}" 
+										fill="{myFill40_50}"/> 
+						<geometry:Wedge id="wedge50_up" 
+										centerX="{radialLayout.width/2}" 
+										centerY="{radialLayout.height/2}" 
+										innerRadius="{radialLayout.currentReference['outerRadius'] * 
+										(radialLayout.currentDatum.SPEED*2)}" 
+										outerRadius="{radialLayout.currentReference['outerRadius'] * 
+										(radialLayout.currentDatum.SPEED*2)}" 
+										startAngle="100" 
+										arc="100"
+										fill="{myFill50_up}"> 
+						</geometry:Wedge>-->
+						<!-- ROLL OVER LINE  
+						<degrafa:Line id="line" 
+						decorators="{[dashedLine]}" 
+						visible="false" 
+						x1="{wedge0_5.centerX}" 
+						y1="{wedge0_5.centerY}" 
+						x="{wedge50_up.centerX+Math.cos((wedge50_up.startAngle 
+						+arc.value/2)* Math.PI/180)*(wedge50_up.outerRadius+10)}" 
+						y="{wedge50_up.centerY+Math.sin((wedge50_up.startAngle 
+						+arc.value/2)* Math.PI/180)*(wedge50_up.outerRadius+10)}" 
+						stroke="{lineStroke}"/>
+						-->
+						<!-- ROLL OVER LABEL --> 
+						<degrafa:RasterText id="dLabel" 
+											visible="false" 
+											fontFamily="Helvetica" 
+											size="14" 
+											textColor="0x4C4C4C" 
+											text="{radialLayout.currentValue + ' º\n' + 
+											(radialLayout.currentDatum.SPEED) + ' m/s'}" 
+											x="{SPEED.centerX+Math.cos((SPEED.startAngle 
+											+arc.value/2)* Math.PI/180)*(SPEED.outerRadius-95)- 
+											dLabel.textWidth/2}" 
+											y="{SPEED.centerY+Math.sin((SPEED.startAngle 
+											+arc.value/2)* Math.PI/180)*(SPEED.outerRadius-95)}" 
+											stroke="{lineStroke}"/> 
+					</axiis:drawingGeometries> 
+					<axiis:axiisStates> 
+						<axiis:AxiisState enterStateEvent="mouseOver" 
+									 exitStateEvent="mouseOut" 
+									 targets="{[dLabel]}" 
+									 properties="['visible']" 
+									 values="[true]"/> 
+					</axiis:axiisStates> 
+				</axiis:BaseLayout> 
+			</axiis:layouts> 
+		</axiis:DataCanvas> 
+		<!-- Chart for showing direction percentages --> 
+		<!-- 
+		<mx:ColumnChart id="chart" width="100" height="100%" 
+		dataProvider="{directionDataAC}"> 
+		<mx:seriesFilters> 
+		<mx:Array/> 
+		</mx:seriesFilters> 
+		<mx:backgroundElements> 
+		<mx:GridLines direction="horizontal" 
+		horizontalStroke="{ChartStyles.gridlineStroke}" 
+		horizontalOriginStroke="{ChartStyles.originStroke}" 
+		/> 
+		</mx:backgroundElements> 
+		<mx:series> 
+		<mx:ColumnSeries yField="perc0-5" color="#0079b7"  /> 
+		<mx:ColumnSeries yField="perc5-10" color="#00c100"/> 
+		</mx:series> 
+		<mx:horizontalAxis> 
+		<mx:CategoryAxis categoryField="windDir" id="xAxis"/> 
+		</mx:horizontalAxis> 
+		<mx:verticalAxis > 
+		<mx:LinearAxis title="" id="yAxis" /> 
+		</mx:verticalAxis> 
+		<mx:horizontalAxisRenderers> 
+		<mx:AxisRenderer 
+		axis="{xAxis}" 
+		axisStroke="{ChartStyles.originStroke}" 
+		tickPlacement="none" 
+		labelGap="8" /> 
+		</mx:horizontalAxisRenderers> 
+		<mx:verticalAxisRenderers> 
+		<mx:AxisRenderer axis="{yAxis}" 
+		axisStroke="{ChartStyles.originStroke}" 
+		tickPlacement="none" 
+		verticalAxisTitleAlignment="vertical" /> 
+		</mx:verticalAxisRenderers> 
+		</mx:ColumnChart> 
+		</mx:HBox> 
+		--> 
+		<!-- BUOY LABEL 
+		<mx:Label id="myLabel" 
+		text="{title}" 
+		x="{dc.width/2 + 20 * Math.cos((300) * Math.PI / 180)}" 
+		y="{dc.width/2 + 20 * Math.sin((300) * Math.PI / 180)}"/>--> 
+	</mx:HBox> 
+		<!-- CALCULATED EXPRESSION - VIA BINDING --> 
+		<mx:Number id="innerRadius">14</mx:Number> 
+		<axiis:NumericExpression id="radiusStep" value="{(outerRadius.value - 
+								 innerRadius)/2}"/> 
+		<axiis:NumericExpression id="outerRadius" 
+								 value="{Math.min(dc.width,dc.height) / 2}"/> 
+		<axiis:NumericExpression id="arc" value="10"/> 
+		<!-- DATA TIP REFERNCE ANCHOR 
+		<mx:Point id="dataTipAnchor" 
+		x="{dc.width/2 + wedge.outerRadius/2 * Math.cos((wedge.startAngle 
+		+ wedge.arc / 2) * Math.PI / 180)}" 
+		y="{dc.height/2 + wedge.outerRadius/2 * 
+		Math.sin((wedge.startAngle + wedge.arc / 2) * Math.PI / 180)}"/> --> 
+		 
+		<degrafa:SolidFill id="myFill0_5" color="#007ab5" /> 
+		<degrafa:SolidFill id="myFill5_10" color="#00c004" /> 
+		<degrafa:SolidFill id="myFill10_15" color="#3aff00" /> 
+		<degrafa:SolidFill id="myFill15_20" color="#ddff00" /> 
+		<degrafa:SolidFill id="myFill20_25" color="#ff9300" /> 
+		<degrafa:SolidFill id="myFill25_30" color="#ff0100" /> 
+		<degrafa:SolidFill id="myFill30_40" color="#ff00ff" /> 
+		<degrafa:SolidFill id="myFill40_50" color="#850084" /> 
+		<degrafa:SolidFill id="myFill50_up" color="#030503" /> 
+		<degrafa:SolidStroke id="axisStroke" 
+							 color="0x4C4C4C" 
+							 weight="1" 
+							 pixelHinting="true" 
+							 alpha=".5"/> 
+		<degrafa:SolidStroke id="VaxisStroke" 
+							 color="#0x4C4C4C" 
+							 weight="1" 
+							 pixelHinting="true" 
+							 alpha=".5"/> 
+	    <degrafa:SolidStroke id="lineStroke" 
+							 color="0x4C4C4C" 
+							 alpha=".8"/> 
+		<degrafa:SolidFill id="markerFill" 
+						   color="0x000000" 
+						   alpha=".7"/> 
+		<degrafa:SVGDashLine id="dashedLine" /> 
+</mx:Canvas> 

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Skin xmlns:fx="http://ns.adobe.com/mxml/2009"
+		xmlns:s="library://ns.adobe.com/flex/spark"
+		xmlns:mx="library://ns.adobe.com/flex/halo">
+	
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/halo";
+		
+		@font-face {
+			src: url("MyriadWebPro.ttf");
+			font-weight: normal;
+			font-style: normal;
+			fontFamily: "Myriad Web Pro";
+			embedAsCFF: false;
+		}
+		
+	</fx:Style>
+	
+	<s:states>
+		<s:State name="up" />
+		<s:State name="over"  />
+		<s:State name="down" />
+		<s:State name="disabled" />
+	</s:states>
+	
+	<s:transitions>
+		<!--<s:Transition toState="over" autoReverse="true">
+			<s:Resize target="{ underlineOver }" />
+		</s:Transition>
+		
+		<s:Transition toState="up" autoReverse="true">
+			<s:Resize target="{ underlineOver }" />
+		</s:Transition>-->
+	</s:transitions>
+	
+	<!-- DOWN SKIN
+	<s:Rect radiusX="8" radiusY="8" width="120" height="30" includeIn="over" >
+		<s:stroke>
+			<s:Stroke color="#999999" alpha="1"/>
+		</s:stroke> 
+		<s:fill> 
+			<s:LinearGradient rotation="-90"> 
+				<s:entries> 
+					<s:GradientEntry ratio="0" alpha="1" color="#8EB3E7"/>
+					<s:GradientEntry ratio="1" alpha="1" color="#DCEBFE"/>
+					<s:GradientEntry ratio="0" alpha="1" color="#FFFFFF"/>
+					<s:GradientEntry ratio="1" alpha="0" color="#FFFFFF"/>  
+				</s:entries> 
+			</s:LinearGradient> 
+		</s:fill> 
+	</s:Rect>-->
+	
+	<s:Label fontSize="15" left="5" top="5" 
+		id="labelDisplay" buttonMode="true"
+		/>
+	
+	<!--
+	styleName.up="upStyle"
+	styleName.over="overStyle"
+	styleName.down="downStyle"
+	styleName.disabled="disabledStyle"
+	This is the blue line that is always present
+	<s:Rect
+		width="100%" height="1"
+		bottom="0" horizontalCenter="0">
+		<s:fill>
+			<s:SolidColor/>
+		</s:fill>
+	</s:Rect>-->
+	
+	<!--This is the green underline that grows out to 100%
+	width when the mouse moves over and then shrinks
+	back to 0 width when the mouse moves out.
+	<s:Rect id="underlineOver"
+			width.over="100%" width.up="0" height="1"
+			bottom="0" horizontalCenter="0">
+		<s:fill>
+			<s:SolidColor/>
+		</s:fill>
+	</s:Rect>-->
+	
+</s:Skin>

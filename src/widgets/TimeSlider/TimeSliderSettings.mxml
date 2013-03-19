@@ -1,0 +1,324 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:TitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009"
+		 xmlns:s="library://ns.adobe.com/flex/spark"  chromeColor="0x7F7F7F" titleStyleName="myPanelTitle1" cornerRadius="10" 
+		 xmlns:util="widgets.OilSpill.components.util.*"
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+		 creationComplete="titlewindow1_creationCompleteHandler(event)"
+		 close="titlewindow1_closeHandler(event)" alpha="1"
+		 title="Time Slider Settings"
+		 width="310" height="230">
+	<fx:Style>
+		.myPanelTitle1 {
+		fontSize: 15;
+		fontWeight: bold;
+		color: white;
+		}
+	</fx:Style>
+	<fx:Script>
+		<![CDATA[
+			import com.esri.ags.Map;
+			import com.esri.viewer.AppEvent;
+			import com.esri.viewer.BaseWidget;
+			import com.esri.viewer.ViewerContainer;
+			
+			import mx.controls.Alert;
+			import mx.events.CloseEvent;
+			import mx.events.FlexEvent;
+			import mx.managers.PopUpManager;
+			import mx.resources.ResourceManager;
+			import mx.utils.ObjectUtil;
+			
+			import spark.events.IndexChangeEvent;
+			
+			private var timeZone:Number;
+			private var ecopStartDate:Date;
+			private var ecopEndDate:Date;
+			private var timeInterval:int;
+			private var rate:Number;
+			private var userChangeStart:Boolean=true;
+			private var userChangeEnd:Boolean=true;
+			
+			public function set TimeZone(value:Object):void
+			{
+				timeZone=Number(value);
+			}
+			public function set EcopStartDate(value:Object):void
+			{
+				ecopStartDate = new Date(value);
+			}
+			public function set EcopEndDate(value:Object):void
+			{
+				ecopEndDate = new Date(value);
+			}
+			public function set TimeInterval(value:Object):void
+			{
+				timeInterval=int(value);
+			}
+			public function set Rate(value:Object):void
+			{
+				rate=Number(value);
+			}
+			public function initComponent():void
+			{
+				//timezone				
+				if(timeZone<-5)
+				{
+					timeZoneList.selectedIndex=int(timeZone)+12;
+				}
+				else if (timeZone<-3)
+				{
+					timeZoneList.selectedIndex=7+(timeZone-(-5))/0.5;
+				}
+				else if(timeZone<3)
+				{
+					timeZoneList.selectedIndex=int(timeZone)+14;
+				}
+				else if (timeZone<7)
+				{
+					timeZoneList.selectedIndex=17+(timeZone-3)/0.5;
+				}
+				else if(timeZone<9)
+				{
+					timeZoneList.selectedIndex=int(timeZone)+18;
+				}
+				else if(timeZone<10)
+				{
+					timeZoneList.selectedIndex=27+(timeZone-9)/0.5;
+				}
+				else if(timeZone<14)
+				{
+					timeZoneList.selectedIndex=int(timeZone)+19;
+				}
+				//start date
+				timeSliderStart.dateASA.minYear=2011;
+				timeSliderStart.dateASA.selectedDate=new Date(ecopStartDate);
+				timeSliderStart.hours.value=ecopStartDate.hours;
+				//end date
+				timeSliderEnd.dateASA.minYear=2011;
+				timeSliderEnd.dateASA.selectedDate=new Date(ecopEndDate);
+				timeSliderEnd.hours.value=ecopEndDate.hours;
+				//interval
+				switch(timeInterval)
+				{
+					case 5:
+						timeIntervalList.selectedIndex=0;
+						break;
+					case 10:
+						timeIntervalList.selectedIndex=1;
+						break;
+					case 20:
+						timeIntervalList.selectedIndex=2;
+						break;
+					case 30:
+						timeIntervalList.selectedIndex=3;
+						break;
+					case 60:
+						timeIntervalList.selectedIndex=4;
+						break;
+					case 90:
+						timeIntervalList.selectedIndex=5;
+						break;
+					case 120:
+						timeIntervalList.selectedIndex=6;
+						break;
+					case 180:
+						timeIntervalList.selectedIndex=7;
+						break;
+					case 300:
+						timeIntervalList.selectedIndex=8;
+						break;
+					default:
+						break;
+				}
+				//rate
+				rateList.selectedIndex=int(rate/1000);
+			}
+			protected function timeZone_changeHandler(event:IndexChangeEvent):void
+			{
+				timeZone=timeZoneList.selectedItem.data;
+			}
+
+			protected function setTimeSliderStart():void
+			{
+				// dispacth event to change the startDate in timeslider
+				ecopStartDate=new Date(timeSliderStart.dateASA.selectedDate);
+				ecopStartDate.hours = timeSliderStart.hours.value;
+				if( ObjectUtil.dateCompare(ecopStartDate,ecopEndDate)<0)
+				{
+				}
+				else
+				{
+					//timeSliderStart.dateASA.selectedDate=new Date(ecopStartDate);
+					//timeSliderStart.hours.value=ecopStartDate.hours;
+					Alert.show(ResourceManager.getInstance().getString('TimeSlider','errorContent'),ResourceManager.getInstance().getString('TimeSlider','errorTitle'));
+				}
+
+			}
+			protected function setTimeSliderEnd():void
+			{
+				// dispacth event to change the EndDate in timeslider
+				ecopEndDate=new Date(timeSliderEnd.dateASA.selectedDate);
+				ecopEndDate.hours = timeSliderEnd.hours.value;
+				if(ObjectUtil.dateCompare(ecopStartDate,ecopEndDate)<0)
+				{
+				}
+				else
+				{
+					//timeSliderEnd.dateASA.selectedDate=new Date(ecopEndDate);
+					//timeSliderEnd.hours.value=ecopEndDate.hours;
+					Alert.show(ResourceManager.getInstance().getString('TimeSlider','errorContent'),ResourceManager.getInstance().getString('TimeSlider','errorTitle'));
+				}
+			}
+
+			protected function timeInterval_changeHandler(event:IndexChangeEvent):void
+			{
+				// 
+				timeInterval=timeIntervalList.selectedItem.data;
+			}
+
+
+			protected function rate_changeHandler(event:IndexChangeEvent):void
+			{
+				rate=Number(rateList.selectedItem.data)*1000;
+			}
+
+			protected function btnOK_clickHandler(event:MouseEvent):void
+			{
+				//generate the timeZone object
+				var objectTimeZone:Object=
+					{
+						key:"timezone",
+						data:timeZone
+					};
+				//save to hashtable in data manager
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DATA_PUBLISH,objectTimeZone));
+				//dispatch event to oilspill
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.TIME_ZONE_CHANGED,timeZone));
+				//start date
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.ECOP_START_CHANGE, new String(ecopStartDate)));
+				//end date
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.ECOP_END_CHANGE, new String(ecopEndDate)));
+				//interval
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.TIMESLIDER_INTERVAL_CHANGE, timeInterval));
+				//rate
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DISPLAY_RATE_CHANGE, rate));
+				
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.TIME_SLIDER_TIME_CHANGED, ecopStartDate));
+				
+				PopUpManager.removePopUp(this);
+			}
+			protected function btnCancel_clickHandler(event:MouseEvent):void
+			{
+				//
+				PopUpManager.removePopUp(this);
+			}
+
+			protected function titlewindow1_closeHandler(event:CloseEvent):void
+			{
+				PopUpManager.removePopUp(this);
+			}
+
+
+			protected function titlewindow1_creationCompleteHandler(event:FlexEvent):void
+			{
+				initComponent();
+			}
+
+
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<mx:VBox paddingTop="20" paddingLeft="10">
+		<mx:HBox  visible="false" height="0" verticalAlign="middle">
+			<s:Label id="lblTimeZone" text="{ResourceManager.getInstance().getString('TimeSlider','timeZone')}" width="80"/>
+			<s:DropDownList chromeColor="0xFFFFFF" id="timeZoneList" enabled="true" cornerRadius="3" width="195"
+							change="timeZone_changeHandler(event)" >
+				<s:ArrayCollection>
+					<fx:Object label="(GMT-12:00) Eniwetok" data="-12"/>
+					<fx:Object label="(GMT-11:00) Samoa" data="-11"/>
+					<fx:Object label="(GMT -10:00 Hawaii" data="-10"/>
+					<fx:Object label="(GMT -9:00) Alaska" data="-9"/>
+					<fx:Object label="(GMT -8:00) Los Angeles" data="-8"/>
+					<fx:Object label="(GMT -7:00) Edmonton" data="-7"/>
+					<fx:Object label="(GMT -6:00) Chicago" data="-6"/>
+					<fx:Object label="(GMT -5:00) Washington" data="-5"/>
+					<fx:Object label="(GMT -4:30) Caracas" data="-4.5"/>
+					<fx:Object label="(GMT -4:00) Santiago" data="-4"/>
+					<fx:Object label="(GMT -3:30) Newfoundland" data="-3.5"/>
+					<fx:Object label="(GMT -3:00) Brazilia" data="-3"/>
+					<fx:Object label="(GMT -2:00) Mid-Atlantic" data="-2"/>
+					<fx:Object label="(GMT -1:00) Azores" data="-1"/>
+					<fx:Object label="(GMT), UTC, London" data="0"/>
+					<fx:Object label="(GMT +1:00) Paris" data="1"/>
+					<fx:Object label="(GMT +2:00) Cairo" data="2"/>
+					<fx:Object label="(GMT +3:00) Moscow" data="3"/>
+					<fx:Object label="(GMT +3:30) Tehran" data="3.5"/>
+					<fx:Object label="(GMT +4:00) Abu Dhabi" data="4"/>
+					<fx:Object label="(GMT +4:30) Kabul" data="4.5"/>
+					<fx:Object label="(GMT +5:00) Islamabad" data="5"/>
+					<fx:Object label="(GMT +5:30) Sri J." data="5.5"/>
+					<fx:Object label="(GMT +6:00) Colombo" data="6"/>
+					<fx:Object label="(GMT +6:30) Yangon" data="6.5"/>
+					<fx:Object label="(GMT +7:00) Bangkok" data="7"/>
+					<fx:Object label="(GMT +8:00) Beijing" data="8"/>
+					<fx:Object label="(GMT +9:00) Tokyo" data="9"/>
+					<fx:Object label="(GMT +9:30) Darwin" data="9.5"/>
+					<fx:Object label="(GMT +10:00) Canberra" data="10"/>
+					<fx:Object label="(GMT +11:00) Magadan" data="11"/>
+					<fx:Object label="(GMT +12:00) Wellington" data="12"/>
+					<fx:Object label="(GMT +13:00) Nuku'alofa" data="13"/>
+				</s:ArrayCollection>
+			</s:DropDownList>
+		</mx:HBox>
+		<s:HGroup  width="100%" verticalAlign="middle">
+			<s:Label text="{ResourceManager.getInstance().getString('TimeSlider','timeSliderStart')}" width="80"/>
+			<util:AsaDateTimePicker_numbersteper id="timeSliderStart" dropShadowVisible="false" change="setTimeSliderStart()"/>
+			<s:Label text=":00" />
+		</s:HGroup>
+		<s:HGroup  width="100%" verticalAlign="middle">
+			<s:Label text="{ResourceManager.getInstance().getString('TimeSlider','timeSliderEnd')}" width="80"/>
+			<util:AsaDateTimePicker_numbersteper id="timeSliderEnd" dropShadowVisible="false"  change="setTimeSliderEnd()" />
+			<s:Label text=":00" />
+		</s:HGroup>
+		<s:HGroup  width="100%" verticalAlign="middle">
+			<s:Label text="{ResourceManager.getInstance().getString('TimeSlider','timeInterval')}" width="80"/>
+			<s:DropDownList chromeColor="0xFFFFFF" id="timeIntervalList" width="60" cornerRadius="3" selectedIndex="2" 
+							change="timeInterval_changeHandler(event)" lineThrough="false" textDecoration="none" height="24">
+				<mx:ArrayCollection>
+					<fx:Object label="5" data="5"/>
+					<fx:Object label="10" data="10"/>
+					<fx:Object label="20" data="20"/>
+					<fx:Object label="30" data="30"/>
+					<fx:Object label="60" data="60"/>
+					<fx:Object label="90" data="90"/>
+					<fx:Object label="120" data="120"/>
+					<fx:Object label="180" data="180"/>
+					<fx:Object label="300" data="300"/>
+				</mx:ArrayCollection>
+			</s:DropDownList>
+			<s:Label id="modelTimeStepTip"  text="{ResourceManager.getInstance().getString('TimeSlider','timeIntervalTip')}" fontSize="11"/>
+		</s:HGroup>
+		<s:HGroup  width="100%" verticalAlign="middle">
+			<s:Label text="{ResourceManager.getInstance().getString('TimeSlider','rate')}" width="80"/>
+			<s:DropDownList  chromeColor="0xFFFFFF" id="rateList" width="60" cornerRadius="3" change="rate_changeHandler(event)"
+							lineThrough="false" textDecoration="none" height="24">
+				<mx:ArrayCollection>
+					<!--Commented for slower default to timeslider
+					<fx:Object label="0.5" data="0.5"/>
+					<fx:Object label="1" data="1"/>-->
+					<fx:Object label="2" data="2"/>
+					<fx:Object label="3" data="3"/>
+					<fx:Object label="4" data="4"/>
+					<fx:Object label="5" data="5"/>
+				</mx:ArrayCollection>
+			</s:DropDownList>
+			<s:Label id="rateTip"  text="{ResourceManager.getInstance().getString('TimeSlider','rateTip')}" fontSize="11"/>
+		</s:HGroup>
+		<s:HGroup  width="100%" verticalAlign="middle" horizontalAlign="center" paddingTop="10">
+			<mx:Button chromeColor="0xFFFFFF" id="btnOK" label="{ResourceManager.getInstance().getString('TimeSlider','ok')}" click="btnOK_clickHandler(event)"/>
+			<mx:Button chromeColor="0xFFFFFF" id="btnCancel" label="{ResourceManager.getInstance().getString('TimeSlider','cancel')}" click="btnCancel_clickHandler(event)"/>
+		</s:HGroup>
+	</mx:VBox>
+</mx:TitleWindow>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns:fx="http://ns.adobe.com/mxml/2009"
+		 xmlns:s="library://ns.adobe.com/flex/spark" fontSize="11" color="0x58595b"  borderVisible="false"
+		 xmlns:util="widgets.OilSpill.components.util.*" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx" alpha="1">
+	
+	<mx:HBox verticalScrollPolicy="off">
+		<mx:Image source="assets/images/warning.png" />
+		<mx:Text width="190" fontSize="13"  paddingTop="-3" text="Warnings are serious weather events that may lead to property damage and/or potentially to injuries or death.  A warning indicates that the event is imminent or underway."/>
+	</mx:HBox>
+	
+</mx:VBox>

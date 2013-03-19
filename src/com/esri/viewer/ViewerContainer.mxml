@@ -1,0 +1,372 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     ////////////////////////////////////////////////////////////////////////////////
+     //
+     // Copyright (c) 2010 ESRI
+     //
+     // All rights reserved under the copyright laws of the United States.
+     // You may freely redistribute and use this software, with or
+     // without modification, provided you include the original copyright
+     // and use restrictions.  See use restrictions in the file:
+     // <install location>/License.txt
+     //
+     ////////////////////////////////////////////////////////////////////////////////
+-->
+
+<mx:Canvas xmlns:fx="http://ns.adobe.com/mxml/2009"
+		   xmlns:s="library://ns.adobe.com/flex/spark"
+		   xmlns:mx="library://ns.adobe.com/flex/mx"
+		    width="100%" height="100%" borderSkin="{null}" creationComplete="init()">
+    <fx:Script>
+        <![CDATA[
+			import com.esri.viewer.components.ErrorWindow;
+			import com.esri.viewer.managers.ConfigManager;
+			import com.esri.viewer.managers.DataManager;
+			import com.esri.viewer.managers.EventBus;
+			import com.esri.viewer.managers.MapManager;
+			import com.esri.viewer.managers.ScriptingManager;
+			import com.esri.viewer.managers.SecurityManager;
+			import com.esri.viewer.managers.UIManager;
+			import com.esri.viewer.managers.WidgetManager;
+			
+			import mx.controls.Alert;
+			import mx.core.Application;
+			import mx.core.FlexGlobals;
+			import mx.events.ModuleEvent;
+			import mx.logging.Log;
+			import mx.logging.LogEventLevel;
+			import mx.logging.targets.TraceTarget;
+			import mx.managers.PopUpManager;
+			import mx.modules.IModuleInfo;
+			import mx.modules.ModuleManager;
+			
+            //==============================================
+            // Viewer default values
+            //==============================================
+            //public static const VERSION:String = "ArcGIS Viewer for Flex";
+
+            // name of default configuration file
+			public static var urlConfigParams:Object = {};
+			
+            public static const DEFAULT_CONFIG_FILE:String = "config-dubaiForecast.xml";
+            public static const DEFAULT_WIDGET_CONTAINER_WIDGET:String = "widgets/WidgetContainer/WidgetContainerWidget.swf";
+            public static const DEFAULT_WIDGET_LAYOUT:String = "horizontal";
+            public static const DEFAULT_WIDGET_ICON:String = "assets/images/i_widget.png";
+            public static const DEFAULT_WIDGET_GROUP_ICON:String = "assets/images/i_folder.png";
+
+            public static const CONTAINER_INITIALIZED:String = "containerInitilized";
+
+            public static const NAVIGATION_ZOOM_FULL:String = "zoomfull";
+            public static const NAVIGATION_ZOOM_PREVIOUS:String = "zoomprevious";
+            public static const NAVIGATION_ZOOM_NEXT:String = "zoomnext";
+
+            public static var configFile:String = ViewerContainer.DEFAULT_CONFIG_FILE;
+
+            public var mapManager:MapManager;
+
+            public var uiManager:UIManager;
+
+            public var widgetManager:WidgetManager;
+
+            public var dataManager:DataManager;
+
+            public var configManager:ConfigManager;
+
+            public var securityManager:SecurityManager;
+
+            public var scriptingManager:ScriptingManager;
+
+            private static var _container:ViewerContainer;
+
+            private static var _lock:Boolean = false;
+
+            private var _containerEventDispatcher:EventBus;
+			
+            private function init():void
+            {
+                _container = this;
+                _lock = true; //make sure only one container is created.
+
+                //make sure the event bus is ready.
+                _containerEventDispatcher = EventBus.getInstance();
+                initLogging();
+				
+                //prepare to show error message
+                ViewerContainer.addEventListener(AppEvent.APP_ERROR, errorHandler);
+				
+				ViewerContainer.setUrlConfigParams();
+                ViewerContainer.setConfigFile();
+                ViewerContainer.addEventListener(AppEvent.CONFIG_LOADED, postConfigHandler);
+				
+                //tell the modules it's on business.
+				ViewerContainer.dispatch(ViewerContainer.CONTAINER_INITIALIZED);
+				ViewerContainer.addEventListener(AppEvent.WIDGET_STATE_CHANGED,widgetStateCheck);
+            }
+			
+			private static function setUrlConfigParams():void
+			{
+				if (!ExternalInterface.available)
+				{
+					return;
+				}
+				
+				//retrieve config parameters from URL
+				try
+				{
+					var queryStringFromUrl:String = ExternalInterface.call("window.location.search.substring", 1);
+					if (queryStringFromUrl)
+					{
+						var params:Array = queryStringFromUrl.split('&');
+						var length:uint = params.length;
+						
+						for (var i:uint = 0, index:int = -1; i < length; i++)
+						{
+							var kvPair:String = params[i];
+							if ((index = kvPair.indexOf("=")) > 0)
+							{
+								var key:String = kvPair.substring(0, index);
+								var value:String = kvPair.substring(index + 1);
+								if (key)
+								{
+									urlConfigParams[key] = decodeURIComponent(value);
+								}
+							}
+						}
+					}
+				}
+				catch (error:Error)
+				{
+					showError("Some error occured. ExternalInterface doesn't work in Standalone player.");
+				}
+			}
+			
+			private static function setConfigFile():void
+			{
+				//retrieve FlashVars.
+				var flashvarConfig:String = FlexGlobals.topLevelApplication.parameters.config;
+				if (flashvarConfig)
+				{
+					configFile = flashvarConfig;
+				}
+				
+				//retrieve config from URL and override FlashVar
+				if (urlConfigParams.config)
+				{
+					configFile = urlConfigParams.config;
+				}
+			}
+			/* private static function setConfigFile():void
+            {
+                if (!ExternalInterface.available)
+                {
+                    return;
+                }
+
+                //retrive FlashVars.
+                var flashvarConfig:String = FlexGlobals.topLevelApplication.parameters.config;
+                if (flashvarConfig)
+                {
+                    configFile = flashvarConfig;
+                }
+
+                //retrive config from URL and overridget FlashVar
+                try
+                {
+                    var queryStringFromUrl:String = ExternalInterface.call("window.location.search.substring", 1);
+                    if (queryStringFromUrl)
+                    {
+                        var params:Array = queryStringFromUrl.split('&');
+                        var length:uint = params.length;
+
+                        for (var i:uint = 0, index:int = -1; i < length; i++)
+                        {
+                            var kvPair:String = params[i];
+                            if ((index = kvPair.indexOf("=")) > 0)
+                            {
+                                var key:String = kvPair.substring(0, index);
+                                var value:String = kvPair.substring(index + 1);
+                            }
+                            if (key == "config")
+                            {
+                                configFile = value;
+                                return;
+                            }
+                        }
+                    }
+                }
+                catch (error:Error)
+                {
+                    showError("Some error occured. ExternalInterface doesn't work in Standalone player.");
+                }
+            } */
+			
+			private function widgetStateCheck(event:AppEvent):void
+			{
+				//Alert.show(event. .state);
+			}
+
+            private function postConfigHandler(event:AppEvent):void
+            {					
+					var configData:ConfigData = event.data as ConfigData;
+	                var ui:Array = configData.viewerUI;
+	                var splash:Object = new Object();
+					
+	                for (var i:int = 0; i < ui.length; i++)
+	                {
+						if (ui[i].id == "splashpage")
+	                    {
+	                        splash.url = ui[i].value;
+	                        splash.config = ui[i].config;
+	                        splash.title = ui[i].title;
+	                    }
+						if (ui[i].id == "welcome")
+						{
+							loadSplashDubai();
+						}
+	                }
+	
+	                if (splash.url)
+	                {
+	                    loadSplash(splash);
+	                }
+            }
+
+            private var info:IModuleInfo;
+
+            private function loadSplash(splash:Object):void
+            {
+                info = ModuleManager.getModule(splash.url);
+                info.data = splash;
+                info.addEventListener(ModuleEvent.READY, onSplashReady);
+                info.addEventListener(ModuleEvent.ERROR, onSplashError);
+                info.load();
+                this.cursorManager.setBusyCursor();
+            }
+			private function loadSplashDubai():void
+			{
+				var win:Welcome= PopUpManager.createPopUp(this, Welcome, true) as Welcome;
+				PopUpManager.centerPopUp(win);
+			}
+            private function onSplashError(event:ModuleEvent):void
+            {
+                this.cursorManager.removeBusyCursor();
+
+                Alert.show(event.errorText);
+            }
+
+            private function onSplashReady(event:ModuleEvent):void
+            {
+                this.cursorManager.removeBusyCursor();
+
+                var info:IModuleInfo = event.module;
+
+                var data:Object = info.data;
+                var config:String = data.config as String;
+                var title:String = data.title as String;
+
+                var widget:IBaseWidget = info.factory.create() as IBaseWidget;
+                widget.config = config;
+                widget.widgetTitle = title;
+                this.addChild(widget as DisplayObject);
+            }
+
+            //to make sure the the children are visible.
+            private var isAddChild:Boolean = true;
+
+            protected override function commitProperties():void
+            {
+                super.commitProperties();
+
+                if (isAddChild)
+                {
+                    addElement(mapManager);
+                    addElement(widgetManager);
+                    isAddChild = false;
+                }
+            }
+
+            /**
+             * Initialize the logging. As an example, the logging is setup to only
+             * log the fatal event during the RPC related network communication,
+             * such as HTTP call to obtain configuration file.
+             */
+            private function initLogging():void
+            {
+                // Create a target.
+                var logTarget:TraceTarget = new TraceTarget();
+
+                // Log only messages for the classes in the mx.rpc.* and
+                // mx.messaging packages.
+                logTarget.filters = [ "mx.rpc.*", "mx.messaging.*" ];
+
+                // Log on fatal levels.
+                logTarget.level = LogEventLevel.FATAL;
+
+                // Add date, time, category, and log level to the output.
+                logTarget.includeDate = true;
+                logTarget.includeTime = true;
+                logTarget.includeCategory = true;
+                logTarget.includeLevel = true;
+
+                // Begin logging.
+                Log.addTarget(logTarget);
+            }
+
+            private function errorHandler(event:AppEvent):void
+            {
+               var errorWindow:ErrorWindow = ErrorWindow(PopUpManager.createPopUp(this, ErrorWindow, true));
+
+                // Add title to the title bar.
+                errorWindow.errorMessage = event.data as String;
+            }
+
+            /* -----------------------------------------------
+               static functions as proxy of Event Bus
+             ----------------------------------------------- */
+
+            public static function getInstance():ViewerContainer
+            {
+                if (!_lock)
+                {
+                    _container = new ViewerContainer();
+                    _lock = true;
+                }
+                return _container;
+            }
+
+            //the following are the methods to allow modules access event bus via the contains.
+            public static function addEventListener(type:String, listener:Function, useCapture:Boolean = false, priority:int = 0, useWeakReference:Boolean = false):void
+            {
+                EventBus.getInstance().addEventListener(type, listener, useCapture, priority, useWeakReference);
+            }
+
+            public static function removeEventListener(type:String, listener:Function, useCapture:Boolean = false):void
+            {
+                EventBus.getInstance().removeEventListener(type, listener, useCapture);
+            }
+
+            //this is the simplest way of communicate. Just use a string.
+            public static function dispatch(message:String):Boolean
+            {
+				return EventBus.getInstance().dispatch(message);
+            }
+
+            public static function dispatchEvent(event:Event):Boolean
+            {
+                return EventBus.getInstance().dispatchEvent(event);
+            }
+
+
+            public static function setStatus(status:String):void
+            {
+                dispatchEvent(new AppEvent(AppEvent.SET_STATUS, status));
+            }
+
+            public static function showError(value:String):void
+            {
+                dispatchEvent(new AppEvent(AppEvent.APP_ERROR, value));
+                // publish(AppEvent.APP_ERROR, value);
+            }
+        ]]>
+    </fx:Script>
+</mx:Canvas>

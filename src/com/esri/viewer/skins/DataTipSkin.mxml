@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+         backgroundColor="#FFFEE9"
+		 borderColor="#010101"
+		 borderStyle="solid"
+		 paddingTop="5"
+		 paddingBottom="5"
+		 paddingRight="10"
+		 paddingLeft="10"
+		 verticalGap="-2"
+		 color="#000000" backgroundAlpha="0.81">
+	<mx:Label text="{_valueText}" width="100%" textAlign="center" fontSize="13"  fontWeight="bold"/>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<mx:Label text="{_labelText}" width="100%" textAlign="center" fontWeight="normal" fontSize="12" />
+	<fx:Script>
+		<![CDATA[
+			import mx.charts.HitData;
+			import mx.charts.series.AreaSeries;
+			import mx.charts.series.items.AreaSeriesItem;
+			
+			[Bindable]
+			private var _labelText:String;
+			
+			[Bindable]
+			private var _valueText:String;
+			
+			override public function set data(value:Object):void{
+				var hd:HitData = value as HitData;
+				
+				var item:AreaSeriesItem = hd.chartItem as AreaSeriesItem;
+				var ser:AreaSeries=hd.element as AreaSeries;
+				
+				_labelText = String(item.xValue);
+				_valueText = String(ser.displayName)+"："+String(item.yValue);
+			}
+		]]>
+	</fx:Script>
+	
+
+</mx:VBox>

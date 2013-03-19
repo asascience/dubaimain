@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns:fx="http://ns.adobe.com/mxml/2009" verticalScrollPolicy="off" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" fontSize="11" color="0x58595b" borderVisible="false"
+		 xmlns:util="widgets.OilSpill.components.util.*" backgroundColor="0xE5E5E5" creationComplete="init()"
+		 xmlns:mx="library://ns.adobe.com/flex/mx" alpha="1" xmlns:warnings="widgets.WarningViewer.warnings.*">
+	<fx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.controls.Button;
+			
+			import widgets.WarningViewer.warnings.AdvisoryLabel;
+			import widgets.WarningViewer.warnings.WarningLabel;
+			
+			public var warningsingleArray:Object = new Object;
+			
+			public var craft:Boolean = false;
+			
+			protected function init():void
+			{	
+				var dataArray:Array = warningsingleArray.data as Array;
+				
+				for(var i:uint = 0; i< dataArray.length; i++)
+				{
+					var obj:Object = dataArray[i] as Object;
+					var dt:Date = obj.DATE as Date;
+					
+					var advisory:WarningLabel = new WarningLabel;
+					//for nearshore
+					if(craft == true)
+					{
+						if(i==0)
+						{
+							//if(obj.WAVEFLAG > 1 || obj.WINDFLAG > 0)
+							if(obj.WAVEFLAG > 1)
+							{	
+								warning6a.addChild(advisory);
+							}
+							if(obj.WAVEFLAG >1)
+							{
+								totalwarnings6a.text = totalwarnings6a.text + "  Nearshore Wave Warning ";
+								Button(linkBar1.getChildAt(0)).setStyle('color', 'red');
+								Button(linkBar1.getChildAt(0)).setStyle('textSelectedColor', 'red');
+								Button(linkBar1.getChildAt(0)).setStyle('disabledColor', 'red');
+							}
+							/* if(obj.WINDFLAG >0)
+							{
+								totalwarnings6a.text = totalwarnings6a.text + "  Nearshore Wind Warning ";
+							} */
+							
+							warning6a.label = padding(dt.hours);
+							date6a.text = paddingDate(dt);
+						}
+						else if(i==1)
+						{
+							if(obj.WAVEFLAG > 1)
+							{	
+								warning12p.addChild(advisory);
+							}
+							if(obj.WAVEFLAG >1)
+							{
+								totalwarnings12p.text = totalwarnings12p.text + "  Nearshore Wave Warning ";
+								Button(linkBar1.getChildAt(1)).setStyle('color', 'red');
+								Button(linkBar1.getChildAt(1)).setStyle('textSelectedColor', 'red');
+								Button(linkBar1.getChildAt(1)).setStyle('disabledColor', 'red');
+							}
+							/* if(obj.WINDFLAG >0)
+							{
+								totalwarnings12p.text = totalwarnings12p.text + "  Nearshore Wind Warning ";
+							} */
+							warning12p.label = padding(dt.hours);
+							date12p.text = paddingDate(dt);
+						}
+						else if(i==2)
+						{
+							if(obj.WAVEFLAG > 1)
+							{	
+								warning18p.addChild(advisory);
+							}
+							if(obj.WAVEFLAG >1)
+							{
+								totalwarnings6p.text = totalwarnings6p.text + "  Nearshore Wave Warning ";
+								Button(linkBar1.getChildAt(2)).setStyle('color', 'red');
+								Button(linkBar1.getChildAt(2)).setStyle('textSelectedColor', 'red');
+								Button(linkBar1.getChildAt(2)).setStyle('disabledColor', 'red');
+							}
+							
+							/* if(obj.WINDFLAG >0)
+							{
+								totalwarnings6p.text = totalwarnings6p.text + "  Nearshore Wind Warning ";
+							} */
+							warning18p.label = padding(dt.hours);
+							date6p.text = paddingDate(dt);
+						}
+						else if(i==3)
+						{
+							if(obj.WAVEFLAG > 1)
+							{	
+								warning12a.addChild(advisory);
+							}
+							if(obj.WAVEFLAG  >1)
+							{
+								totalwarnings12a.text = totalwarnings12a.text + "  Nearshore Wave Warning ";
+								Button(linkBar1.getChildAt(3)).setStyle('color', 'red');
+								Button(linkBar1.getChildAt(3)).setStyle('textSelectedColor', 'red');
+								Button(linkBar1.getChildAt(3)).setStyle('disabledColor', 'red');
+							}
+							
+							/* if(obj.WINDFLAG >0)
+							{
+								totalwarnings12a.text = totalwarnings12a.text + "  Nearshore Wind Warning ";
+							} */
+							warning12a.label = padding(dt.hours);
+							date12a.text = paddingDate(dt);
+						}
+					}
+					
+					//for offshore
+					else
+					{
+						if(i==0)
+						{
+							if(obj.WAVEFLAG > 2)
+							{	
+								warning6a.addChild(advisory);
+							}
+							if(obj.WAVEFLAG >2)
+							{
+								totalwarnings6a.text = totalwarnings6a.text + "   Offshore Wave Warning ";
+								Button(linkBar1.getChildAt(0)).setStyle('color', 'red');
+								Button(linkBar1.getChildAt(0)).setStyle('textSelectedColor', 'red');
+								Button(linkBar1.getChildAt(0)).setStyle('disabledColor', 'red');
+							}
+							/* if(obj.WINDFLAG >1)
+							{
+								totalwarnings6a.text = totalwarnings6a.text + "   Offshore Wind Warning ";
+							} */
+							
+							warning6a.label = padding(dt.hours);
+							date6a.text = paddingDate(dt);
+						}
+						else if(i==1)
+						{
+							if(obj.WAVEFLAG > 2)
+							{	
+								warning12p.addChild(advisory);
+							}
+							if(obj.WAVEFLAG >2)
+							{
+								totalwarnings12p.text = totalwarnings12p.text + "   Offshore Wave Warning ";
+								Button(linkBar1.getChildAt(1)).setStyle('color', 'red');
+								Button(linkBar1.getChildAt(1)).setStyle('textSelectedColor', 'red');
+								Button(linkBar1.getChildAt(1)).setStyle('disabledColor', 'red');
+							}
+							/* if(obj.WINDFLAG >1)
+							{
+								totalwarnings12p.text = totalwarnings12p.text + "   Offshore Wind Warning ";
+							} */
+							warning12p.label = padding(dt.hours);
+							date12p.text = paddingDate(dt);
+						}
+						else if(i==2)
+						{
+							if(obj.WAVEFLAG > 2)
+							{	
+								warning18p.addChild(advisory);
+							}
+							if(obj.WAVEFLAG >2)
+							{
+								totalwarnings6p.text = totalwarnings6p.text + "   Offshore Wave Warning ";
+								Button(linkBar1.getChildAt(2)).setStyle('color', 'red');
+								Button(linkBar1.getChildAt(2)).setStyle('textSelectedColor', 'red');
+								Button(linkBar1.getChildAt(2)).setStyle('disabledColor', 'red');
+							}
+							
+						/* 	if(obj.WINDFLAG >1)
+							{
+								totalwarnings6p.text = totalwarnings6p.text + "   Offshore Wind Warning ";
+							} */
+							warning18p.label = padding(dt.hours);
+							date6p.text = paddingDate(dt);
+						}
+						else if(i==3)
+						{
+							if(obj.WAVEFLAG > 2 )
+							{	
+								warning12a.addChild(advisory);
+							}
+							if(obj.WAVEFLAG  >2)
+							{
+								totalwarnings12a.text = totalwarnings12a.text + "   Offshore Wave Warning ";
+								Button(linkBar1.getChildAt(3)).setStyle('color', 'red');
+								Button(linkBar1.getChildAt(3)).setStyle('textSelectedColor', 'red');
+								Button(linkBar1.getChildAt(3)).setStyle('disabledColor', 'red');
+							}
+							
+							/* if(obj.WINDFLAG >1)
+							{
+								totalwarnings12a.text = totalwarnings12a.text + "   Offshore Wind Warning ";
+							} */
+							warning12a.label = padding(dt.hours);
+							date12a.text = paddingDate(dt);
+						}
+					}
+				}				
+				
+				//set as no warnings if none
+				if(totalwarnings6a.text == "")
+				{
+					totalwarnings6a.text = "   No warnings at this time";
+				}
+				if(totalwarnings6p.text == "")
+				{
+					totalwarnings6p.text = "   No warnings at this time";
+				}
+				if(totalwarnings12a.text == "")
+				{
+					totalwarnings12a.text = "   No warnings at this time";
+				}
+				if(totalwarnings12p.text == "")
+				{
+					totalwarnings12p.text = "   No warnings at this time";
+				}
+			}
+			
+			private function padding(num:Number):String
+			{
+				if(num==4)
+				{
+					return "04:00-10:00"; 
+				}
+				else if(num==10)
+				{
+					return "10:00-16:00"; 
+				}
+				else if(num==16)
+				{
+					return "16:00-22:00"; 
+				}
+				else{
+					return "22:00-04:00";
+				}
+			}
+			
+			private function paddingDate(num:Date):String
+			{
+				if(num.hours==4)
+				{
+					return num.date +'/'+Number(num.month+1)+'/'+num.fullYear +" 04:00" + ' to ' +num.date +'/'+Number(num.month+1)+'/'+num.fullYear +" 10:00"; 
+				} 
+				else if(num.hours==10)
+				{
+					return num.date +'/'+Number(num.month+1)+'/'+num.fullYear +" 10:00" + ' to ' +num.date +'/'+Number(num.month+1)+'/'+num.fullYear +" 16:00";
+					//return "10:00-16:00"; 
+				}
+				else if(num.hours==16)
+				{
+					return num.date +'/'+Number(num.month+1)+'/'+num.fullYear +" 16:00" + ' to ' +num.date +'/'+Number(num.month+1)+'/'+num.fullYear +" 22:00";
+					//return "16:00-22:00"; 
+				}
+				else{
+					return num.date +'/'+Number(num.month+1)+'/'+num.fullYear +" 22:00" + ' to ' +(num.date+1) +'/'+Number(num.month+1)+'/'+num.fullYear +" 04:00";
+					//return "22:00-04:00";
+				}
+			}
+			
+		]]>
+	</fx:Script>
+	<mx:LinkBar dataProvider="{viewstack1}" width="100%" id="linkBar1"
+				horizontalAlign="center"  textSelectedColor="0x3d9bbf" disabledColor="0x3d9bbf" fontSize="11" backgroundColor="0xE5E5E5"/>
+	<mx:ViewStack id="viewstack1" creationPolicy="all"
+				  x="0" y="-2" width="299"
+				  selectedIndex="0" height="170">
+		<mx:VBox  id="warning6a" paddingLeft="0" horizontalAlign="center" verticalScrollPolicy="auto" horizontalScrollPolicy="off"
+				 width="100%" height="100%">
+			<s:Label id="totalwarnings6a" text="" fontWeight="bold" fontSize="14" width="180"/>	
+			<s:Label id="date6a" text="" fontSize="12" />	
+			<mx:HRule width="100%"/>
+		</mx:VBox>
+		<mx:VBox id="warning12p"  paddingLeft="0" horizontalAlign="center" verticalScrollPolicy="auto" horizontalScrollPolicy="off"
+				 width="100%" height="100%">
+			<s:Label id="totalwarnings12p" text="" fontWeight="bold" fontSize="14"  width="180"/>
+			<s:Label id="date12p" text="" fontSize="12" />	
+			<mx:HRule width="100%"/>
+		</mx:VBox>
+		<mx:VBox id="warning18p"  paddingLeft="0" horizontalAlign="center" verticalScrollPolicy="auto" horizontalScrollPolicy="off"
+				 width="100%" height="100%">
+			<s:Label id="totalwarnings6p" text="" fontWeight="bold" fontSize="14" width="180"/>	
+			<s:Label id="date6p" text="" fontSize="12" />	
+			<mx:HRule width="100%"/>
+		</mx:VBox>
+		<mx:VBox  id="warning12a" paddingLeft="0" horizontalAlign="center" verticalScrollPolicy="auto" horizontalScrollPolicy="off"
+				 height="100%">
+			<s:Label id="totalwarnings12a" text="" fontWeight="bold" fontSize="14" width="180"/>
+			<s:Label id="date12a" text="" fontSize="12" />	
+			<mx:HRule width="100%"/>
+		</mx:VBox>
+	</mx:ViewStack>
+</mx:VBox>

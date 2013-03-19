@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns:fx="http://ns.adobe.com/mxml/2009"
+		 xmlns:s="library://ns.adobe.com/flex/spark" fontSize="11"  borderVisible="false"
+		 xmlns:util="widgets.OilSpill.components.util.*" backgroundColor="0xE5E5E5" color="0x58595b"
+		 xmlns:mx="library://ns.adobe.com/flex/mx" alpha="1">
+	
+	<s:Label width="164" text="No Warnings or Advisories at this time" fontSize="13"/>
+	
+</mx:VBox>

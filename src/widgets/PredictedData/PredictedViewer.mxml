@@ -1,0 +1,2042 @@
+<?xml version="1.0" encoding="utf-8"?>
+<viewer:BaseWidget xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				   xmlns:s="library://ns.adobe.com/flex/spark"
+				   xmlns:net="flash.net.*"
+				   xmlns:mx="library://ns.adobe.com/flex/mx" xmlns:viewer="com.esri.viewer.*" layout="absolute"
+				   initialize="basewidget1_initializeHandler(event)" cornerRadius="0" dropShadowVisible="false"
+ 				   widgetConfigLoaded="basewidget1_widgetConfigLoadedHandler(event)"
+				   xmlns:esri="http://www.esri.com/2008/ags" xmlns:skins="widgets.WarningViewer.skins.*" 
+				   xmlns:WarningViewer="widgets.WarningViewer.*" >
+
+	<fx:Style source="css/style.css">
+
+	</fx:Style>
+	<fx:Metadata>
+		[ResourceBundle("LayerViewer")]
+	</fx:Metadata>
+	<fx:Script>
+		<![CDATA[
+			import com.asa.components.DataUtilities;
+			import com.esri.ags.Graphic;
+			import com.esri.ags.Map;
+			import com.esri.ags.events.DrawEvent;
+			import com.esri.ags.events.ExtentEvent;
+			import com.esri.ags.events.LayerEvent;
+			import com.esri.ags.geometry.MapPoint;
+			import com.esri.ags.geometry.WebMercatorMapPoint;
+			import com.esri.ags.layers.GraphicsLayer;
+			import com.esri.ags.layers.Layer;
+			import com.esri.ags.symbols.SimpleFillSymbol;
+			import com.esri.ags.symbols.SimpleLineSymbol;
+			import com.esri.ags.symbols.SimpleMarkerSymbol;
+			import com.esri.ags.tools.DrawTool;
+			import com.esri.ags.tools.NavigationTool;
+			import com.esri.ags.utils.WebMercatorUtil;
+			import com.esri.viewer.AppEvent;
+			import com.esri.viewer.IInfowindowTemplate;
+			import com.esri.viewer.ViewerContainer;
+			import com.esri.viewer.utils.Hashtable;
+			import com.myCom.DateFormatterWrapper;
+			import com.myCom.GeomUtil;
+			
+			import mx.collections.ArrayCollection;
+			import mx.collections.Sort;
+			import mx.collections.SortField;
+			import mx.containers.Canvas;
+			import mx.containers.TabNavigator;
+			import mx.controls.Alert;
+			import mx.controls.DateField;
+			import mx.controls.Image;
+			import mx.controls.TabBar;
+			import mx.controls.Text;
+			import mx.controls.ToolTip;
+			import mx.core.IToolTip;
+			import mx.events.CloseEvent;
+			import mx.events.FlexEvent;
+			import mx.events.IndexChangedEvent;
+			import mx.events.ListEvent;
+			import mx.formatters.DateFormatter;
+			import mx.managers.CursorManager;
+			import mx.managers.ToolTipManager;
+			import mx.messaging.messages.HTTPRequestMessage;
+			import mx.resources.ResourceManager;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.rpc.http.HTTPService;
+			import mx.utils.StringUtil;
+			
+			import org.alivepdf.display.Display;
+			import org.alivepdf.display.PageMode;
+			import org.alivepdf.pdf.PDF;
+			import org.alivepdf.saving.Method;
+			import org.openscales.proj4as.Proj4as;
+			import org.openscales.proj4as.ProjPoint;
+			import org.openscales.proj4as.ProjProjection;
+			import org.vanrijkom.dbf.*;
+			
+			import spark.components.TitleWindow;
+			import spark.components.supportClasses.ButtonBase;
+			import spark.events.IndexChangeEvent;
+			
+			import widgets.ECOP.components.ui.WindCompassAnimation;
+			import widgets.ECOP.components.utils.TimeSeriesChart;
+			import widgets.ECOP.components.utils.TimeSeriesChartArea;
+			import widgets.OilSpill.components.wms.*;
+			import widgets.ShapeFiles.ShpHeader;
+			import widgets.ShapeFiles.ShpLine;
+			import widgets.ShapeFiles.ShpPolygon;
+			import widgets.ShapeFiles.ShpReader;
+			import widgets.ShapeFiles.nochump.util.zip.ZipEntry;
+			import widgets.ShapeFiles.nochump.util.zip.ZipFile;
+			import widgets.TimeSlider.components.util.DateTimeUtilities;
+			
+			//labels			
+			[Bindable]
+			private var descriptionLabel:String;
+			private var info:TitleWindow;
+			private var p:TitleWindow;
+			private var identifyTolerance:Number = 3;
+			private var idPoint:MapPoint;
+			private var _params:URLVariables;
+			private var hashTable:Hashtable;
+			private var _httpService:HTTPService;
+			
+			[Bindable]
+			private var pointLabel:String;
+			
+			[Bindable]
+			private var _ECOPModelSource:String;
+			
+			private var selectionLabel:String;
+			private var gra:Graphic;
+			public var drawTool:DrawTool;
+			
+			private var keepActive:Boolean;
+			private var identifyPoint:MapPoint;
+			private var infoUrl:String;
+			
+			[Bindable]
+			private var identifyArrayCollection:ArrayCollection;
+			
+			private var infoTemplate:IInfowindowTemplate;
+			private var graphicsLayer:GraphicsLayer;
+			
+			[Bindable]
+			private var arrLayer:Array = new Array();
+			[Bindable]
+			private var afterclick:String;
+			[Bindable]
+			private var noDataClick:String;
+			
+			[Bindable]
+			private var currentTime:Date=new Date();
+			private var _timeZone:Number;
+			
+			private var _OilModelSource:String;
+			private var clientKey:String;
+			private var _edsEcopModelSource:String;
+			[Bindable]
+			private var modelLayersCol:ArrayCollection=new ArrayCollection();
+			private var legendURLRequest:URLRequest;
+			[Bindable]
+			private var lblCurrentScenario:String="";
+			[Bindable]
+			private var ecopLayersCol:ArrayCollection=new ArrayCollection();
+			[Bindable]
+			private var mapLayersCol:ArrayCollection=new ArrayCollection();
+			[Bindable]
+			private var _oilMODELW:WMSEDSModel;
+			[Bindable]
+			private var _oilMODELC:WMSEDSModel;
+						
+			private var warningArea:Layer;
+			[Bindable]
+			private var graph:Graphic = new Graphic;
+			
+			private var loginUser:Array=new Array();
+			
+			private var currentScenario:String;
+			private var curSceLocation:String;
+			private var currentScenario_id:int;
+			
+			//the current display model layers
+			private var visibleModelLayers:String;
+			//current language id: 0 for english and 1 for chinese
+			private var currentLangID:int;
+			//for the serverURL in main config file or the widget's config file
+			private var _serverURL:String;
+			private var LayersTab:Boolean = false;
+			private var oilrun:String = "false";
+			[Bindable]
+			private var induColor:uint;
+			private var clrmap:Array;
+			[Bindable]
+			private var LayerXML:XMLList;
+			[Bindable]
+			private var LayerXMLguest:XMLList;
+			[Bindable]
+			private var idLayer:String = new String;
+			private var tt:IToolTip = new ToolTip();
+			
+			private var windsLegendIcon:Image = new Image();
+			private var currentsLegendIcon:Image = new Image();
+			private var waveLegendIcon:Image= new Image();
+			private var waterLegendIcon:Image= new Image();
+			
+			[Bindable]
+			private var userArray:String = "guest";
+			
+			private var userObject:Object;
+			
+			[Bindable]
+			private var landPolygon:ArrayCollection = new ArrayCollection;	
+			
+			[Bindable]
+			private var areaArray:Array = [];
+			[Bindable]
+			private var areaRecordCollection:ArrayCollection= new ArrayCollection();
+			
+			private var graphicsLayer_areas:GraphicsLayer = new GraphicsLayer;
+			
+			private var areaWarningData:ArrayCollection =  new ArrayCollection([
+				//off shore
+				{id:"22",Name:"Palm Deira Offshore",Beach:"0"},
+				{id:"20",Name:"World Islands North Offshore",Beach:"0"},
+				{id:"18",Name:"World Islands South Offshore",Beach:"0"},
+				{id:"16",Name:"Palm Jumeirah Offshore",Beach:"0"},
+				{id:"1",Name:"Jebel Ali Offshore",Beach:"0"},
+				
+				///Near Shore
+				{id:"29",Name:"Palm Deira Nearshore 2",Beach:"2"},
+				{id:"31",Name:"Palm Deira Nearshore 1",Beach:"2"},
+				{id:"27",Name:"Jumeirah Nearshore",Beach:"2"},
+				{id:"21",Name:"World Islands North",Beach:"2"},
+				{id:"19",Name:"World Islands South",Beach:"2"},
+				{id:"26",Name:"Umm Suqeim Nearshore",Beach:"2"},				
+				{id:"17",Name:"Palm Jumeirah Nearshore",Beach:"2"},				
+				{id:"28",Name:"Jebel Ali Port Nearshore 2",Beach:"2"},
+				{id:"2",Name:"Jebel Ali Port Nearshore 1",Beach:"2"},
+				{id:"25",Name:"Palm Jebel Ali Nearshore",Beach:"2"},
+				{id:"23",Name:"Jebel Ali Nearshore 2",Beach:"2"},
+				{id:"24",Name:"Jebel Ali Nearshore 1",Beach:"2"},
+				
+				///Beach
+				{id:"30",Name:"Al Mamzar",Beach:"1"},
+				{id:"3",Name:"Jumeirah Open Beach",Beach:"1" },
+				{id:"4",Name:"Jumeirah Beach Park",Beach:"1"},
+				{id:"5",Name:"Jumeirah 3",Beach:"1"},
+				{id:"6",Name:"Umm Suqeim 1",Beach:"1"},
+				{id:"7",Name:"Umm Suqeim 2",Beach:"1"},
+				{id:"8",Name:"Umm Suqeim 3",Beach:"1",Beach:"1"},
+				{id:"9",Name:"Palm Jumeirah",Beach:"1"},
+				{id:"10",Name:"Al Sofooh",Beach:"1"},
+				{id:"11",Name:"DEWA",Beach:"1"},
+				{id:"12",Name:"DUBAL",Beach:"1"},
+				{id:"13",Name:"Jebel Ali Port",Beach:"1"},
+				{id:"14",Name:"Palm Jebel Ali",Beach:"1"},
+				{id:"15",Name:"Dubai Waterfront",Beach:"1"}				
+			]);
+			
+			protected function basewidget1_initializeHandler(event:FlexEvent):void
+			{
+				ViewerContainer.addEventListener(AppEvent.TIME_ZONE_CHANGED, timeZoneChanged);
+				//ViewerContainer.addEventListener(AppEvent.MODEL_LOAD_COMPLETE, oilScenarioChanged);
+				//ViewerContainer.addEventListener(AppEvent.SPILL_TIME_CHANGED, spillTimeChanged);	
+				ViewerContainer.addEventListener(AppEvent.TIME_SLIDER_TIME_CHANGED, updateCurrentTime);
+				//ViewerContainer.addEventListener(AppEvent.START_DATE_CHANGED, updateCurrentTime);
+				
+				//Get hashTable
+				//ViewerContainer.addEventListener(AppEvent.DATA_SENT_TIME, receivedData);
+				//user
+				//ViewerContainer.addEventListener(AppEvent.DATA_SENT, receivedData);
+				//ViewerContainer.addEventListener(AppEvent.LANGUAGE_CHANGED, languageChanged);
+				
+				//legend icons
+				windsLegendIcon.source = "assets/legends/WindLegend.png";
+				currentsLegendIcon.source="assets/legends/CurrentsLegend.png";
+				waveLegendIcon.source = "assets/legends/WaveHeight.png";
+				waterLegendIcon.source="assets/legends/WaterHeight.png";
+			}
+			
+			protected function basewidget1_widgetConfigLoadedHandler(event:Event):void
+			{				
+				if(userArray.toLowerCase() != "guest")
+				{
+					LayerXML = configXML.xmlforLayerList.Layer as XMLList;
+					LayerXML.Layer[1].@pName = "Oil Spill Scenario: None";
+				}
+				else{
+					LayerXML = configXML.xmlforLayerList.Layerguest as XMLList;
+				}
+				
+				LayerXMLguest = configXML.xmlforLayerList.Layerguest as XMLList;
+				
+				trPermissions.validateNow();
+				trPermissions.expandItem(LayerXML.Layer[0], true);
+				
+				//init lang id
+				if(ResourceManager.getInstance().localeChain.toString()=="zh_CN")
+				{
+					currentLangID=1;
+				}
+				else
+				{
+					currentLangID=0;
+				}
+				
+				if(configXML)
+				{
+					//loading warning area shapefiles
+					fetchSharedData();
+					//warningsLay.value = 1;
+					_OilModelSource = configXML.ASAMapServices.ecop;
+					clientKey = configXML.userkey;
+					//labels
+					currentDate.text = DateTimeUtilities.convertDateEuro(currentTime);
+					_ECOPModelSource = configXML.ASAMapServices.ecop;
+					if (Number(configXML.identifytolerance) > 0)
+						identifyTolerance = Number(configXML.identifytolerance);
+					afterclick = configXML.labels.descriptionlabelafterClick;
+					noDataClick = configXML.labels.descriptionNoData;
+					
+					var filesource:String = configXML.landMask;
+					urlLoader.addEventListener(Event.COMPLETE,layercompleteHandler);
+					
+					urlLoader.load( new URLRequest(filesource));
+					
+					var setDate:Date = new Date;
+					//determine which 3day file to use
+					//if less then 5 hours in the date use yesterdays file
+					/* if(setDate.getTimezoneOffset() == 300||setDate.hours>18)
+					{
+						setDate.setTime(setDate.getTime()-1000*60*60*24);
+						var areafile:String = configXML.areaFile+"warn_"+setDate.fullYear.toString()+padding(setDate.month+1)+padding(setDate.date)+".txt";
+					}
+					else if(setDate.hours<5)
+					{
+						setDate.setTime(setDate.getTime()-1000*60*60*48);
+						var areafile:String = configXML.areaFile+"warn_"+setDate.fullYear.toString()+padding(setDate.month+1)+padding(setDate.date)+".txt";
+					}
+					else{
+						var areafile:String = configXML.areaFile+"current.txt";
+					} */
+					var areafile:String = configXML.areaFile+"current.txt";
+				}
+				
+				/* if(hashTable.containsKey("timezone"))
+				{
+					_timeZone=hashTable.find("timezone") as Number;
+				}
+				else
+				{
+					//use computer's timezone
+					//var tempDate:Date=new Date();
+					//_timeZone=-tempDate.getTimezoneOffset()/60.0;
+					
+					//use utc
+				} */
+				_timeZone=4;
+				
+				//for identify
+				graphicsLayer = new GraphicsLayer();
+				graphicsLayer.symbol = ptIdentify;
+				graphicsLayer.id = "predindentifyPoint";
+				map.addLayer(graphicsLayer);
+				
+				tt = ToolTipManager.createToolTip("",-300,150);
+				tt.visible = false;
+				
+				accord.getHeaderAt(1).enabled=false;
+				accord.setStyle("disabledColor", 0x58595b);
+				nextBut.setStyle("disabledColor", 11187123);
+				
+				var areaURL:URLLoader = new URLLoader;
+				
+				areaURL.load(new URLRequest(areafile));
+				areaURL.addEventListener(IOErrorEvent.IO_ERROR, onSoundIOError, false, 0, true);
+				areaURL.addEventListener(Event.COMPLETE, areahttpService_result);	
+				viewLayer();
+			}
+			
+			public function viewLayer():void
+			{
+				var layr:String = new String();
+				layr = configXML.filelocation + "Warnings.zip";
+				urlLoader1.load( new URLRequest(layr));
+			}
+			
+			private function completeHandler(event:Object):void
+			{
+				var shpByteArray:ByteArray;
+				var dbfByteArray:ByteArray;
+				
+				const zipFile:ZipFile =  new ZipFile(urlLoader1.data);                
+				for each (var entry:ZipEntry in zipFile.entries)
+				{
+					const name:String = entry.name.toLowerCase();
+					if (name.indexOf("__macosx") > -1)
+					{
+						continue;
+					}
+					if (name.indexOf(".shp") === name.length - 4)
+					{
+						shpByteArray = zipFile.getInput(entry);
+					}
+					if (name.indexOf(".dbf") === name.length - 4)
+					{
+						dbfByteArray = zipFile.getInput(entry);
+					}
+				}
+				if (shpByteArray && shpByteArray.length > 0 && dbfByteArray && dbfByteArray.length > 0)
+				{
+					loadShapefile(shpByteArray, dbfByteArray);
+				}
+				urlLoader1 = null;
+			}
+			
+			private function loadShapefile(shpByteArray:ByteArray, dbfByteArray:ByteArray):void
+			{
+				var index:int = 0;
+				const shpReader:ShpReader = new ShpReader(shpByteArray);
+				const dbfHeader:DbfHeader = new DbfHeader(dbfByteArray);
+				var shapeType:int = shpReader.readShpType();
+				
+				while (shpReader.hasMore()) {
+					if (shapeType == 5) {
+						
+						var shpPolygon:ShpPolygon = shpReader.readShpPolygon();
+						var dbfRecord:DbfRecord = DbfTools.getRecord(dbfByteArray, dbfHeader, index++);
+						//var recObj:Object = areaWarningData.getItemAt(getItemIndexByProperty("id",dbfRecord.values[dbfHeader.fields[0].name].replace(/\s+/g, '')));
+						
+						var nameString:String = dbfRecord.values[dbfHeader.fields[1].name];
+						
+						var nameArray:Array = nameString.split("  ");
+						var atts:Object = new Object;
+						atts.name = nameArray[0];
+						var graph:Graphic = new Graphic(shpPolygon.toPolygon(), mySymbol);
+						graph.toolTip = nameArray[0];
+						graph.checkForMouseListeners = false;
+						graph.addEventListener(MouseEvent.CLICK,areaSelect);
+						graph.attributes = atts;
+						//graph.attributes = recObj;
+						graphicsLayer_areas.add(graph);
+					}
+				}
+				
+				graphicsLayer_areas.id = "area_layer";
+				graphicsLayer_areas.visible = false;
+				map.addLayer(graphicsLayer_areas);
+			}
+			
+			private function areahttpService_result(evt:Event):void 
+			{
+				var arearesult:String = evt.currentTarget.data as String;
+				var areaRecords:Array = arearesult.split("\n");
+				
+				for(var i:uint = 0; i< areaRecords.length; i++) 
+				{ 
+					var areaRecordString:String = areaRecords[i] as String;
+					var areaRecord:Array = areaRecordString.split(",");
+					
+					var areaRecordObject:Object = new Object;
+					
+					var added:Boolean = false;
+					//add to list of Areas for Combo box
+					for(var z:uint = 0; z< areaArray.length; z++) 
+					{ 
+						if(areaArray[z] == areaRecord[0])
+						{
+							added = true;
+						}
+						areaRecordObject["AREA"] = areaRecord[0];
+						areaRecordObject["DATE"] = String(areaRecord[1]).toUpperCase();
+						areaRecordObject["WIND"] = areaRecord[2];
+						areaRecordObject["WINDDIR"] = areaRecord[3];
+						//areaRecordObject["WINDFLAG"] = areaRecord[4];
+						areaRecordObject["WAVE"] = areaRecord[5];
+						areaRecordObject["WAVEDIR"] = areaRecord[6];
+						//areaRecordObject["WAVEFLAG"] = areaRecord[7];
+						areaRecordObject["CURRENTDIR"] = areaRecord[8];
+						areaRecordObject["CURRENTSPEED"] = areaRecord[9];
+						var waveS:String  = new String(areaRecord[10]).replace("\r",'');
+						areaRecordObject["WATERELEV"] = waveS;
+						
+						//lookup for onshore,nearshore, or offshore areas
+						for(var q:uint = 0; q< areaWarningData.length; q++) 
+						{
+							if(areaWarningData[q].Name == areaRecordObject["AREA"])
+							{
+								var areatype:String = areaWarningData[q].Beach;
+								
+								areaRecordObject["WAVEFLAG"] = 0;
+								areaRecordObject["WINDFLAG"] = 0;
+								
+								if(areatype == "1" &&areaRecord[7]>0)
+								{
+									areaRecordObject["WAVEFLAG"] = 1;
+								}
+								if(areatype == "2" &&areaRecord[4]>0)
+								{
+									areaRecordObject["WINDFLAG"] = 1;
+								}
+								if(areatype == "2" && areaRecord[7]>1)
+								{
+									areaRecordObject["WAVEFLAG"] = 1;
+								}
+								if(areatype == "0" &&areaRecord[4]>1)
+								{
+									areaRecordObject["WINDFLAG"] = 1;
+								}
+								if(areatype == "0" &&areaRecord[7]>2)
+								{
+									areaRecordObject["WAVEFLAG"] = 1;
+								}
+							}
+						}
+					}
+					if(added == false)
+					{
+						areaArray.push(areaRecord[0]);
+					}
+					if(areaRecord[0] != "")
+					{
+						areaRecordCollection.addItem(areaRecordObject);
+					}
+				}
+				areaArray.sort();
+				identifyList.selectedIndex = 0;
+			}
+			
+			private function onSoundIOError (e:IOErrorEvent):void
+			{
+				trace("An Error Occured and it looked like this.", e.text);
+			}
+			
+			private function accordianChange(event:Event):void
+			{
+				map.doubleClickZoomEnabled = false;
+				removeGraph();
+				if(accord.selectedIndex == 1)
+				{
+					if(identifyChoice.selectedValue == 1)
+					{
+						drawTool = new DrawTool();
+						drawTool.map = map;
+						drawTool.addEventListener(DrawEvent.DRAW_END, drawEnd);
+						activateIdentifyTool();
+					}
+					else{
+						if(tt){
+							tt = ToolTipManager.createToolTip("Select Area",-300,150);
+							tt.visible = true;
+						}
+						graphicsLayer_areas.visible = true;
+						map.reorderLayer("area_layer", 13);
+						drawTool.deactivate();
+					}
+					accord.getHeaderAt(1).enabled=true;
+				}
+				else
+				{
+					graphicsLayer.visible = false;
+					if(accord.selectedIndex == 0)
+					{
+						accord.getHeaderAt(1).enabled=false;
+					}
+					LayerViewerWT.removeEventListener(MouseEvent.MOUSE_MOVE,mouseOverthis);
+					if(drawTool)
+					{
+						drawTool.deactivate();
+					}
+					if(tt){
+						ToolTipManager.destroyToolTip(tt);
+						tt=null;
+					}
+				}
+			}
+			
+			//from next button
+			private function gotoSelect():void
+			{
+				accord.selectedIndex =1;
+				if(identifyChoice.selectedValue == 1)
+				{
+					drawTool = new DrawTool();
+					drawTool.map = map;
+					drawTool.addEventListener(DrawEvent.DRAW_END, drawEnd);
+					activateIdentifyTool();
+				}
+				else{
+					if(tt){
+						ToolTipManager.destroyToolTip(tt);
+						tt=null;
+					}
+					graphicsLayer_areas.visible = true;
+					map.reorderLayer("area_layer", 13);
+					//drawTool.removeEventListener(DrawEvent.DRAW_END, drawEnd);
+					drawTool.deactivate();
+				}
+			}
+			private function receivedData(event:AppEvent):void
+			{
+				currentTime = event.data as Date;
+				//hashTable=event.data as Hashtable;
+			}
+			private function loginUserChanged(event:AppEvent):void
+			{
+				if(hashTable.containsKey("loginuser"))
+				{
+					loginUser=hashTable.find("loginuser") as Array;
+				}
+			}
+			private function timeZoneChanged(event:AppEvent):void
+			{
+				if(hashTable.containsKey("timezone"))
+				{
+					//_timeZone=hashTable.find("timezone") as Number;
+				}
+			}
+			
+			private function languageChanged(event:AppEvent):void
+			{
+				currentLangID=int(event.data);
+				//updateModel_LangChange();
+			}
+			
+		//Layer Tree Toggle Handler base on checked and type attribute
+			private function toggleLayer(event:ListEvent):void
+			{
+				idLayer = event.itemRenderer.data.@pId;
+				induColor = uint(event.itemRenderer.data.@colr);
+				if(event.itemRenderer.data.@type == "oil")
+				{
+					if(event.itemRenderer.data.@checked == "1")
+					{
+						if(map.getLayer("oil") == null){
+						}
+						else
+						{
+							var wmsLayer:WMSModel=map.getLayer("oil") as WMSModel;
+							wmsLayer._params.time=DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(currentTime,_timeZone);
+							wmsLayer._params.OM_TRACKLINE = (LayerXML.Layer[1].Layer[0].@checked == "1").toString();
+							wmsLayer._params.OM_CONTOUR = (LayerXML.Layer[1].Layer[1].@checked == "1").toString();
+							wmsLayer._params.OM_SPILLETS = (LayerXML.Layer[1].Layer[2].@checked == "1").toString();
+							wmsLayer._params.OM_MASS = (LayerXML.Layer[1].Layer[3].@checked == "1").toString();
+							wmsLayer._params.OM_SWEPT = (LayerXML.Layer[1].Layer[4].@checked == "1").toString();
+							wmsLayer.refresh();
+						}
+					}
+					else
+					{
+						if(map.getLayer("oil") == null){
+						}
+						else{
+							var wmsLayer:WMSModel=map.getLayer("oil") as WMSModel;
+							wmsLayer._params.time=DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(currentTime,_timeZone);
+							wmsLayer._params.OM_TRACKLINE = (LayerXML.Layer[1].Layer[0].@checked == "1").toString();
+							wmsLayer._params.OM_CONTOUR = (LayerXML.Layer[1].Layer[1].@checked == "1").toString();
+							wmsLayer._params.OM_SPILLETS = (LayerXML.Layer[1].Layer[2].@checked == "1").toString();
+							wmsLayer._params.OM_MASS = (LayerXML.Layer[1].Layer[3].@checked == "1").toString();
+							wmsLayer._params.OM_SWEPT = (LayerXML.Layer[1].Layer[4].@checked == "1").toString();
+							wmsLayer.refresh();
+						}
+					}
+				}
+				if(event.itemRenderer.data.@type == "forecast")
+				{
+					var lyr:String = event.itemRenderer.data.@wmsLayerID.toString().toLowerCase();
+					removeGraph();
+					if(event.itemRenderer.data.@checked == "1")
+					{
+						if(map.getLayer(event.itemRenderer.data.@wmsLayerID.toString().toLowerCase())==null)
+						{
+							var wmsLayerForecast = new WMSEDSModel(_OilModelSource,lyr,DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(currentTime,_timeZone),event.itemRenderer.data.@styles);
+							//wmsLayerForecast.addEventListener(LayerEvent.UPDATE_START,layerAdd);
+							//wmsLayerForecast.addEventListener(LayerEvent.UPDATE_END,layerAddedEnd);
+							wmsLayerForecast.name = "wmsLayer";
+							wmsLayerForecast.visible=true;
+							wmsLayerForecast.id = lyr.toLowerCase();
+							map.addLayer(wmsLayerForecast); 
+							if(lyr.toUpperCase() == "DUB_ELEVATION")
+							{
+								map.reorderLayer("dub_elevation",1);
+							}
+						}
+						else
+						{
+							map.getLayer(lyr.toLowerCase()).visible=true;
+							if(lyr.toUpperCase() == "DUB_ELEVATION")
+							{
+								map.reorderLayer("dub_elevation",1);
+							}
+							
+						}
+						//add legend to legend window
+						if(lyr.toUpperCase() == "DUBAIWND_WINDS" )
+						{
+							ecopLegendOption2.addChild(windsLegendIcon);
+						}
+						if(lyr.toUpperCase() == "ARG_DUB_CURRENTS")
+						{
+							ecopLegendOption.addChild(currentsLegendIcon);
+						}
+						if(lyr.toUpperCase() == "DUBAI_WAVE_HEIGHT" )
+						{
+							ecopLegendOption.addChild(waveLegendIcon);
+						}
+						if(lyr.toUpperCase() == "DUB_ELEVATION" )
+						{
+							ecopLegendOption.addChild(waterLegendIcon);
+						}
+						nextBut.enabled = true;
+						viewtimeslider.visible = true;
+						accord.getHeaderAt(1).enabled=true;
+					}
+					else
+					{
+						if(map.getLayer(event.itemRenderer.data.@wmsLayerID.toString().toLowerCase())==null){
+						}
+						else
+						{
+							//remove legend to legend window
+							if(lyr.toUpperCase() == "DUBAIWND_WINDS" )
+							{
+								ecopLegendOption2.removeChild(windsLegendIcon);
+							}
+							if(lyr.toUpperCase() == "ARG_DUB_CURRENTS")
+							{
+								ecopLegendOption.removeChild(currentsLegendIcon);
+							}
+							if(lyr.toUpperCase() == "DUBAI_WAVE_HEIGHT" )
+							{
+								ecopLegendOption.removeChild(waveLegendIcon);
+							}
+							if(lyr.toUpperCase() == "DUB_ELEVATION" )
+							{
+								ecopLegendOption.removeChild(waterLegendIcon);
+							}
+							map.getLayer(lyr.toLowerCase()).visible=false;
+							
+							//if no layers are selected, disable the next button
+							if(LayerXML.Layer[0].Layer[0].@checked == 0 &&LayerXML.Layer[0].Layer[1].@checked == 0&&
+								LayerXML.Layer[0].Layer[2].@checked == 0&&LayerXML.Layer[0].Layer[3].@checked == 0&&LayerXML.Layer[0].Layer[4].@checked == 0)
+							{
+								nextBut.enabled = false;
+								viewtimeslider.visible = false;
+								accord.getHeaderAt(1).enabled=false;
+							}
+						}
+					}
+				}					
+			}
+			
+			///Shapefile add for Oil Warning layer (no DBF attributes)
+			private function layercompleteHandler(event:Object):void
+			{
+				var shpByteArray:ByteArray = new ByteArray;
+				shpByteArray = urlLoader.data as ByteArray;
+				if (shpByteArray && shpByteArray.length > 0 )
+				{
+					loadShapefile_landmask(shpByteArray);
+				}
+				else
+				{
+					Alert.show("Sorry, but there is a problem with the shapefile.");
+				}
+			}
+			
+			private function loadShapefile_landmask(shpByteArray:ByteArray):void
+			{
+				var index:int = 0;
+				var shpReader:ShpReader = new ShpReader(shpByteArray);
+				var shapeType:int = shpReader.readShpType();
+				while (shpReader.hasMore()) {
+					if (shapeType == 5) {
+						
+						var shpPolygon:ShpPolygon = shpReader.readShpPolygon();
+						var ringPoly:Array = [];
+						
+						//add vertice for each ring polygon
+						for(var x:int=0; x <shpPolygon.rings.length; x++)
+						{
+							var polyPointArray:Array = shpPolygon.rings[x];
+							
+							for(var i:int=0; i <polyPointArray.length; i++)
+							{
+								var vertic:MapPoint =new MapPoint;
+								vertic.x = polyPointArray[i];
+								vertic.y = polyPointArray[i+1];
+								
+								ringPoly.push(vertic);
+								i=i+1;
+							}
+						}
+						
+						//add array poly for each ring
+						landPolygon.addItem(ringPoly);
+						
+						//oilWarningLayer.add(new Graphic(shpPolygon.toPolygon()));
+						//oilWarningLayer.symbol = mySymbol;
+						//oilWarningLayer.refresh();
+						index++;
+					}
+				}
+				//oilWarningLayer.id = "oilWarningLayer";
+				//oilWarningLayer.visible = true;
+				//map.addLayer(oilWarningLayer);
+			}
+			/*time changed update part*/
+			private function updateCurrentTime(event:AppEvent):void
+			{
+				currentTime = event.data as Date;
+				updateTimeLayers();
+			}
+			private function spillTimeChanged(event:AppEvent):void
+			{
+				var resultArray:Array=event.data as Array;
+				currentTime=new Date(resultArray[0].toString());
+				updateTimeLayers();
+			}
+			private function updateTimeLayers():void
+			{
+				//Update Oil
+				/* var wmsLayerOil:WMSModel=map.getLayer("oil") as WMSModel;
+				if(wmsLayerOil!=null&&wmsLayerOil.visible==true)
+				{
+					//update layer
+					//wmsLayerOil.addEventListener(LayerEvent.UPDATE_START,layerAdd);
+					//wmsLayerOil.addEventListener(LayerEvent.UPDATE_END,layerAddedEnd);
+					wmsLayerOil._params.time=DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(currentTime,_timeZone);
+					wmsLayerOil.refresh();
+				} */
+				//Update ForecastLayers
+				for(var i:uint = 0; i< LayerXML.Layer[0].children().length(); i++) 
+				{ 
+					var wmsLayerForecast:WMSEDSModel=map.getLayer(LayerXML.Layer[0].Layer[i].@wmsLayerID.toString().toLowerCase()) as WMSEDSModel;
+					if(wmsLayerForecast!=null&&wmsLayerForecast.visible==true)
+					{
+						if(LayerXML.Layer[0].Layer[i].@checked == "1")
+						{
+							//wmsLayerForecast.addEventListener(LayerEvent.UPDATE_START,layerAdd);
+							//wmsLayerForecast.addEventListener(LayerEvent.UPDATE_END,layerAddedEnd);
+							wmsLayerForecast._params.time = DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(currentTime,_timeZone);
+							wmsLayerForecast.refresh();
+						}
+					}
+				}
+			}
+			
+			private function layerAdd(event:LayerEvent):void
+			{
+				layerLoader.visible = true;
+				layerLoader2.visible = true;
+			}
+			private function layerAddedEnd(event:LayerEvent):void
+			{
+				layerLoader.visible = false;
+				layerLoader2.visible = false;
+			}
+			private function showperc(item:Number):String
+			{
+				return Number(item)*100 + " %";
+			}
+			
+			private function showIndentify():void
+			{
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_RUN, 1));
+			}
+			
+			private function toBoolean(val:String):Boolean
+			{
+				if (val == "true") { return true; } else { return false; }
+			}
+			
+			private function activateIdentifyTool():void
+			{					
+				var status:String = pointLabel;
+				if(!drawTool)
+					drawTool = new DrawTool();
+				drawTool.showDrawTips = false;
+				
+				tt = ToolTipManager.createToolTip("Select Location",-300,150);
+				tt.visible = true;
+				
+				drawTool.markerSymbol = ptIdentify;
+				drawTool.activate(DrawTool.MAPPOINT);
+				LayerViewerWT.addEventListener(MouseEvent.MOUSE_MOVE,mouseOverthis);
+			}	
+			
+			private function loadError(event:Event):void
+			{
+				Alert.show("Service not loaded");
+			}				
+			
+			//String of Listeners for custom Tool Tip for Select Feature above***************			
+			private function onMouseMove(evt:MouseEvent):void {
+				map.addEventListener(MouseEvent.MOUSE_MOVE,onMouseMovearound);
+			}
+			private function onMouseMovearound(evt:MouseEvent):void {
+				if(tt){
+					tt.visible = true;
+					tt.move(evt.stageX + 10, evt.stageY + 10);				
+				}
+				evt.updateAfterEvent();
+				LayerViewerWT.addEventListener(MouseEvent.MOUSE_OVER,mouseOverthis);
+				map.addEventListener(MouseEvent.MOUSE_OUT, mouseoutofMap);
+			}
+			private function mouseOverthis(evt:MouseEvent):void{
+				if(tt){
+					tt.visible = false;
+				}
+				map.removeEventListener(MouseEvent.MOUSE_MOVE,onMouseMovearound);
+				LayerViewerWT.addEventListener(MouseEvent.MOUSE_OUT,onMouseMove);
+			}
+			private function mouseoutofMap(evt:MouseEvent):void{
+				if(tt){
+					tt.visible = false;
+				}
+			}
+			
+			private function widgetClosedHandler(event:Event):void
+			{				
+				graphicsLayer.visible = false;
+				map.infoWindow.hide();
+				
+				removeGraph();
+				
+				if(drawTool)
+				{
+					drawTool.deactivate();
+					drawTool.showDrawTips = false;
+					if(tt){
+						ToolTipManager.destroyToolTip(tt);
+						tt=null;
+					} 
+				}
+				var arl:Array = map.layerIds.sort();
+				graphInstruction.visible = false;
+				/* 
+				disabled removing all layers when closed
+				for (var r:int = 0; r < arl.length; r++)
+				{
+					if(map.getLayer(map.layerIds[r]).name =="wmsLayer") 
+					{
+						map.getLayer(map.layerIds[r]).visible = false;
+					}
+				}
+				
+				LayerXML.Layer[0].Layer[0].@checked = 0;
+				LayerXML.Layer[0].Layer[1].@checked = 0;
+				LayerXML.Layer[0].Layer[2].@checked = 0;
+				LayerXML.Layer[0].Layer[3].@checked = 0;
+				LayerXML.Layer[0].Layer[4].@checked = 0; */
+				//setMapNavigation(NavigationTool.PAN, "Pan Map");
+				graphicsLayer_areas.visible = false;
+			}
+			
+			private function widgetOpenedHandler(event:Event):void
+			{
+				accord.selectedIndex = 0;
+				//identifyChoice.selectedValue = 1;
+			}
+		
+			//Identify and build chart from EDS Layers
+			private function drawEnd(event:DrawEvent):void
+			{
+				noarea.visible =false;
+				swfMessage.visible = true;
+				graphicsLayer.clear();
+				graphicsLayer.visible = true;
+				graphicsLayer.add(event.graphic);
+				map.reorderLayer("predindentifyPoint",12);
+				idPoint = event.graphic.geometry as MapPoint;
+				var geo:MapPoint = WebMercatorUtil.webMercatorToGeographic(event.graphic.geometry) as MapPoint;
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.IDENTIFY_SINGLE_CLICK, event.graphic.geometry));
+				if(projType.selectedIndex == 0)
+				{
+					var dubai84g:ProjProjection= new ProjProjection("EPSG:3997");
+					var wgs84g:ProjProjection= new ProjProjection("EPSG:4326");
+					var oldPoint:ProjPoint = new ProjPoint(geo.x,geo.y);
+					var newPoint:ProjPoint=Proj4as.transform(wgs84g,dubai84g,oldPoint);
+					
+					latSearch.text = newPoint.y.toFixed(2);
+					longSearch.text = newPoint.x.toFixed(2);
+				}
+				else{
+					latSearch.text = geo.y.toFixed(2);
+					longSearch.text = geo.x.toFixed(2);
+				}
+				if(identifyChoice.selectedValue ==1)
+				{
+					identifyFeatures();
+				}
+				else{
+					//use area event listener
+				}
+			}
+			
+			//For text lat long query
+			private function queryPointLatLong():void
+			{
+				currentDate.visible = true;
+				graphArea.removeAllElements();
+				if(latSearch.text != "" && longSearch.text != "")
+				{
+					CursorManager.setBusyCursor();
+					var layer:Layer;
+					arrLayer = null;
+					arrLayer = new Array();
+					
+					if(projType.selectedIndex == 0)
+					{
+						var dubai84g:ProjProjection= new ProjProjection("EPSG:3997");
+						var wgs84g:ProjProjection= new ProjProjection("EPSG:4326");
+						var oldPoint:ProjPoint = new ProjPoint(Number(longSearch.text),Number(latSearch.text));
+						var newPoint:ProjPoint=Proj4as.transform(dubai84g,wgs84g,oldPoint);
+						var identPoint:WebMercatorMapPoint = new WebMercatorMapPoint(newPoint.x,newPoint.y);
+					}
+					else{
+						var identPoint:WebMercatorMapPoint = new WebMercatorMapPoint(Number(longSearch.text),Number(latSearch.text));
+					}
+					ViewerContainer.dispatchEvent(new AppEvent(AppEvent.IDENTIFY_SINGLE_CLICK, identPoint));
+					var graph:Graphic = new Graphic(identPoint);
+					graph.symbol = ptIdentify;
+					
+					graphicsLayer.clear();
+					graphicsLayer.add(graph);
+					
+					var laytrue:String = "no";
+					//Loop through all visible layers that have a name wmsLayer and query individual layers
+					for each(layer in map.layers)
+					{
+						if(layer.visible == true && (layer.id.toUpperCase() == "DUBAIWND_WINDS" || GeomUtil.InsidePolygon(landPolygon,identPoint) == false))
+						{
+							if(layer.name == "wmsLayer")
+							{
+								var layerName:String = "";
+								layerName = layer.id;
+								
+								_params = new URLVariables();
+								_params.transparent = "true";
+								
+								_params.version = "1.1.1";
+								_params.styles = "";
+								
+								//specific to getFeatureInfo:
+								_params.request = "GetFeatureInfo"; 
+								_params.info_format = "text/plain";
+								_params.format="text/plain";
+								_params.exceptions = "application/vnd.ogc.se_xml";
+								_params.srs = "EPSG:3857";
+								_params._dc= "1298660600532";
+								_params.width = map.width;
+								_params.height = map.height;
+								
+								_params.bbox = map.extent.xmin + "," + map.extent.ymin + "," + map.extent.xmax + "," + map.extent.ymax; 
+								_params.layers = layerName;
+								_params.query_layers=layerName;
+								_params.feature_count="3";  
+								
+								//add the point from text input
+								_params.x = map.toScreen(identPoint).x.toFixed();
+								_params.y = map.toScreen(identPoint).y.toFixed();
+								
+								var fourDayDate:Date = new Date(currentTime.getTime()+(1000 * 60 * 60 * 24 * 4));
+								
+								var formatTime:String = DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTCnotime(currentTime,4)+"/"+DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTCnotime(fourDayDate,4);
+								
+								_params.time = formatTime;
+								_httpService = new HTTPService();
+								_httpService.showBusyCursor = true;
+								_httpService.url = _ECOPModelSource;
+								_httpService.addEventListener("result", function(evnt:ResultEvent):void{
+									var msgURL:String;
+									msgURL = HTTPRequestMessage(evnt.token.message).body.layers;
+									var identifyResults:XML = new XML(evnt.result);
+									processIdentifyResultsForChart(identifyResults, msgURL);
+								});
+								
+								_httpService.addEventListener("fault", onFault);
+								_httpService.resultFormat = "xml"; 
+								_httpService.send(_params);
+								laytrue = "yes";
+							}
+						}
+					}
+					if(laytrue == "no" && arrLayer.length==0)
+					{
+						noarea.visible = true;
+						graphInstruction.visible = false;
+						dataGrid.rowCount = 1;
+						CursorManager.removeBusyCursor();
+					}
+					swfMessage.visible = false;
+				}
+			}
+			
+			//For Point Identify
+			private function identifyFeatures():void
+			{
+				currentDate.visible = true;
+				graphArea.removeAllElements();
+				CursorManager.setBusyCursor();
+				var layer:Layer;
+				arrLayer = null;
+				arrLayer = new Array();
+				
+				var laytrue:String = "no";
+				//Loop through all visible layers that have a name wmsLayer and query individual layers
+				for each(layer in map.layers)
+				{
+					if(layer.visible == true && (layer.id.toUpperCase() == "DUBAIWND_WINDS" || GeomUtil.InsidePolygon(landPolygon,idPoint) == false))
+					{
+						if(layer.name == "wmsLayer")
+						{
+							var layerName:String = "";
+							layerName = layer.id;
+							
+							_params = new URLVariables();
+							_params.transparent = "true";
+							
+							_params.version = "1.1.1";
+							_params.styles = "";
+							
+							//specific to getFeatureInfo:
+							_params.request = "GetFeatureInfo"; 
+							_params.info_format = "text/plain";
+							_params.format="text/plain";
+							_params.exceptions = "application/vnd.ogc.se_xml";
+							_params.srs = "EPSG:3857";
+							_params._dc= "1298660600532";
+							_params.width = map.width;
+							_params.height = map.height;
+							
+							_params.bbox = map.extent.xmin + "," + map.extent.ymin + "," + map.extent.xmax + "," + map.extent.ymax; 
+							_params.layers = layerName;
+							_params.query_layers=layerName;
+							_params.feature_count="3";  
+							
+							//add the pixel points of this click:
+							_params.x = map.toScreen(idPoint).x.toFixed();
+							_params.y = map.toScreen(idPoint).y.toFixed();
+							
+							var fourDayDate:Date = new Date(currentTime.getTime()+(1000 * 60 * 60 * 24 * 4));
+							
+							var formatTime:String = DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTCnotime(currentTime,4)+"/"+DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTCnotime(fourDayDate,4);
+							
+							_params.time = formatTime;
+							_httpService = new HTTPService();
+							_httpService.showBusyCursor = true;
+							_httpService.url = _ECOPModelSource;
+							_httpService.addEventListener("result", function(evnt:ResultEvent):void{
+								var msgURL:String;
+								msgURL = HTTPRequestMessage(evnt.token.message).body.layers;
+								var identifyResults:XML = new XML(evnt.result);
+								processIdentifyResultsForChart(identifyResults, msgURL);
+							});
+							_httpService.addEventListener("fault", onFault);
+							_httpService.resultFormat = "xml"; 
+							_httpService.send(_params);
+							laytrue = "yes";
+						}
+					}
+				}
+				if(laytrue == "no" && arrLayer.length==0)
+				{
+					noarea.visible =true;
+					dataGrid.rowCount = 1;
+					graphInstruction.visible = false;
+					CursorManager.removeBusyCursor();
+				}
+				swfMessage.visible = false;
+			}
+			
+			private function onFault(event:FaultEvent):void
+			{                    
+				//Alert.show("An error occured in processing identify request: " + event.fault.toString());   
+				_httpService.removeEventListener("fault",onFault);   
+				CursorManager.removeBusyCursor();
+			}
+			
+			//use XML to create Chart
+			private function processIdentifyResultsForChart(identifyResults:XML, layerName:String):void
+			{
+				boxMessage.visible = true;
+				var newDate:String;
+				//Showing error from GetFeature Request
+				if(identifyResults.ServiceException[0] != undefined)
+				{
+					noarea.visible = true;
+					currentDate.visible = true;
+					currentDate.setStyle("color", "red");
+					graphInstruction.visible = false;
+					clearButt.visible = true;
+				}
+				else if(identifyResults.Point[0] == undefined)
+				{
+					trace("undefined attributes");
+				}
+				else
+				{
+					if(identifyResults.Point[0].Value[0].toString() !=null && identifyResults.Point[0].Value[0] !=undefined && Number(identifyResults.Point[0].Value[0].toString())<999)
+					{						
+						//add 4 hours for UTC time line up with graph
+						
+						currentDate.text = DateTimeUtilities.convertDateEuro(currentTime);
+						currentDate.setStyle("color", "0x58595b");
+						var datenew:Date = new Date(currentTime);
+						
+						/* if(layerName.toUpperCase() == "GFS_WINDS"){
+							//for GFS
+							datenew.setHours(datenew.hours+currentTime.timezoneOffset/60);
+							newDate = DateTimeUtilities.getFeatureDateGFSToDBDateString(datenew) as String;
+						}
+						else{ */
+						datenew.setHours(datenew.hours-4);
+						newDate = DateTimeUtilities.getFeatureDateToDBDateString(datenew) as String;
+						//}
+						var sPoints:XMLList = identifyResults.Point;
+						
+						//Parse through to find the current time interval for GetFeature request
+						for(var i:uint=0; i <sPoints.length(); i++)
+						{
+							var pointRec:XML = sPoints[i]; 
+							var values:XMLList = pointRec.children();
+							var lo:Object = {};
+							
+							for(var j:uint=0; j <values.length(); j++)
+							{
+								var valRec:XML = values[j];
+								var units:String=valRec.@Unit;
+								var Type:String=valRec.@Var;
+								var Value:String = valRec.toString();
+								
+								if(units=="" && Type =="")
+								{
+									if(Value.toString()==newDate)
+									{
+										var values:XMLList = identifyResults.Point[i].children();
+										
+										var valRec:XML = values[1];
+										var units1:String=valRec[0].@Unit;
+										var Type1:String=valRec[0].@Var;
+										var Value1:String = valRec.toString();
+										
+										if(values[2] != null)
+										{
+											var valRec2:XML = values[2];
+											var units2:String=valRec2[0].@Unit;
+											var Type2:String=valRec[0].@Var;
+											var Value2:String = valRec2.toString();
+										}
+										
+										var layerObject:Object={};
+										//temp lookup for rename
+										if(layerName.toUpperCase() == "DUBAIWND_WINDS")
+										{
+											layerObject["name"] ="Coastal Winds";
+											layerObject["value"] = Number(Value1).toFixed(1)+" m/s";
+											layerObject["direction"] = Number(Value2).toFixed(1)+" °";
+										}
+										//GFS has a different Time interval but we are not Using GFS now
+										/* else if(layerName.toUpperCase() == "GFS_WINDS")
+										{
+											layerObject["name"] ="Global Winds";
+											layerObject["value"] = Number(Value1).toFixed(1)+" m\\s";
+											layerObject["direction"] = Number(Value2).toFixed(1)+" °";
+										}*/
+										else if(layerName.toUpperCase() == "ARG_DUB_CURRENTS")
+										{
+											layerObject["name"] ="Currents";
+											layerObject["value"] = Number(Value1).toFixed(1)+" m/s";
+											layerObject["direction"] = Number(Value2).toFixed(1)+" °";
+										}
+										else if(layerName.toUpperCase() == "DUB_ELEVATION")
+										{
+											layerObject["name"] ="Water Level";
+											layerObject["value"] = Number(Value1).toFixed(1)+" meters";
+											layerObject["direction"] = "n/a";
+										}
+										else if(layerName.toUpperCase() == "DUBAI_WAVE_HEIGHT")
+										{
+											layerObject["name"] ="Wave Height";
+											layerObject["value"] = Number(Value1).toFixed(1)+" meters";
+											layerObject["direction"] = "n/a";
+										}
+										else if(layerName.toUpperCase() == "DUBAI_WAVE_DIRECTION")
+										{
+											layerObject["name"] ="Wave Direction";
+											layerObject["value"] = "n/a";
+											layerObject["direction"] = Number(Value1).toFixed(1)+" °";
+										}
+										layerObject["flag"] = 0;
+										layerObject["type"] = Type1;
+										layerObject["xml"] = identifyResults;
+										
+										//check to see if the value is already in the datagrid
+										//double clicks create two values
+										var added:String = "no";
+										if(arrLayer.length == 0)
+										{
+											arrLayer.push(layerObject);	
+										}
+										for(var u:uint=0; u <arrLayer.length; u++)
+										{
+											if(arrLayer[u].type == Type1)
+											{
+												added = "yes";
+											}
+										}
+										if(added == "no")
+										{
+											arrLayer.push(layerObject);	
+										}
+									}
+								}
+							}
+						}
+					}
+					if(arrLayer.length<1)
+					{
+						noarea.visible = true;
+						graphInstruction.visible = false;
+						clearButt.visible = false;
+						dataGrid.rowCount = 1;
+					}
+					else
+					{
+						dataGrid.rowCount = arrLayer.length;
+						graphInstruction.visible = true;
+						clearButt.visible = true;
+						dataGrid.dataProvider = arrLayer;
+					}
+				}
+				CursorManager.removeBusyCursor();
+			}
+			
+			
+			private function padding(num:Number):String
+			{
+				if(String(num).length==1){
+					return "0"+num.toString(); 
+				}
+				else{
+					return num.toString();
+				}
+			}
+			
+			private function generateGraph(event:ListEvent):void
+			{
+				swfMessage.visible = true;
+				CursorManager.setBusyCursor();
+				if(identifyChoice.selectedValue == 1)
+				{
+					var queryXML:XML =event.itemRenderer.data.xml as XML;
+					processIdentifyResultsForGraph(queryXML);
+				}
+				//graph using area data
+				else
+				{
+					graphArea.removeAllElements();
+					var linedata:ArrayCollection = new ArrayCollection;
+					//var directionUnit:String=" °";
+					var directionUnit:String=" decimal degrees";
+					var speedUnit:String="";
+					var title:String = identifyList.selectedItem.toString();
+					
+					for(var i:uint=0; i <areaRecordCollection.length; i++)
+					{
+						if(identifyList.selectedItem == areaRecordCollection[i].AREA)
+						{
+							var lo:Object = {};
+							
+							var timeArray:Array = String(areaRecordCollection[i].DATE).split(" ");
+							var nDate:Array = String(timeArray[0]).split("-");
+							var nTime:Array = String(timeArray[1]).split(":");
+							
+							var monthDigit:Number = DateTimeUtilities.numbertoMonth(nDate[1]);
+							var newTime:Date =new Date(Number(nDate[2]),monthDigit,Number(nDate[0]),Number(nTime[0]));
+							
+							newTime.hours = newTime.hours+4;
+							//from 27-JAN-2012 00:00 to  28-01-2012 05:00:00
+							var newTimeString:String = padding(newTime.date)+"-"+padding(newTime.month+1)+"-"+newTime.fullYear+" "+padding(newTime.hours)+":00:00";
+							
+							if(event.itemRenderer.data.type == "Water Elevation")
+							{
+								speedUnit = "Water Level in Meters DMD";
+								lo.SPEED = areaRecordCollection[i].WATERELEV;
+								lo.TIME = newTimeString;
+								lo.DIRECTION ="n/a";
+							}
+							if(event.itemRenderer.data.type == "Water Velocity")
+							{
+								speedUnit = "Water Velocity in Meters per Second";
+								lo.SPEED = areaRecordCollection[i].CURRENTSPEED;
+								lo.TIME = newTimeString;
+								lo.DIRECTION =areaRecordCollection[i].CURRENTDIR;
+							}
+							if(event.itemRenderer.data.type == "Wind Velocity")
+							{
+								speedUnit = "Wind Velocity in Meters per Second";
+								lo.SPEED = areaRecordCollection[i].WIND;
+								lo.TIME = newTimeString;
+								lo.DIRECTION =areaRecordCollection[i].WINDDIR;
+							}
+							if(event.itemRenderer.data.type == "Significant Wave Height")
+							{
+								speedUnit = "Significant Wave Height in Meters";
+								lo.SPEED = areaRecordCollection[i].WAVE;
+								lo.TIME = newTimeString;
+								lo.DIRECTION =areaRecordCollection[i].WAVEDIR;
+							}
+							if(event.itemRenderer.data.type == "Mean Wave Direction")
+							{
+								speedUnit = "Mean Wave Direction";
+								lo.SPEED = areaRecordCollection[i].WAVE;
+								lo.TIME = newTimeString;
+								lo.DIRECTION =areaRecordCollection[i].WAVEDIR;
+							}
+							if(newTime.getTime()>currentTime.getTime()-1000*60*60*6)
+							{
+								linedata.addItem(lo);
+							}
+						}
+					}
+					
+					var chartCanvas:TabNavigator = new TabNavigator;
+					chartCanvas.setStyle("tabHeight", 0);
+					
+					var chrt:TimeSeriesChartArea = createGraphArea("Speed","SPEED","TIME",linedata,speedUnit,directionUnit,title,false);
+					chartCanvas.setStyle("backgroundColor",'0xFFFFFF');
+					chrt.chartTitle = title;
+					
+					if(linedata.length<5)
+					{
+						chrt.oneday = true;
+					}
+					chrt.height = 237;
+					chrt.setStyle("color",'0x4C4C4C');
+					chartCanvas.addElement(chrt);
+					LayerViewerWT.height= 590;
+					chartCanvas.width = 476;
+					graphArea.addElement(chartCanvas);
+					graphText.visible = true;
+					swfMessage.visible = false;
+					CursorManager.removeBusyCursor();
+				}
+			}
+			
+			private function processIdentifyResultsForGraph(identifyResults:XML):void
+			{
+				graphArea.removeAllElements();
+				var sPoints:XMLList = identifyResults.Point;
+				var linedata:ArrayCollection = new ArrayCollection;
+				var lineDataCollection:ArrayCollection = new ArrayCollection;
+				var directionUnit:String="";
+				var speedUnit:String="";
+				var title:String;
+				
+				var dateFormatter:DateFormatterWrapper = new DateFormatterWrapper();
+				dateFormatter.formatString = 'DD-MM-YYYY JJ:NN:SS';
+				
+				for(var i:uint=0; i <sPoints.length(); i++)
+				{
+					var pointRec:XML = sPoints[i]; 
+					var values:XMLList = pointRec.children();
+					var lo:Object = {};
+					
+					for(var j:uint=0; j <values.length(); j++)
+					{
+						var valRec:XML = values[j];
+						var units:String=valRec.@Unit;
+						var Type:String=valRec.@Var;
+						var Value:String = valRec.toString();
+						
+						var dateFormatter1:DateFormatter = new DateFormatter();
+						dateFormatter1.formatString = "DD-MM-YYYY JJ:NN:SS";
+												
+						if(units=="" && Type =="")
+						{
+							try
+							{
+								var dformatted:Date = dateFormatter.parseDate(Value.toString());
+								var updatedDate:Date = new Date(dformatted.getTime()+1000 * 60 * 60*4);
+								
+								lo.TIME = dateFormatter1.format(updatedDate.toString());
+								
+							}
+							catch(err:Error)
+							{
+								var dformatted:Date = dateFormatter.parseDate(Value.toString());
+								var updatedDate:Date = new Date(dformatted.getTime()+1000 * 60 * 60*4);
+								
+								lo.TIME = dateFormatter1.format(updatedDate.toString());
+							}
+						}
+						else
+						{	
+							var dotIndx:int = Value.indexOf(".");
+							if (!(dotIndx == -1))
+							{
+								if(Type.toUpperCase()=="DIRECTION"){
+									directionUnit=units;
+									lo.DIRECTION=Number(Value).toFixed(1);}
+								else{
+									title=Type; 
+									speedUnit=units;
+									lo.SPEED=Number(Value).toFixed(1);
+								} 
+							}
+							else
+							{
+								if(Type.toUpperCase()=="DIRECTION"){
+									directionUnit=units;
+									lo.DIRECTION=Value;}
+								else{
+									title=Type;	
+									speedUnit=units;
+									lo.SPEED=Value;} 
+							}
+						} 
+					}
+					
+					if(speedUnit == "Direction")
+					{
+						speedUnit = "Mean Wave Direction (degrees)";
+					}
+					if(speedUnit == "Meters Per Second")
+					{
+						if(title.search("Water")==-1){
+							speedUnit = "Wind Velocity in Meters per Second";
+						}
+						else{
+							speedUnit = "Water Velocity in Meters per Second";
+						}
+					}
+					if(speedUnit == "Meters")
+					{
+						if(title == "Elevation")
+						{
+							speedUnit = "Water Level in Meters DMD";
+						}
+						else{
+							speedUnit = "Significant Wave Height in Meters";
+						}
+					}
+					
+					//only use from data from current time onward
+					if(updatedDate.getTime()>currentTime.getTime()-1000 * 60 * 60*1)
+					{
+						linedata.addItem(lo);    
+						lineDataCollection.addItem(lo);
+					}
+				}
+				
+				var chartTabs:TabNavigator = new TabNavigator;
+				chartTabs.setStyle("tabHeight", 19);
+				
+				var chrt:TimeSeriesChart = createGraph("Speed","SPEED","TIME",linedata,speedUnit,directionUnit,title,true);
+				chartTabs.setStyle("backgroundColor",'0xFFFFFF');
+				chrt.percentWidth =100;
+				chrt.chartTitle = title;
+				chrt.height = 237;
+				chrt.setStyle("color",'0x4C4C4C');
+				
+				if(linedata.length>1)
+				{
+					chartTabs.addElement(chrt);
+					if(title.search("Wave")==-1&&title.search("Elevation")==-1)
+					{
+						var compss:WindCompassAnimation = new WindCompassAnimation;
+						compss.windDataAC = lineDataCollection;
+						compss.subTitle = title;
+						compss.title ="3 Day Forecast";
+						compss.height = 237;
+						compss.width = 465;
+						compss.units = speedUnit;
+						compss.setStyle("color",'0x4C4C4C');
+						chartTabs.addElement(compss);
+					}
+				}
+				else
+				{	
+				}
+				
+				if(dataGrid.rowCount < 3)
+				{
+					LayerViewerWT.height= 572;
+				}
+				else if(dataGrid.rowCount < 5 && dataGrid.rowCount > 2)
+				{
+					LayerViewerWT.height= 617;
+				}
+				else
+				{
+					LayerViewerWT.height= 655;
+				}
+				
+				chartTabs.width = 476;
+				graphArea.addElement(chartTabs);
+				graphText.visible = true;
+				swfMessage.visible = false;
+				
+				CursorManager.removeBusyCursor();
+			}
+			
+			private function createGraph(name:String, field:String, timeVar:String, data:ArrayCollection, units:String, altUnits:String, typeCaption:String,getfeature:Boolean):TimeSeriesChart 
+			{
+				var z:TimeSeriesChart = new TimeSeriesChart();
+				z.varLabel = field;
+				z.varUnits = units;
+				z.altUnits = altUnits;
+				z.varTime = timeVar;
+				z.getfeature = getfeature;
+				z.chartTitle = typeCaption + " in " + units.replace("in", "");
+				z.upperData = data;
+				return z;
+			}
+			
+			private function createGraphArea(name:String, field:String, timeVar:String, data:ArrayCollection, units:String, altUnits:String, typeCaption:String,getfeature:Boolean):TimeSeriesChartArea 
+			{
+				var z:TimeSeriesChartArea = new TimeSeriesChartArea();
+				z.varLabel = field;
+				z.varUnits = units;
+				z.altUnits = altUnits;
+				z.varTime = timeVar;
+				z.getfeature = getfeature;
+				z.chartTitle = typeCaption + " in " + units.replace("in", "");
+				z.upperData = data;
+				return z;
+			}
+			
+			private function removeGraph():void
+			{
+				graphicsLayer.visible = false;
+				longSearch.text = "";
+				latSearch.text = "";
+				dataGrid.dataProvider.removeAll();
+				dataGrid.rowCount = 1;
+				
+				graphArea.removeAllElements();
+				graphText.visible = false;
+			}
+			
+			private function areaSelect(event:MouseEvent):void
+			{	
+				currentDate.visible = true;
+				identifyList.selectedItem = event.currentTarget.attributes.name;
+				removeGraph();
+				selectedAreaText.text = event.currentTarget.attributes.name;
+				var setDate:Date = new Date;
+				setDate.setTime(currentTime.getTime());
+				setDate.hours = setDate.hours-4;
+								
+				for each (var entry:Graphic in graphicsLayer_areas.graphicProvider)
+				{
+					if(event.currentTarget.attributes.name == entry.attributes.name)
+					{
+						entry.symbol = highlightTabspoly;
+						
+						var selectedArea:String = entry.attributes.name;						
+						arrLayer = null;
+						arrLayer = new Array();
+						
+						
+				//Crazy to find the from begin/end date of selected  data to show from when to when the selection is made 
+						var dateStringObject:Object = DateTimeUtilities.getDateWarningToDBDateStringRound(setDate);
+						var dateString:String = dateStringObject.date;
+						//converting time string to date
+						var timeArray:Array = String(dateStringObject.date).split(" ");
+						var nDate:Array = String(timeArray[0]).split("-");
+						var nTime:Array = String(timeArray[1]).split(":");
+						
+						var monthDigit:Number = DateTimeUtilities.numbertoMonth(nDate[1]);
+						
+						if(dateStringObject.rounded == "down")
+						{
+							var newTime:Date =new Date(Number(nDate[2]),monthDigit,Number(nDate[0]),Number(nTime[0]));
+							var newTimeTo:Date =new Date(new Date(Number(nDate[2]),monthDigit,Number(nDate[0]),Number(nTime[0])).getTime()+1000*60*60*6);	
+						}
+						else{
+							var newTime:Date =new Date(new Date(Number(nDate[2]),monthDigit,Number(nDate[0]),Number(nTime[0])).getTime()-1000*60*60*6);
+							var newTimeTo:Date =new Date(new Date(Number(nDate[2]),monthDigit,Number(nDate[0]),Number(nTime[0])).getTime());
+						}
+						
+						newTime.hours = newTime.hours+4;
+						newTimeTo.hours = newTimeTo.hours+4;
+						//from 27-JAN-2012 00:00 to  28-01-2012 05:00:00
+						var newTimeString:String = padding(newTime.date)+"-"+padding(newTime.month+1)+" "+padding(newTime.hours)+":00";
+						
+						var newTimeStringTo:String = padding(newTimeTo.date)+"-"+padding(newTimeTo.month+1)+" "+padding(newTimeTo.hours)+":00";
+						
+						for(var z:uint = 0; z< areaRecordCollection.length; z++)
+						{
+							if(selectedArea == areaRecordCollection[z].AREA && areaRecordCollection[z].DATE == dateString)
+							{								
+								currentDate.text = newTimeString+" to " +newTimeStringTo;
+								if(LayerXML.Layer[0].Layer[0].@checked == 1){
+									arrLayer.push({name:"Currents",type:"Water Velocity",value:areaRecordCollection[z].CURRENTSPEED+" m/s",direction:areaRecordCollection[z].CURRENTDIR+" °",flag:0});
+								}
+								if(LayerXML.Layer[0].Layer[1].@checked == 1){
+									arrLayer.push({name:"Water Level",type:"Water Elevation",value:areaRecordCollection[z].WATERELEV+" m",direction:" n/a ",flag:0});
+								}
+								if(LayerXML.Layer[0].Layer[2].@checked == 1){
+									arrLayer.push({name:"Coastal Winds",type:"Wind Velocity",value:areaRecordCollection[z].WIND+" m/s",direction:areaRecordCollection[z].WINDDIR+" °",flag:areaRecordCollection[z].WINDFLAG});
+								}
+								if(LayerXML.Layer[0].Layer[3].@checked == 1){
+									arrLayer.push({name:"Wave Height",type:"Significant Wave Height",value:areaRecordCollection[z].WAVE+" m",direction:" n/a ",flag:areaRecordCollection[z].WAVEFLAG});
+								}
+								if(LayerXML.Layer[0].Layer[4].@checked ==1){
+									arrLayer.push({name:"Wave Direction",type:"Mean Wave Direction",value:" n/a ",direction:areaRecordCollection[z].WAVEDIR+" °",flag:0});	
+								}
+							}
+						}
+						if(arrLayer.length>0)
+						{
+							dataGrid.rowCount = arrLayer.length;
+							dataGrid.dataProvider = arrLayer;
+							graphInstruction.visible = true;
+							clearButt.visible =true
+						}
+						else{
+							graphInstruction.visible = false;
+							clearButt.visible = false;
+							dataGrid.rowCount = 1;
+						}
+					}
+					else 
+					{
+						entry.symbol = mySymbol;
+					} 
+				}
+				graphicsLayer_areas.refresh();
+			}
+			
+			private function selectAreaOption(event:ListEvent):void
+			{
+				for each (var entry:Graphic in graphicsLayer_areas.graphicProvider)
+				{
+					if(event.currentTarget.selectedItem == entry.attributes.name)
+					{
+						entry.symbol = highlightTabspoly;
+					}
+					else{
+						entry.symbol = mySymbol;
+					}
+				}
+				currentDate.visible = true;
+				var selectedArea:String = event.currentTarget.selectedItem;
+				var setDate:Date = new Date;
+				setDate.setTime(currentTime.getTime());
+				setDate.hours = setDate.hours-4;
+				
+				arrLayer = null;
+				arrLayer = new Array();
+				
+				removeGraph();
+				selectedAreaText.text = selectedArea;
+				
+				var dateStringObject:Object = DateTimeUtilities.getDateWarningToDBDateStringRound(setDate);
+				var dateString:String = dateStringObject.date;
+				//converting time string to date
+				var timeArray:Array = String(dateStringObject.date).split(" ");
+				var nDate:Array = String(timeArray[0]).split("-");
+				var nTime:Array = String(timeArray[1]).split(":");
+				
+				var monthDigit:Number = DateTimeUtilities.numbertoMonth(nDate[1]);
+				
+				if(dateStringObject.rounded == "down")
+				{
+					var newTime:Date =new Date(Number(nDate[2]),monthDigit,Number(nDate[0]),Number(nTime[0]));
+					var newTimeTo:Date =new Date(new Date(Number(nDate[2]),monthDigit,Number(nDate[0]),Number(nTime[0])).getTime()+1000*60*60*6);	
+				}
+				else{
+					var newTime:Date =new Date(new Date(Number(nDate[2]),monthDigit,Number(nDate[0]),Number(nTime[0])).getTime()-1000*60*60*6);
+					var newTimeTo:Date =new Date(new Date(Number(nDate[2]),monthDigit,Number(nDate[0]),Number(nTime[0])).getTime());
+				}
+				
+				newTime.hours = newTime.hours+4;
+				newTimeTo.hours = newTimeTo.hours+4;
+				//from 27-JAN-2012 00:00 to  28-01-2012 05:00:00
+				var newTimeString:String = padding(newTime.date)+"-"+padding(newTime.month+1)+" "+padding(newTime.hours)+":00";
+				
+				var newTimeStringTo:String = padding(newTimeTo.date)+"-"+padding(newTimeTo.month+1)+" "+padding(newTimeTo.hours)+":00";
+				
+				for(var z:uint = 0; z< areaRecordCollection.length; z++)
+				{
+					if(selectedArea == areaRecordCollection[z].AREA && String(areaRecordCollection[z].DATE).toUpperCase() == dateString.toUpperCase())
+					{
+						currentDate.text = newTimeString+" to " +newTimeStringTo;
+						if(LayerXML.Layer[0].Layer[0].@checked == 1){
+							arrLayer.push({name:"Currents",type:"Water Velocity",value:areaRecordCollection[z].CURRENTSPEED+" m/s",direction:areaRecordCollection[z].CURRENTDIR+" °",flag:areaRecordCollection[z].FLAG});
+						}
+						if(LayerXML.Layer[0].Layer[1].@checked == 1){
+							arrLayer.push({name:"Water Level",type:"Water Elevation",value:areaRecordCollection[z].WATERELEV+" m",direction:" n/a ",flag:"0"});
+						}
+						if(LayerXML.Layer[0].Layer[2].@checked == 1){
+							arrLayer.push({name:"Coastal Winds",type:"Wind Velocity",value:areaRecordCollection[z].WIND+" m/s",direction:areaRecordCollection[z].WINDDIR+" °",flag:areaRecordCollection[z].WINDFLAG});
+						}
+						if(LayerXML.Layer[0].Layer[3].@checked == 1){
+							arrLayer.push({name:"Wave Height",type:"Significant Wave Height",value:areaRecordCollection[z].WAVE+" m",direction:" n/a ",flag:areaRecordCollection[z].WAVEFLAG});
+						}
+						if(LayerXML.Layer[0].Layer[4].@checked ==1){
+							arrLayer.push({name:"Wave Direction",type:"Mean Wave Direction",value:" n/a ",direction:areaRecordCollection[z].WAVEDIR+" °",flag:"0"});	
+						}
+					}
+				}
+				if(arrLayer.length>0)
+				{
+					dataGrid.rowCount = arrLayer.length;
+					dataGrid.dataProvider = arrLayer;
+					graphInstruction.visible = true;
+					clearButt.visible = true;
+				}
+				else{
+					graphInstruction.visible = false;
+					clearButt.visible = false;
+					dataGrid.rowCount = 1;
+				}
+			}
+			
+			private function updateProj(event:IndexChangeEvent):void
+			{
+				if(projType.selectedIndex == 0)
+				{
+					latnorth.text = "North";
+					longeast.text = "East";
+					if(latSearch.text != "")
+					{
+						var dubai84g:ProjProjection= new ProjProjection("EPSG:3997");
+						var wgs84g:ProjProjection= new ProjProjection("EPSG:4326");
+						var oldPoint:ProjPoint = new ProjPoint(Number(longSearch.text),Number(latSearch.text));
+						var newPoint:ProjPoint=Proj4as.transform(wgs84g,dubai84g,oldPoint);
+						latSearch.text = newPoint.y.toFixed(2);
+						longSearch.text = newPoint.x.toFixed(2);
+					}
+				}
+				else
+				{
+					latnorth.text = "Lat";
+					longeast.text = "Long";
+					if(latSearch.text != "")
+					{
+						var dubai84g:ProjProjection= new ProjProjection("EPSG:3997");
+						var wgs84g:ProjProjection= new ProjProjection("EPSG:4326");
+						var oldPoint:ProjPoint = new ProjPoint(Number(longSearch.text),Number(latSearch.text));
+						var newPoint:ProjPoint=Proj4as.transform(dubai84g,wgs84g,oldPoint);
+						latSearch.text = newPoint.y.toFixed(2);
+						longSearch.text = newPoint.x.toFixed(2);
+					}
+				}
+			}
+			
+			private function changeRadioButton():void
+			{
+				removeGraph();
+				graphInstruction.visible = false;
+				clearButt.visible = false;
+				selectedAreaText.text = "";
+				if(identifyChoice.selectedValue == 0)
+				{
+					graphicsLayer_areas.visible = true;
+					map.reorderLayer("area_layer", 12);
+					
+					//clear all selection
+					for each (var entry:Graphic in graphicsLayer_areas.graphicProvider)
+					{
+						entry.symbol = mySymbol;
+					}
+					graphicsLayer_areas.refresh();
+					
+					drawTool.deactivate();
+					drawTool.showDrawTips = false;
+					if(tt){
+						tt.text = "Select Area";
+					} 
+					graphicsLayer.visible = false;
+				}
+				else{
+					graphicsLayer_areas.visible = false;
+					activateIdentifyTool();
+					tt.text = "Select Location";
+				}
+			}
+			
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<s:Animate id="fader"
+				   duration="2000"
+				   repeatBehavior="loop"
+				   repeatCount="0"
+				   target="{timeslid1}">
+			<s:SimpleMotionPath property="alpha"
+								valueFrom="1.0" valueTo="0.2" />
+		</s:Animate>
+		<s:Animate id="fader2"
+				   duration="2000"
+				   repeatBehavior="loop"
+				   repeatCount="0"
+				   target="{timeslid2}">
+			<s:SimpleMotionPath property="alpha"
+								valueFrom="1.0" valueTo="0.2" />
+		</s:Animate>
+		<net:URLLoader id="urlLoader" dataFormat="{URLLoaderDataFormat.BINARY}" />
+		<net:URLLoader id="urlLoader1" dataFormat="{URLLoaderDataFormat.BINARY}" complete="completeHandler(event);" />
+		<mx:GlowFilter id = "glowFilter" color = "0x3D9BBF"
+					   blurX = "1" blurY = "1" quality = "1" alpha = "0.5" />
+		<esri:SimpleMarkerSymbol id="ptIdentify" style="circle" color="0xFF3333" size="11"/>
+		<esri:SimpleLineSymbol id="lineW" color="0x302522" width="2"/>
+		<esri:SimpleLineSymbol id="lineGrid" color="0x302522" width=".5"/>
+		<esri:SimpleLineSymbol id="lines" color="0x302522" width="2"/>
+		<esri:SimpleFillSymbol style="null" outline="{lines}" id="emptyPoly"/>
+		<esri:SimpleFillSymbol id="mySymbol" alpha="0.4" outline="{lines}" color="0xE5E5E5" style="solid"/>
+		<esri:SimpleLineSymbol id="highlightTabs" color="0x333333" width="2"/>
+		<esri:SimpleFillSymbol id="highlightTabspoly" style="solid" alpha=".8" color="0x024B79" outline="{highlightTabs}"/>
+		<!--<s:Animate id="anim" duration="10000" repeatBehavior="loop"
+				   repeatCount="0" repeatDelay="500">
+			<s:motionPaths>
+				<s:SimpleMotionPath id="pth" property="horizontalScrollPosition" />
+			</s:motionPaths>
+		</s:Animate>-->
+		<s:RadioButtonGroup change="changeRadioButton()" id="identifyChoice" />
+	</fx:Declarations>
+	<viewer:WidgetTemplate enableResizeButton="false" open="widgetOpenedHandler(event)" closed="widgetClosedHandler(event)"
+						   enableMinimizeButton="true" enableIcon="false" leftPadding="0" iconWidth="0" id="LayerViewerWT" width="510" height="501">
+		<viewer:layout>
+			<s:VerticalLayout gap="1" paddingTop="4"/>
+		</viewer:layout>
+		<mx:Accordion useHandCursor="true" id="accord" change="accordianChange(event)" creationPolicy="all" paddingTop="0" borderVisible="true" headerRenderer="widgets.WarningViewer.AccordianSkin" 
+					  chromeColor="0xFFFFFF"  width="100%" fontSize="13" fontWeight="bold"  selectedIndex="0" height="100%" openDuration="400" >
+			<mx:VBox label="Predicted Data" width="100%" height="100%">
+					<mx:VBox paddingTop="14" horizontalAlign="center" paddingBottom="10" paddingLeft="2" horizontalScrollPolicy="off" width="100%" borderColor="0x000000" borderVisible="true">
+						<s:Label fontSize="14" text="Select one or more from the following layers"/>
+						<s:Label fontSize="14" text="to visualize data, then press next."/>
+						<s:Label fontSize="14" text="Predicted data provided for the next three calender days" paddingTop="11"/>
+					</mx:VBox>
+					<mx:VBox horizontalAlign="center" paddingBottom="11" id="ecopLayerOption" label="{ResourceManager.getInstance().getString('LayerViewer','layers')}" width="100%" height="100%">	
+						<mx:Tree id="trPermissions" dataProvider="{LayerXML}" openItems="{LayerXML}"
+								 itemRenderer="widgets.PredictedData.skins.TreeRenderer"
+								 showRoot="false" paddingTop="5" labelField="@pName" height="100%" rowHeight="31"
+								 width="100%" folderClosedIcon="{null}" itemClick="toggleLayer(event)"
+								 folderOpenIcon="{null}" defaultLeafIcon="{null}"  mouseEnabled="false" borderStyle="none" verticalScrollPolicy="auto"/>						
+						<mx:HBox width="100%" visible="false" paddingLeft="2" height="0" verticalAlign="middle" backgroundColor="0x666666">
+							<mx:SWFLoader id="layerLoader" source="assets/images/loader.swf" horizontalCenter="0" bottom="41" width="35" height="32" visible="false"/>
+							<s:Label id="layerLoader2" text="Loading..." fontSize="12" color="white" fontWeight="bold" visible="false"/>
+							<!--<s:Button label="Clear Scenario" click="clearScenario()" fontSize="11" visible="false" id="clearScen"/>-->
+						</mx:HBox>
+						<s:VGroup id="viewtimeslider" paddingLeft="20" width="98%"  visible="false">
+							<s:Label fontSize="12" fontWeight="bold" width="100%" horizontalCenter="0" text="Use TimeSlider Animation Controls to customize start time for data table/graph  "/>
+							<s:Label fontSize="12" fontWeight="bold" width="100%" paddingLeft="45" paddingBottom="0" paddingTop="-2" visible="true" text="      Use the TimeSlider to animate forecast data in the map"/>
+						</s:VGroup>
+						<mx:Button label="Next" id="nextBut" enabled="false" click="gotoSelect()"/>
+					</mx:VBox>
+			</mx:VBox>
+			<mx:VBox horizontalAlign="center" horizontalScrollPolicy="off" width="100%" fontSize="10" verticalAlign="middle" label="Select Location" height="100%">
+				<s:Group id="resultsList" height="100%" width="100%" visible="true">
+					<s:layout>
+						<s:VerticalLayout paddingBottom="1" gap="1"/>
+					</s:layout>
+					<s:HGroup>
+						<s:VGroup paddingLeft="8" gap="3" paddingTop="5">
+							<s:RadioButton group="{identifyChoice}"  value="1" fontSize="12" fontWeight="bold" id="lablpoint" selected="true" label="Select Single Location by Clicking on the Map"/>
+							<s:RadioButton group="{identifyChoice}" value="0" fontSize="12" fontWeight="bold" id="lablArea" label="Select Area from Warning Area List or by Clicking on the Map"/>
+						</s:VGroup>
+						<s:HGroup paddingTop="5" paddingRight="7">
+							<s:Button id="clearButt" visible="false" click="removeGraph()" fontSize="12" label="Clear Selection"/>
+						</s:HGroup>
+					</s:HGroup>
+					<s:VGroup id="boxMessage" visible="true" horizontalAlign="center" verticalAlign="middle" paddingTop="7" paddingRight="2"
+							  width="100%">
+						<s:HGroup paddingLeft="5"  width="100%" horizontalAlign="left" paddingTop="3">
+							<s:HGroup verticalAlign="middle" width="98%" horizontalAlign="left" fontSize="13" paddingLeft="5">
+								<s:Label paddingLeft="2" fontSize="12" visible="false" id="currentDate" paddingBottom="0" fontWeight="normal"/>
+								<s:Label id="selectedAreaText" fontWeight="bold"/>
+								<s:Label id="noarea" visible="false" color="red" fontSize="10" text="No Data Selected"/>
+								<!--<s:VGroup gap="0">
+								<s:Label horizontalCenter="0" id="currentLat" fontWeight="bold"/>
+								<s:Label horizontalCenter="0" id="currentLong" fontWeight="bold"/>
+								</s:VGroup>-->
+							</s:HGroup>
+							<mx:SWFLoader id="swfMessage" source="assets/images/loader.swf" height="0" width="0" visible="false"/>
+						</s:HGroup>
+						<s:Label fontSize="11" id="timesliderText" fontWeight="bold"  visible="true" text="The table below contains predicted values for the time shown in the TimeSlider"/>
+						<mx:DataGrid id="dataGrid" variableRowHeight="false" maxWidth="478" rowHeight="26" paddingLeft="2" 
+									 rowCount="1" width="100%" itemClick="generateGraph(event)" paddingRight="15" 
+									 dataProvider="{arrLayer}" headerStyleName="centered">
+							<mx:columns>
+								<mx:DataGridColumn minWidth="35" dataField="name" width="35"
+												   headerText="" 
+												   textAlign="left" >
+									<mx:itemRenderer>
+										<fx:Component>
+											<mx:HBox paddingLeft="0" horizontalScrollPolicy="off" horizontalAlign="left" verticalAlign="middle">
+												<s:Label buttonMode="true" toolTip="Click to show forecast graph" fontWeight="bold" color="blue" text="Graph" textDecoration="underline"/>
+											</mx:HBox> 
+										</fx:Component>
+									</mx:itemRenderer>
+								</mx:DataGridColumn>
+								<mx:DataGridColumn minWidth="141" dataField="name" width="141"
+												   headerText="Layer" itemRenderer="widgets.PredictedData.WarningLabel"
+												   textAlign="left" >
+								</mx:DataGridColumn>
+								<mx:DataGridColumn minWidth="120" dataField="type" width="120" 
+												   headerText="Type" itemRenderer="widgets.PredictedData.WarningLabel"
+												   textAlign="right" />							
+								<mx:DataGridColumn minWidth="56" dataField="value" width="56" 
+												   headerText="Value" fontWeight="bold" itemRenderer="widgets.PredictedData.WarningLabel"
+												   textAlign="right" />
+								<mx:DataGridColumn minWidth="51" dataField="direction" width="51"
+												   headerText="Direction"
+												   textAlign="right" />
+								<mx:DataGridColumn minWidth="0" dataField="flag" width="0"
+												    visible="false"/>
+							</mx:columns>
+						</mx:DataGrid>
+						<s:HGroup visible="false" id="graphInstruction">
+							<s:Label fontSize="11" fontWeight="bold" text="Press the Graph"/>
+							<!--<s:Label  text="Graph" color="blue" textDecoration="underline"/>-->
+							<s:Label fontSize="11" fontWeight="bold" text="link to load a time-series plot of the data"/>
+						</s:HGroup>
+						<mx:ViewStack id="idendifyStack" paddingBottom="2" selectedIndex="{int(identifyChoice.selectedValue)}" creationPolicy="all" width="100%" height="100%">				
+							<mx:HBox horizontalAlign="center" paddingTop="0" verticalAlign="middle">
+								<s:Label fontSize="12"  text="Area List:  "/>
+								<mx:ComboBox id="identifyList" change="selectAreaOption(event)" dataProvider="{areaArray}" cornerRadius="3"  width="195" 
+												selectedIndex="0" textDecoration="none" fontSize="11">
+								</mx:ComboBox>
+							</mx:HBox>	
+							<mx:HBox horizontalAlign="center" paddingBottom="2" paddingTop="0" verticalAlign="middle">
+								<s:Label fontSize="11" id="latnorth" text="North"/>
+								<mx:TextInput borderSkin="mx.skins.halo.HaloBorder" fontSize="11" id="latSearch" restrict="{0-9}" width="68" text=""/>
+								<s:Label fontSize="11" id="longeast" text="East"/>
+								<mx:TextInput borderSkin="mx.skins.halo.HaloBorder" fontSize="11" restrict="{0-9}" id="longSearch" width="66" text=""/>
+								<s:DropDownList id="projType" cornerRadius="3" change="updateProj(event)" width="72" 
+												selectedIndex="0" lineThrough="false" textDecoration="none" fontSize="11">
+									<mx:ArrayCollection>
+										<fx:Object label="DLTM" data="DLTM"/>
+										<fx:Object label="WGS84" data="WGS84"/>
+									</mx:ArrayCollection>
+								</s:DropDownList>
+								<s:Button fontSize="11" width="61" toolTip="Select input coordinate location" click="queryPointLatLong()" label="Select"/>
+							</mx:HBox>
+						</mx:ViewStack>
+						<s:Label fontSize="11" id="graphText" visible="false" fontWeight="bold" paddingTop="0" text="The graph shows time-series plot beginning at the time shown in the TimeSlider"/>
+						<s:VGroup id="graphArea" paddingTop="1" paddingLeft="2" paddingRight="2"  width="100%" height="100%">
+						</s:VGroup>
+						<s:Label fontSize="12" id="timeslid1" color="0xcd1b21" creationComplete="fader.play();" paddingLeft="29" fontWeight="bold" width="100%" paddingBottom="0" visible="true" text="Use TimeSlider Animation Controls to customize start time for data table/graph"/>
+						<s:Label fontSize="12" id="timeslid2" color="0xcd1b21" creationComplete="fader2.play();" paddingLeft="80" fontWeight="bold" width="100%" paddingBottom="0" paddingTop="-2" visible="true" text="    Use the TimeSlider to animate forecast data in the map"/>
+					</s:VGroup>
+				</s:Group>
+			</mx:VBox>
+			<mx:VBox id="oilModel" width="100%" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off" label="{ResourceManager.getInstance().getString('LayerViewer','legend')}">
+				<mx:HBox id="ecopLegendOption" paddingTop="2" horizontalAlign="center" label="{ResourceManager.getInstance().getString('LayerViewer','legend')}" width="100%"  paddingLeft="0">
+					<!--<mx:Image id="windsLegendImage" visible="false" source="assets/legends/WindsLegend2.png"/>
+					<mx:Image id="currentsLegendImage" visible="false" source="assets/legends/CurrentsLegend.png"/>
+					<mx:Image id="wavesLegendImage" visible="false" source="assets/legends/WaveHeight.png"/>
+					<mx:Image id="oilLegendImage" source="assets/legends/oilspill.png"/>-->
+				</mx:HBox>
+				<mx:VBox id="ecopLegendOption2" paddingTop="2" horizontalAlign="center" label="{ResourceManager.getInstance().getString('LayerViewer','legend')}" width="100%" paddingLeft="20"/>					
+			</mx:VBox> 
+		</mx:Accordion>
+	</viewer:WidgetTemplate>
+</viewer:BaseWidget>

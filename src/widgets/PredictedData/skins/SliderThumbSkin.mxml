@@ -1,0 +1,51 @@
+<mx:UIComponent initialize = "init()" xmlns:mx = "http://www.adobe.com/2006/mxml">
+
+	<mx:Script>
+		<![CDATA[
+			private var gradientColorsArray:Array = [ 0xE5E5E5, 0xE5E5E5 ];
+
+			private var lineWeight:Number = 2;
+			
+			override protected function updateDisplayList(unscaledWidth:Number, unscaledHeight:Number):void
+			{
+				graphics.lineStyle(lineWeight, 0x000000, 0.1);
+				var matrix:Matrix = new Matrix();
+				matrix.createGradientBox(unscaledWidth, unscaledHeight, (Math.PI / 180) * 45);
+				graphics.beginGradientFill(GradientType.LINEAR, gradientColorsArray, [ 1, 1 ], [ 0, 255 ], matrix);
+				graphics.drawCircle(unscaledWidth / 2, unscaledHeight / 2, unscaledHeight / 4 + 1);
+			}
+
+			private function init():void
+			{
+				if (StyleManager.getStyleDeclaration('.SliderThumbSkin'))
+				{
+					gradientColorsArray = StyleManager.getStyleDeclaration('.SliderThumbSkin').getStyle('backgroundGradientColors');
+					this.alpha = StyleManager.getStyleDeclaration('.SliderThumbSkin').getStyle('backgroundAlpha');
+				}
+
+				if (parent.parent.parent.parent)
+				{
+					this.parent.height = parent.parent.parent.parent.height;
+					this.parent.width = parent.parent.parent.parent.height;
+				}
+				else
+				{
+					this.height = 20;
+					this.width = 20;
+				}
+			}
+		]]>
+	</mx:Script>
+
+	<mx:states>
+		<mx:State name = "up">
+			<mx:SetProperty value = "0.9" target = "{this}" name = "alpha" />
+		</mx:State>
+		<mx:State name = "over">
+			<mx:SetProperty value = "1" target = "{this}" name = "alpha" />
+		</mx:State>
+		<mx:State name = "down">
+			<mx:SetProperty value = "1" target = "{this}" name = "alpha" />
+		</mx:State>
+	</mx:states>
+</mx:UIComponent>

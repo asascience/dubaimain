@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+////////////////////////////////////////////////////////////////////////////////
+//
+// Version 2.1 - Oct 7, 2010
+//
+// Delevoped by Robert Scheitlin
+//
+////////////////////////////////////////////////////////////////////////////////
+-->
+<viewer:BaseWidget xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				   xmlns:s="library://ns.adobe.com/flex/spark" 
+				   xmlns:mx="library://ns.adobe.com/flex/mx" 
+				   xmlns:viewer="com.esri.viewer.*" 
+				   layout="horizontal"
+				   widgetConfigLoaded="basewidget_widgetConfigLoadedHandler(event)">
+	<fx:Script>
+		<![CDATA[
+			import com.esri.ags.events.MapEvent;
+			import com.esri.ags.layers.*;
+			import com.esri.ags.virtualearth.VETiledLayer;
+			import com.esri.viewer.AppEvent;
+			import com.esri.viewer.ViewerContainer;
+			
+			import flashx.textLayout.conversion.TextConverter;
+			import flashx.textLayout.elements.TextFlow;
+			
+			// Set the OpenStreetMap copyright notice
+			private var osmHtmlText:String = '© <a href="http://www.openstreetmap.org/" target="_blank">OpenStreetMap</a> contributors, '
+				+ '<a href="http://creativecommons.org/licenses/by-sa/2.0/" target="_blank">CC-BY-SA</a>';
+			private var osmTF:TextFlow = TextConverter.importToFlow(osmHtmlText, TextConverter.TEXT_FIELD_HTML_FORMAT);
+			
+			protected function basewidget_widgetConfigLoadedHandler(event:Event):void
+			{
+				if (configXML)
+				{
+					
+					const color:String = configXML.label.@color;
+					cright.setStyle("color", toNumber(color.length ? color : "0x000000"));
+					const fontFamily:String = configXML.label.@fontfamily;
+					cright.setStyle("fontFamily", fontFamily.length ? fontFamily : "Verdana");
+					const fontSize:String = configXML.label.@fontsize;
+					cright.setStyle("fontSize", parseInt(fontSize.length ? fontSize : "9"));
+					const fontWeight:String = configXML.label.@fontweight;
+					cright.setStyle("fontWeight", fontWeight.length ? fontWeight : "bold");
+					
+					if (map.loaded)
+					{
+						map_loadHandler(null);
+					}
+					else
+					{
+						map.addEventListener(MapEvent.LOAD, map_loadHandler);
+					}
+				}
+				
+				function map_loadHandler(event:MapEvent):void
+				{
+					map.removeEventListener(MapEvent.LOAD, map_loadHandler);
+					ViewerContainer.addEventListener(AppEvent.BASEMAP_SWITCH,basemapSwitched);
+					//Set the copyright text to the first basemap in the list
+					var configBasemaps:Array = configData.basemaps;
+					var label:String = configBasemaps[0].label;
+					var layer:Layer = map.getLayer(label);
+					
+					if (layer is ArcGISTiledMapServiceLayer)
+					{
+						if(layer.visible)
+							cright.text = (layer as ArcGISTiledMapServiceLayer).copyright;
+					}
+					else if (layer is ArcGISDynamicMapServiceLayer)
+					{
+						if(layer.visible)
+							cright.text = (layer as ArcGISDynamicMapServiceLayer).copyright;
+					}
+					else if (layer is ArcGISImageServiceLayer)
+					{
+						if(layer.visible)
+							cright.text = (layer as ArcGISImageServiceLayer).copyright;
+					}
+						// if OpenStreetMapLayer
+					else if (layer is OpenStreetMapLayer)
+					{
+						if(layer.visible)
+							cright.textFlow = osmTF;
+					} 
+						// if OpenStreetMapLayer
+					else if (layer is VETiledLayer)
+					{
+						if(layer.visible)
+							cright.text = "Bing Maps 2011";
+					} 
+				}
+			}
+			
+			private function toNumber(value:String):int
+			{
+				if (value.substr(0, 2) == "0x")
+				{
+					return parseInt(value, 16);
+				}
+				return parseInt(value, 10);
+			}
+			
+			protected function basemapSwitched(event:AppEvent):void
+			{
+				var id:String = event.data as String;
+				var configBasemaps:Array = configData.basemaps;
+				
+				if (id)
+				{
+					for (var i:Number = 0; i < configBasemaps.length; i++)
+					{
+						var label:String = configBasemaps[i].label;
+						var layer:Layer = map.getLayer(label);
+						if (layer is ArcGISTiledMapServiceLayer)
+						{
+							if(layer.visible)
+								cright.text = (layer as ArcGISTiledMapServiceLayer).copyright;
+						}
+						else if (layer is ArcGISDynamicMapServiceLayer)
+						{
+							if(layer.visible)
+								cright.text = (layer as ArcGISDynamicMapServiceLayer).copyright;
+						}
+						else if (layer is ArcGISImageServiceLayer)
+						{
+							if(layer.visible)
+								cright.text = (layer as ArcGISImageServiceLayer).copyright;
+						}
+							// if OpenStreetMapLayer
+						else if (layer is OpenStreetMapLayer)
+						{
+							if(layer.visible)
+								cright.textFlow = osmTF;
+						}  
+						else if (layer is VETiledLayer)
+						{
+							if(layer.visible)
+							cright.text = "Bing Maps 2011";
+						} 
+					}
+				}
+			}
+		]]>
+	</fx:Script>
+	<viewer:filters>
+		<mx:GlowFilter alpha="1"
+					   blurX="3"
+					   blurY="3"
+					   color="0xFFFFFF"
+					   strength="7"/>
+	</viewer:filters>
+	
+	<!--<s:Label id="cright"/>-->
+	
+	<s:RichEditableText id="cright"
+						bottom="2"
+						editable="false"
+						horizontalCenter="0"
+						selectable="false"/>
+</viewer:BaseWidget>

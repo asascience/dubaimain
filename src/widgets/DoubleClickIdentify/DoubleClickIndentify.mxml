@@ -1,0 +1,505 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+-->
+<viewer:BaseWidget xmlns:fx="http://ns.adobe.com/mxml/2009"
+                   xmlns:s="library://ns.adobe.com/flex/spark"
+                   xmlns:mx="library://ns.adobe.com/flex/mx"
+                   xmlns:viewer="com.esri.viewer.*"
+				   xmlns:net="flash.net.*"
+                   layout="vertical"
+                   widgetConfigLoaded="basewidget_widgetConfigLoadedHandler(event)" xmlns:esri="http://www.esri.com/2008/ags">
+
+    <fx:Script>
+        <![CDATA[
+			import com.esri.ags.Graphic;
+			import com.esri.ags.events.MapEvent;
+			import com.esri.ags.geometry.MapPoint;
+			import com.esri.ags.layers.GraphicsLayer;
+			import com.esri.ags.layers.Layer;
+			import com.esri.ags.utils.GeometryUtil;
+			import com.esri.ags.utils.WebMercatorUtil;
+			import com.esri.viewer.AppEvent;
+			import com.esri.viewer.ViewerContainer;
+			import com.myCom.GeomUtil;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.formatters.NumberBaseRoundType;
+			import mx.managers.CursorManager;
+			import mx.messaging.messages.HTTPRequestMessage;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.rpc.http.HTTPService;
+			import mx.utils.ColorUtil;
+			import mx.utils.StringUtil;
+						
+			import widgets.ShapeFiles.ShpPolygon;
+			import widgets.ShapeFiles.ShpReader;
+			import widgets.TimeSlider.components.util.DateTimeUtilities;
+			
+            private var m_template:String;
+			private var m_template_merc:String;
+			private var idPoint:MapPoint;
+			private var _params:URLVariables;
+			private var _httpService:HTTPService;
+			[Bindable]
+			private var arrLayer:Array = new Array();
+			[Bindable]
+			private var currentTime:Date=new Date();
+			[Bindable]
+			private var landPolygon:ArrayCollection = new ArrayCollection;			
+			
+			[Bindable]
+			private var _ECOPModelSource:String;
+			
+			private var graphicsLayer:GraphicsLayer;
+			private var oilWarningLayer:GraphicsLayer = new GraphicsLayer;
+
+            protected function basewidget_widgetConfigLoadedHandler(event:Event):void
+            {
+				ViewerContainer.addEventListener(AppEvent.TIME_SLIDER_TIME_CHANGED, updateCurrentTime);
+				
+				ViewerContainer.addEventListener(AppEvent.IDENTIFY_SINGLE_CLICK, map_singleClickHandler);
+				
+				ViewerContainer.addEventListener(AppEvent.IDENTIFY_SINGLE_CLICK_STOP, map_singleClickHandlerSTOP);
+				
+				if (configXML)
+                {
+					_ECOPModelSource = configXML.ASAMapServices.ecop;
+					labeling.text = configXML.label;
+					
+					graphicsLayer = new GraphicsLayer();
+					graphicsLayer.addEventListener(MouseEvent.CLICK, clearGraphic);
+					
+					graphicsLayer.id = "indentifyPoint";
+					map.addLayer(graphicsLayer);
+					
+					var filesource:String = configXML.landMask;
+					urlLoader.addEventListener(Event.COMPLETE,layercompleteHandler);
+					
+					urlLoader.load( new URLRequest(filesource));
+					
+					if (map.loaded)
+                    {
+                        map_loadHandler(null);
+                    }
+                    else
+                    {
+                        map.addEventListener(MapEvent.LOAD, map_loadHandler);
+                    }
+                }
+
+                function map_loadHandler(event:MapEvent):void
+                {
+					map.addEventListener(MouseEvent.DOUBLE_CLICK, map_mouseClickHandler);
+                }
+            }
+			
+			///Shapefile add for Oil Warning layer (no DBF attributes)
+			private function layercompleteHandler(event:Object):void
+			{
+				var shpByteArray:ByteArray = new ByteArray;
+				shpByteArray = urlLoader.data as ByteArray;
+				if (shpByteArray && shpByteArray.length > 0 )
+				{
+					loadShapefile_landmask(shpByteArray);
+				}
+				else
+				{
+					Alert.show("Sorry, but there is a problem with the shapefile.");
+				}
+			}
+			
+			private function loadShapefile_landmask(shpByteArray:ByteArray):void
+			{
+				var index:int = 0;
+				var shpReader:ShpReader = new ShpReader(shpByteArray);
+				var shapeType:int = shpReader.readShpType();
+				while (shpReader.hasMore()) {
+					if (shapeType == 5) {
+						
+						var shpPolygon:ShpPolygon = shpReader.readShpPolygon();
+						var ringPoly:Array = [];
+						
+						//add vertice for each ring polygon
+						for(var x:int=0; x <shpPolygon.rings.length; x++)
+						{
+							var polyPointArray:Array = shpPolygon.rings[x];
+							
+							for(var i:int=0; i <polyPointArray.length; i++)
+							{
+								var vertic:MapPoint =new MapPoint;
+								vertic.x = polyPointArray[i];
+								vertic.y = polyPointArray[i+1];
+								
+								ringPoly.push(vertic);
+								i=i+1;
+							}
+						}
+						
+						//add array poly for each ring
+						landPolygon.addItem(ringPoly);
+						
+						/* Create vertice for every polygon ring, doesn't work quite right 
+						for(var x:int=0; x <shpPolygon.rings.length; x++)
+						{
+							var polyPointArray:Array = shpPolygon.rings[x];
+							
+							for(var i:int=0; i <polyPointArray.length; i++)
+							{
+								var vertic:MapPoint =new MapPoint;
+								vertic.x = polyPointArray[i];
+								vertic.y = polyPointArray[i+1];
+								
+								landPolygon.push(vertic);
+								i=i+1;
+							}
+						} */
+						
+						//oilWarningLayer.add(new Graphic(shpPolygon.toPolygon()));
+						//oilWarningLayer.symbol = mySymbol;
+						//oilWarningLayer.refresh();
+						index++;
+					}
+				}
+				//oilWarningLayer.id = "oilWarningLayer";
+				//oilWarningLayer.visible = true;
+				//map.addLayer(oilWarningLayer);
+			}
+			
+			private function clearGraphic(event:MouseEvent):void
+			{
+				graphicsLayer.visible = false;
+				dataGrid.rowCount = 1;
+				arrLayer = null;
+			}
+			
+			private function updateCurrentTime(event:AppEvent):void
+			{
+				currentTime = event.data as Date;
+			}
+			
+            private function toNumber(value:String):int
+            {
+                if (value.substr(0, 2) == "0x")
+                {
+                    return parseInt(value, 16);
+                }
+                return parseInt(value, 10);
+            }
+
+			//double click
+            private function map_mouseClickHandler(event:MouseEvent):void
+            {
+                const mapPoint:MapPoint = map.toMapFromStage(event.stageX, event.stageY);
+				idPoint = new MapPoint();
+				
+				idPoint.x = mapPoint.x;
+				idPoint.y = mapPoint.y;
+				
+				graphicsLayer.clear();	
+				graphicsLayer.visible = true;
+				
+				identifyFeatures();
+            }
+			
+			//single click when predicted widget is open
+			private function map_singleClickHandler(event:AppEvent):void
+			{
+				const mapPoint:MapPoint = event.data as MapPoint;
+				idPoint = new MapPoint();
+				
+				idPoint.x = mapPoint.x;
+				idPoint.y = mapPoint.y;
+				
+				graphicsLayer.clear();	
+				graphicsLayer.visible = true;
+					
+				identifyFeatures();
+			}
+			
+			private function map_singleClickHandlerSTOP(event:AppEvent):void
+			{
+				ViewerContainer.removeEventListener(AppEvent.IDENTIFY_SINGLE_CLICK, map_singleClickHandler);
+			}
+			
+			//For Point Identify
+			private function identifyFeatures():void
+			{
+				CursorManager.setBusyCursor();
+				var layer:Layer;
+				arrLayer = null;
+				arrLayer = new Array();
+				
+				var laytrue:String = "no";
+				//Loop through all visible layers that have a name wmsLayer and query individual layers
+				for each(layer in map.layers)
+				{
+					//don't need to use mask on winds because they are over land
+					if(layer.visible == true && (layer.id.toUpperCase() == "DUBAIWND_WINDS" || GeomUtil.InsidePolygon(landPolygon,idPoint) == false))
+					{
+						if(layer.name == "wmsLayer")
+						{
+							var layerName:String = "";
+							layerName = layer.id;
+							
+							_params = new URLVariables();
+							_params.transparent = "true";
+							
+							_params.version = "1.1.1";
+							_params.styles = "";
+							
+							//specific to getFeatureInfo:
+							_params.request = "GetFeatureInfo"; 
+							_params.info_format = "text/plain";
+							_params.format="text/plain";
+							_params.exceptions = "application/vnd.ogc.se_xml";
+							_params.srs = "EPSG:3857";
+							_params._dc= "1298660600532";
+							_params.width = map.width;
+							_params.height = map.height;
+							
+							_params.bbox = map.extent.xmin + "," + map.extent.ymin + "," + map.extent.xmax + "," + map.extent.ymax; 
+							_params.layers = layerName;
+							_params.query_layers=layerName;
+							_params.feature_count="3";  
+							
+							//add the pixel points of this click:
+							_params.x = map.toScreen(idPoint).x.toFixed();
+							_params.y = map.toScreen(idPoint).y.toFixed();
+														
+							//var formatTime:String = DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(currentTime,currentTime.timezoneOffset/60);
+							
+							var fourDayDate:Date = new Date(currentTime.getTime()+(1000 * 60 * 60 * 24 * 4));
+							
+							var formatTime:String = DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTCnotime(currentTime,4)+"/"+DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTCnotime(fourDayDate,4);
+							
+							_params.time = formatTime;
+							_httpService = new HTTPService();
+							_httpService.showBusyCursor = true;
+							_httpService.url = _ECOPModelSource;
+							_httpService.addEventListener("result", function(evnt:ResultEvent):void{
+								var msgURL:String;
+								msgURL = HTTPRequestMessage(evnt.token.message).body.layers;
+								var identifyResults:XML = new XML(evnt.result);
+								processIdentifyResultsForChart(identifyResults, msgURL);
+							});
+							_httpService.addEventListener("fault", onFault);
+							_httpService.resultFormat = "xml"; 
+							_httpService.send(_params);
+							laytrue = "yes";
+						}
+					}
+				}
+				if(laytrue == "no" && arrLayer.length==0)
+				{
+					dataGrid.rowCount = 1;
+					CursorManager.removeBusyCursor();
+				}
+			}
+			
+			private function onFault(event:FaultEvent):void
+			{                    
+				//Alert.show("An error occured in processing identify request: " + event.fault.toString());   
+				_httpService.removeEventListener("fault",onFault);   
+				CursorManager.removeBusyCursor();
+			}
+			
+			//use XML to create Chart
+			private function processIdentifyResultsForChart(identifyResults:XML, layerName:String):void
+			{
+				var newDate:String;
+				//Showing error from GetFeature Request
+				if(identifyResults.ServiceException[0] != undefined)
+				{
+				}
+				else if(identifyResults.Point[0] == undefined)
+				{
+					trace("undefined attributes");
+				}
+				else
+				{
+					//labl.visible = false;
+					if(identifyResults.Point[0].Value[0].toString() !=null && identifyResults.Point[0].Value[0] !=undefined && Number(identifyResults.Point[0].Value[0].toString())<999)
+					{						
+						var datenew:Date = new Date(currentTime);
+						
+						/* if(layerName.toUpperCase() == "GFS_WINDS"){
+						//for GFS
+						datenew.setHours(datenew.hours+currentTime.timezoneOffset/60);
+						newDate = DateTimeUtilities.getFeatureDateGFSToDBDateString(datenew) as String;
+						}
+						else{ */
+						datenew.setHours(datenew.hours-4);
+						newDate = DateTimeUtilities.getFeatureDateToDBDateString(datenew) as String;
+						//}
+						var sPoints:XMLList = identifyResults.Point;
+						
+						//Parse through to find the current time interval for GetFeature request
+						for(var i:uint=0; i <sPoints.length(); i++)
+						{
+							var pointRec:XML = sPoints[i]; 
+							var values:XMLList = pointRec.children();
+							var lo:Object = {};
+							
+							for(var j:uint=0; j <values.length(); j++)
+							{
+								var valRec:XML = values[j];
+								var units:String=valRec.@Unit;
+								var Type:String=valRec.@Var;
+								var Value:String = valRec.toString();
+								
+								if(units=="" && Type =="")
+								{
+									//pick date if timeslider date matches value 
+									if(Value.toString()==newDate)
+									{
+										var values:XMLList = identifyResults.Point[i].children();
+										var valRec:XML = values[1];
+										var units1:String=valRec[0].@Unit;
+										var Type1:String=valRec[0].@Var;
+										var Value1:String = valRec.toString();
+										
+										if(values[2] != null)
+										{
+											var valRec2:XML = values[2];
+											var units2:String=valRec2[0].@Unit;
+											var Type2:String=valRec[0].@Var;
+											var Value2:String = valRec2.toString();
+										}
+										
+										var layerObject:Object={};
+										//temp lookup for rename
+										if(layerName.toUpperCase() == "DUBAIWND_WINDS")
+										{
+											layerObject["name"] ="Coastal Winds";
+											layerObject["value"] = Number(Value1).toFixed(1)+" m/s";
+											layerObject["direction"] = Number(Value2).toFixed(1)+" °";
+										}
+											//GFS has a different Time interval but we are not Using GFS now
+											/* else if(layerName.toUpperCase() == "GFS_WINDS")
+											{
+											layerObject["name"] ="Global Winds";
+											layerObject["value"] = Number(Value1).toFixed(1)+" m\\s";
+											layerObject["direction"] = Number(Value2).toFixed(1)+" °";
+											}
+											else if(layerName.toUpperCase() == "DUBAICUR_CURRENTS")
+											{
+											layerObject["name"] ="Coastal Currents";
+											layerObject["value"] = Number(Value1).toFixed(1)+" m\\s";
+											layerObject["direction"] = Number(Value2).toFixed(1)+" °";
+											}
+											else if(layerName.toUpperCase() == "ARABIANGULFCUR_CURRENTS")
+											{
+											layerObject["name"] ="Arabian Currents";
+											layerObject["value"] = Number(Value1).toFixed(1)+" m\\s";
+											layerObject["direction"] = Number(Value2).toFixed(1)+" °";
+											} */
+										else if(layerName.toUpperCase() == "ARG_DUB_CURRENTS")
+										{
+											layerObject["name"] ="Currents";
+											layerObject["value"] = Number(Value1).toFixed(1)+" m/s";
+											layerObject["direction"] = Number(Value2).toFixed(1)+" °";
+										}
+										else if(layerName.toUpperCase() == "DUB_ELEVATION")
+										{
+											layerObject["name"] ="Water Level";
+											layerObject["value"] = Number(Value1).toFixed(1)+" meters";
+											layerObject["direction"] = "n/a";
+										}
+										else if(layerName.toUpperCase() == "DUBAI_WAVE_HEIGHT")
+										{
+											layerObject["name"] ="Wave Height";
+											layerObject["value"] = Number(Value1).toFixed(1)+" meters";
+											layerObject["direction"] = "n/a";
+										}
+										else if(layerName.toUpperCase() == "DUBAI_WAVE_DIRECTION")
+										{
+											layerObject["name"] ="Wave Direction";
+											layerObject["value"] = "n/a";
+											layerObject["direction"] = Number(Value1).toFixed(1)+" °";
+										}
+										
+										layerObject["type"] = Type1;
+										//layerObject["xml"] = identifyResults;
+										
+										//check to see if the value is already in the datagrid
+										//double clicks create two values
+										var added:String = "no";
+										if(arrLayer.length == 0)
+										{
+											arrLayer.push(layerObject);	
+										}
+										for(var u:uint=0; u <arrLayer.length; u++)
+										{
+											if(arrLayer[u].type == Type1)
+											{
+												added = "yes";
+											}
+										}
+										if(added == "no")
+										{
+											arrLayer.push(layerObject);	
+										}
+									}
+								}
+							}
+						}
+					}
+					if(arrLayer.length<1)
+					{
+						dataGrid.rowCount = 1;
+					}
+					else
+					{
+						dataGrid.rowCount = arrLayer.length;
+						dataGrid.dataProvider = arrLayer;
+						
+						//add point if there are values
+						var graph:Graphic = new Graphic(idPoint);
+						graph.symbol = ptIdentify;
+						graphicsLayer.add(graph);
+						map.reorderLayer("indentifyPoint",18);
+					}
+				}
+				CursorManager.removeBusyCursor();
+			}
+        ]]>
+    </fx:Script>
+
+    <fx:Declarations>
+        <mx:NumberFormatter id="numberFormatter" />
+		
+		<s:Fade id="fadeOver"
+				alphaTo="1"
+				effectEnd="dataGrid.alpha = 1"/>
+		<s:Fade id="fadeOut"
+				alphaTo="{getStyle('contentBackgroundAlpha') / 1.5}"
+				effectEnd="dataGrid.alpha = getStyle('contentBackgroundAlpha') / 1.5"/>
+		<esri:SimpleMarkerSymbol id="ptIdentify" style="circle" color="0xFAB00A" size="9"/>
+		
+		<net:URLLoader id="urlLoader" dataFormat="{URLLoaderDataFormat.BINARY}" />
+    </fx:Declarations>
+	<mx:HBox width="250" height="56" id="hintBox" horizontalAlign="center" backgroundColor="0xFFFFFF">
+		<s:Label paddingLeft="3" paddingTop="5" fontSize="10" width="188" id="labeling" fontWeight="bold"/>
+		<mx:HBox paddingTop="8" paddingRight="4">
+			<s:Button label="Ok" fontSize="9" width="35" click="{hintBox.visible = false}"/>
+		</mx:HBox>
+	</mx:HBox>
+	<mx:DataGrid id="dataGrid" variableRowHeight="false" alpha=".6" rowHeight="26" paddingLeft="2"
+				 rowCount="1" width="250" dataProvider="{arrLayer}" fontSize="10" borderAlpha=".1"
+				 rollOut="fadeOut.play([dataGrid])" selectable="true" selectionColor="0xFFFFFF" mouseEnabled="false"
+				 rollOver="fadeOver.play([dataGrid])">
+		<mx:columns>
+			<mx:DataGridColumn dataField="type" width="134" 
+							   headerText="Type" backgroundColor="0xFFFFFF" 
+							   textAlign="left" />							
+			<mx:DataGridColumn dataField="value" width="69" backgroundColor="0xFFFFFF" 
+							   headerText="Value" 
+							   textAlign="left" />
+			<mx:DataGridColumn dataField="direction" width="57"
+							   headerText="Direction" backgroundColor="0xFFFFFF" 
+							   textAlign="left" />
+		</mx:columns>
+	</mx:DataGrid>
+</viewer:BaseWidget>

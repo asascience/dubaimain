@@ -1,0 +1,968 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     ////////////////////////////////////////////////////////////////////////////////
+     //
+     // Copyright (c) 2010 ESRI
+     //
+     // All rights reserved under the copyright laws of the United States.
+     // You may freely redistribute and use this software, with or
+     // without modification, provided you include the original copyright
+     // and use restrictions.  See use restrictions in the file:
+     // <install location>/License.txt
+     //
+     ////////////////////////////////////////////////////////////////////////////////
+-->
+<viewer:BaseWidget xmlns:fx="http://ns.adobe.com/mxml/2009"
+                   xmlns:s="library://ns.adobe.com/flex/spark"
+                   xmlns:mx="library://ns.adobe.com/flex/mx"
+                   xmlns:viewer="com.esri.viewer.*"
+				   xmlns:net="flash.net.*"
+                   xmlns:HeaderController="widgets.HeaderController.*"
+                   width="100%" styleName=".hcSkin"
+                   borderSkin="{null}" initialize="basewidget1_initializeHandler(event)"
+                   creationComplete="creationCompleteHandler(event)"
+                   widgetConfigLoaded="init()" xmlns:esri="http://www.esri.com/2008/ags">
+
+    <fx:Script>
+        <![CDATA[
+			import com.esri.ags.Graphic;
+			import com.esri.ags.layers.GraphicsLayer;
+			import com.esri.viewer.AppEvent;
+			import com.esri.viewer.IBaseWidget;
+			import com.esri.viewer.ViewerContainer;
+			import com.esri.viewer.Welcome;
+			import com.esri.viewer.WelcomeInfo;
+			import com.esri.viewer.components.HTMLPopup;
+			import com.esri.viewer.utils.Hashtable;
+			import com.myCom.DM;
+			import com.myCom.Login;
+			import com.myCom.NoPerm;
+			import com.myCom.WidgetDescription;
+			
+			import flash.display.StageDisplayState;
+			import flash.filters.GlowFilter;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.events.DropdownEvent;
+			import mx.events.FlexEvent;
+			import mx.managers.CursorManager;
+			import mx.managers.PopUpManager;
+			
+			import spark.components.supportClasses.ItemRenderer;
+			
+			import widgets.HeaderController.menuItemRender;
+			import widgets.ShapeFiles.ShpHeader;
+			import widgets.ShapeFiles.ShpLine;
+			import widgets.ShapeFiles.ShpPolygon;
+			import widgets.ShapeFiles.ShpReader;
+						
+			[Bindable]
+			private var graph:com.esri.ags.Graphic = new com.esri.ags.Graphic;
+			
+            private var aboutContent:String;
+            private var btnLabel:String = "";
+            private var txtareaWidth:Number;
+            private var txtareaHeight:Number;
+			[Bindable]
+			private var helpURLvisible:Boolean;
+			[Bindable]
+			private var helpURL:String = new String;
+			
+			private var showOilDescCookie:SharedObject=SharedObject.getLocal("showOilDescCookie");
+			private var showInundCookie:SharedObject=SharedObject.getLocal("showInundCookie");
+			
+            [Bindable]
+            private var labelText:String = "";
+            [Bindable]
+            private var labelVisible:String = "";
+
+            [Bindable]
+            private var widgetItemAC:ArrayCollection;
+            [Bindable]
+            private var groupWidgetAC:ArrayCollection;
+            [Bindable]
+            private var title:String;
+			[Bindable]
+			private var showPattern:Boolean = false;
+			[Bindable]
+			private var glowColor:uint = 0xFFFFFF;
+			[Bindable]
+			private var userArray:String = "guest";
+			[Bindable]
+			private var username:String = "Guest";
+			private var userPass:String;
+			[Bindable]
+			private var numVisitors:String = "113";
+			[Bindable]
+			private var locale:String = "en-GB";
+			
+			private var hashTable:Object;
+			private var shorlinePath:String;
+
+            private function creationCompleteHandler(event:FlexEvent):void
+            {
+                if (configData)
+                {
+                    widgetItemAC = getWidgetItems(configData.widgets);
+                    var uiList:Array = configData.viewerUI;
+
+                    for (var i:int = 0; i < uiList.length; i++)
+                    {
+                        if (uiList[i].id == "title")
+                        {
+                            bannerTitle.text = uiList[i].value;
+                        } // default is no title at all
+
+                        if (uiList[i].id == "subtitle")
+                        {
+                            bannerSubtitle.text = uiList[i].value;
+                        } // default is no subtitle at all
+
+                        if (uiList[i].id == "logo")
+                        {
+                            //logoIcon.source = uiList[i].value;
+                        } // default is no logo at all
+                    }
+                    ViewerContainer.addEventListener(AppEvent.WIDGET_STATE_CHANGED, widgetStateChangedHandler);
+                }
+				//refreshHashTable();
+				ViewerContainer.addEventListener(AppEvent.DATA_PUBLISH, receivedData);
+            }
+
+            private function init():void
+            {	
+				//set user Flash Vars
+				var flashVars:Object=stage.loaderInfo.parameters;
+				
+				var loginUser:Array=new Array;
+				loginUser[0] = flashVars.group;	
+				locale = flashVars.local;
+				username = flashVars.group;
+				numVisitors = flashVars.visitors;
+				
+				if(username.toLowerCase() == "czwms")
+				{
+					dmMenu.visible = true;
+					dmmenusq.visible = true;
+				}
+				else
+				{
+					dmMenu.visible = false;
+					dmmenusq.visible = false;
+				}
+				if(username.toLowerCase() == "guest")
+				{
+					loginButton.visible = false;
+				}
+				var objectLoginUser:Object=
+					{
+						key:"loginuser",
+						data:loginUser
+					};
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DATA_PUBLISH,objectLoginUser));
+				
+				if (configXML)
+                {
+					shorlinePath = configXML.shorlineData;
+					aboutContent = configXML.about.content || "";
+                    labelText = configXML.about.label || "About";
+                    labelVisible = configXML.about.visible.toString() || "true";
+                    btnLabel = configXML.about.btnlabel || "OK";
+					helpURL = configXML.helpsite || "";
+					if(configXML.helpsiteVisible == "true")
+					{
+						helpURLvisible = true;
+					}
+					else
+					{
+						helpURLvisible = false;	
+					}
+					if(configXML.about.type == "samoa")
+					{
+						homeIcon.visible = true;
+					}
+                    txtareaWidth = configXML.about.width || 500;
+                    txtareaHeight = configXML.about.height || 500;
+					
+					username = configXML.name
+					userPass = configXML.pass
+					
+					if(configXML.glow == false)
+					{
+						widgetBox.filters = [];
+						titleGroup.filters = [];
+					}
+					glowColor = configXML.glowcolor;
+					if(configXML.patternbgshow == false)
+					{
+						patternBG.alpha = 0;
+					}
+					else
+					{
+						headerContent.setStyle("backgroundAlpha", 0);
+					}
+					if(configXML.showFullScreen == true)
+					{
+						//fullScIcon.source = configXML.showFullScreenLogo;
+						fullScIcon.visible = true;
+					}
+					swfLdr.load(configXML.patternbgsrc);
+					if(configXML.patternrepeat == true)
+					{
+						patternBG.setStyle("backgroundImageFillMode", "repeat");
+					}
+					patternBG.setStyle("backgroundAlpha", configXML.patternalpha);
+                }
+				//refreshHashTable();
+            }
+			
+			protected function basewidget1_initializeHandler(event:FlexEvent):void
+			{
+				//get the referance of the dataTable in DataManager
+				//refreshHashTable();
+			}
+			
+			//get the hashtable
+			private function refreshHashTable():void
+			{
+				//ViewerContainer.addEventListener(AppEvent.DATA_SENT, receivedData);
+				//dispatch the event, methods in BaseWidget
+				//fetchSharedData();
+			}
+			private function receivedData(event:AppEvent):void
+			{
+				hashTable=event.data as Object;
+				
+				if(hashTable.key == "loginuser")
+				{
+					userArray=hashTable.data;
+				}
+			}
+			
+			protected function swfLdr_completeHandler(evt:Event):void {
+				//patternBG.setStyle("backgroundImage", swfLdr.content);
+			}
+
+            private function getWidgetItems(widgetList:Array):ArrayCollection
+            {
+                var menuItems:ArrayCollection = new ArrayCollection;
+                var widgetItem:WidgetItem;
+                for (var i:int = 0; i < widgetList.length; )
+                {
+                    if (widgetList[i].grouped)
+                    {
+                        // grouped 
+                        var widgetArray:Array = [];
+                        var length:Number = widgetList[i].groupLength;
+                        for (var k:int = 0; k < length; k++)
+                        {
+                            widgetArray.push({ widget: widgetList[i + k], open: (widgetList[i].preload && widgetList[i].preload == "open") ? true : false });
+                        }
+                        widgetItem = new WidgetItem;
+                        widgetItem.isGroup = true;
+                        widgetItem.label = widgetList[i].groupLabel;
+                        widgetItem.icon = widgetList[i].groupIcon;
+                        widgetItem.widgets = widgetArray;
+                        menuItems.addItem(widgetItem);
+
+                        // move to the next group
+                        i = i + length;
+                    }
+                    else
+                    {
+                        // upgrouped 
+                        widgetItem = new WidgetItem;
+                        widgetItem.id = widgetList[i].id;
+                        widgetItem.label = widgetList[i].label;
+                        widgetItem.icon = widgetList[i].icon;
+                        widgetItem.url = widgetList[i].url;
+                        widgetItem.open = widgetList[i].preload && widgetList[i].preload == "open";
+                        menuItems.addItem(widgetItem);
+
+                        // move to the next individual widget
+                        i++;
+                    }
+                }
+
+                return menuItems;
+            }
+
+            private function showAbout():void
+            {
+				if(configXML.about.type=="samoa" || configXML.about.type=="dubai")
+				{
+					var win:WelcomeInfo= PopUpManager.createPopUp(map, WelcomeInfo, true) as WelcomeInfo;
+					PopUpManager.centerPopUp(win);
+				}
+				else
+				{
+					HTMLPopup.show(aboutContent, btnLabel, txtareaWidth, txtareaHeight);
+				}
+            }
+			
+			private function showDraw():void
+			{
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_RUN, 4));
+				
+				//To Close widget
+				//ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_CHANGE_STATE, {id: 4, state:'closed'}))
+			}
+			private function showPrint():void
+			{
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_RUN, 3));
+			}
+			private function showOil():void
+			{
+				if(userArray.toLowerCase() == "guest"|| userArray.toLowerCase() == "registered")
+				{
+					var oilDesc:WidgetDescription = PopUpManager.createPopUp(map, WidgetDescription, true) as WidgetDescription;
+					PopUpManager.centerPopUp(oilDesc);
+					oilDesc.loginError.text = "The web-based system automatically accesses the latest forecast data for winds and currents and connects these to the oil spill scenario. This information is passed to the model server and the model simulates the weathering and trajectory of the spill. Users with administrator privileges can access an operational web based oil spill prediction system and generate spill predictions.";
+					oilDesc.title = "OilSpill";
+					oilDesc.showAgain.visible = false;
+					oilDesc.okButton.label = "OK";
+					oilDesc.height = 250;
+					//var win:NoPerm = PopUpManager.createPopUp(map, NoPerm, true) as NoPerm;
+					//PopUpManager.centerPopUp(win);
+					//win.title = "Insufficient Privileges";
+					/* var win:Login = PopUpManager.createPopUp(map, Login, true) as Login;
+					PopUpManager.centerPopUp(win);
+					win.title = "Login";
+					
+					win["okButton"].addEventListener("click",processLogin);
+					win["password"].addEventListener(KeyboardEvent.KEY_DOWN, processLogin_E);
+					
+					function removeMe(event:Event):void {
+						PopUpManager.removePopUp(win);
+					}
+					function processLogin(event:Event):void
+					{	
+						if(win.username.text == "" || win.password.text == "")
+						{
+							win.loginError.text = "Username and password are required.";
+						}
+							//else if(usernames.search(win.username.text)>-1 && passwords.search(win.password.text)>-1&& win.username.text.length > 11 &&win.password.text.length > 11)
+						else if(win.username.text == username && win.password.text == userPass)
+						{
+							removeMe(event);
+							ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_RUN, 2));
+							var loginUser:Array=new Array;
+							loginUser[0] = username;
+							var objectLoginUser:Object=
+								{
+									key:"loginuser",
+									data:loginUser
+								};
+							ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DATA_PUBLISH,objectLoginUser));
+						}
+						else
+						{
+							win.loginError.text = "Incorrect name and password.";
+						}
+					}
+					//For keyword enter ::  should be merged above
+					function processLogin_E(event:KeyboardEvent):void
+					{
+						if(event.keyCode == Keyboard.ENTER)
+						{
+							if(win.username.text == "" || win.password.text == "")
+							{
+								win.loginError.text = "Username and password are required.";
+							}
+							else if(win.username.text == username && win.password.text == userPass)
+							{
+								removeMe(event);
+								ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_RUN, 2));
+								var loginUser:Array=new Array;
+								loginUser[0] = username;
+								var objectLoginUser:Object=
+									{
+										key:"loginuser",
+										data:loginUser
+									};
+								ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DATA_PUBLISH,objectLoginUser));
+							}
+							else
+							{
+								win.loginError.text = "Incorrect name and password.";
+							}
+						}
+					} */
+				}
+				else{
+					if(showOilDescCookie.data.show ==null)
+					{
+						var oilDesc:WidgetDescription = PopUpManager.createPopUp(map, WidgetDescription, true) as WidgetDescription;
+						PopUpManager.centerPopUp(oilDesc);
+						oilDesc.loginError.text = "The web-based system automatically accesses the latest forecast data for winds and currents and connects these to the oil spill scenario. This information is passed to the model server and the model simulates the weathering and trajectory of the spill. Users with administrator privileges can access an operational web based oil spill prediction system and generate spill predictions.";
+						oilDesc.okButton.addEventListener(MouseEvent.CLICK, openWidget);
+						oilDesc.title = "OilSpill";
+						oilDesc.height = 250;
+						function openWidget():void
+						{
+							if(oilDesc.showAgain.selected == true)
+							{
+								showOilDescCookie.data.show=true;
+							}
+							ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_RUN, 2));
+						}
+					}
+					else{
+						ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_RUN, 2));
+					}
+				}
+			}
+			private function showInun():void
+			{
+				if(userArray.toLowerCase() == "guest" || userArray.toLowerCase() == "registered")
+				{
+					//var win:NoPerm = PopUpManager.createPopUp(map, NoPerm, true) as NoPerm;
+					//PopUpManager.centerPopUp(win);
+					//win.title = "Insufficient Privileges";
+					var inundationDesc:WidgetDescription = PopUpManager.createPopUp(map, WidgetDescription, true) as WidgetDescription;
+					PopUpManager.centerPopUp(inundationDesc);
+					inundationDesc.okButton.label = "OK";
+					inundationDesc.showAgain.visible = false;
+					inundationDesc.loginError.text = "The inundation layers provided in the Dubai Coastal Zone Monitoring Programme forecasting website represent 12 hypothetical scenarios that combine various levels of storm surge flooding with wave runup estimates and projected sea level rise. These layers can be viewed only by users with administrative privileges.";
+					inundationDesc.title = "Inundation";
+				}
+				else{
+					if(showInundCookie.data.show ==null)
+					{
+						var inundationDesc:WidgetDescription = PopUpManager.createPopUp(map, WidgetDescription, true) as WidgetDescription;
+						PopUpManager.centerPopUp(inundationDesc);
+						inundationDesc.loginError.text = "The inundation layers provided in the Dubai Coastal Zone Monitoring Programme forecasting website represent 12 hypothetical scenarios that combine various levels of storm surge flooding with wave runup estimates and projected sea level rise. These layers can be viewed only by users with administrative privileges.";
+						inundationDesc.okButton.addEventListener(MouseEvent.CLICK, openWidget);
+						inundationDesc.title = "Inundation";
+						function openWidget():void
+						{
+							if(inundationDesc.showAgain.selected == true)
+							{
+								showInundCookie.data.show=true;
+							}
+							ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_RUN, 6));
+						}
+					}
+					else
+					{
+						ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_RUN, 6));
+					}
+				}
+			}
+			private function showLayers():void
+			{
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_RUN, 5));
+			}
+			private function showWarnings():void
+			{
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_RUN, 0));
+			}
+			
+            private function widgetItemDG_widgetItemClickHandler(event:Event):void
+            {
+                var widgetItem:WidgetItem = ItemRenderer(event.target).data as WidgetItem;
+                if (widgetItem.isGroup)
+                {
+                    groupWidgetAC = new ArrayCollection();
+                    // check the array of widgets if they are open before hand
+                    for each (var widgetObj:Object in widgetItem.widgets)
+                    {
+						var widgetItem1:WidgetItem = new WidgetItem;
+                        widgetItem1.id = widgetObj.widget.id;
+                        widgetItem1.label = widgetObj.widget.label;
+                        widgetItem1.icon = widgetObj.widget.icon;
+                        widgetItem1.url = widgetObj.widget.url;
+                        widgetItem1.open = widgetObj.open;
+						
+                        groupWidgetAC.addItem(widgetItem1);
+                    }
+                    menuToolTip.visible = false;
+                    widgetList.visible = true;
+                }
+                else
+                {
+					ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_RUN, widgetItem.id));
+                }
+            }
+
+            private function widgetList_widgetItemClickHandler(event:Event):void
+            {
+                var widgetItem:WidgetItem = ItemRenderer(event.target).data as WidgetItem;
+                ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_RUN, widgetItem.id));
+            }
+
+            [Bindable]
+            private var xOver:int;
+
+            private function widgetItemDG_widgetItemMouseOverHandler(event:Event):void
+            {
+                var pointGlobal:Point = ItemRenderer(event.target).localToGlobal(new Point(0, 0));
+                var pointLocal:Point = headerGroup.globalToLocal(pointGlobal); // get the local coordinates where the menuItem will be shown
+
+                xOver = pointLocal.x;
+
+                widgetList.visible = false;
+                if (WidgetItem(ItemRenderer(event.target).data).label)
+                {
+                    menuToolTip.visible = true;
+                    menuTitle.text = WidgetItem(ItemRenderer(event.target).data).label;
+                }
+            }
+
+            private function widgetItemDG_widgetItemMouseOutHandler(event:Event):void
+            {
+                menuToolTip.visible = false;
+            }
+
+            private function widgetStateChangedHandler(event:AppEvent):void
+            {
+				var data:Object = event.data;
+                for (var i:Number = 0; i < widgetItemAC.length; )
+                {
+                    if (widgetItemAC.getItemAt(i).isGroup)
+                    {
+                        // make sure to check it for the array of widgets(group) if they are open before hand
+                        var widgetFound:Boolean;
+                        for each (var widgetObj:Object in widgetItemAC.getItemAt(i).widgets)
+                        {
+                            if (data.id as Number == widgetObj.widget.id)
+                            {
+                                widgetFound = true;
+                                widgetObj.open = (data.state as String == BaseWidget.WIDGET_OPENED) || (data.state as String == BaseWidget.WIDGET_MINIMIZED);
+                                break;
+                            }
+                        }
+                        if (widgetFound)
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                    else
+                    {
+                        if (data.id as Number == widgetItemAC.getItemAt(i).id)
+                        {
+                            widgetItemAC.getItemAt(i).open = (data.state as String == BaseWidget.WIDGET_OPENED) || (data.state as String == BaseWidget.WIDGET_MINIMIZED);
+                            break;
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                }
+                // check for any grouped widgets
+                if (groupWidgetAC && groupWidgetAC.length > 0)
+                {
+                    for (var j:Number = 0; j < groupWidgetAC.length; )
+                    {
+                        if (data.id as Number == groupWidgetAC.getItemAt(j).id)
+                        {
+                            groupWidgetAC.getItemAt(j).open = (data.state as String == BaseWidget.WIDGET_OPENED) || (data.state as String == BaseWidget.WIDGET_MINIMIZED);
+                            widgetList.visible = false;
+                            break;
+                        }
+                        else
+                        {
+                            j++;
+                        }
+                    }
+                }
+            }
+
+            private function widgetList_rollOutHandler(event:MouseEvent):void
+            {
+                widgetList.visible = false;
+            }
+			//picture hover
+			private function img_rollOverHandler(evt:MouseEvent):void {
+				var myColorTransform:ColorTransform = new ColorTransform(1,1,1,1,50,60,40);
+				Image(evt.currentTarget).transform.colorTransform = myColorTransform;
+			}
+			private function img1_rollOutHandler(evt:MouseEvent):void {
+				var myColorTransform:ColorTransform = new ColorTransform();
+				Image(evt.currentTarget).transform.colorTransform = myColorTransform;
+			}
+			private function toggleFullScreen():void
+			{
+				if(stage.displayState == StageDisplayState.FULL_SCREEN)
+				{
+					stage.displayState = StageDisplayState.NORMAL;
+				}
+				else
+				{
+					stage.displayState = StageDisplayState.FULL_SCREEN;
+				}
+			}
+			
+			/* private function logout():void
+			{
+				if(loginButton.label == "Login"){
+					var win:Login = PopUpManager.createPopUp(map, Login, true) as Login;
+					PopUpManager.centerPopUp(win);
+					win.title = "Login";
+					
+					win["okButton"].addEventListener("click",processLogin);
+					win["password"].addEventListener(KeyboardEvent.KEY_DOWN, processLogin_E);
+					
+					function removeMe(event:Event):void {
+						PopUpManager.removePopUp(win);
+					}
+					function processLogin(event:Event):void
+					{	
+						if(win.username.text == "" || win.password.text == "")
+						{
+							win.loginError.text = "Username and password are required.";
+						}
+							//else if(usernames.search(win.username.text)>-1 && passwords.search(win.password.text)>-1&& win.username.text.length > 11 &&win.password.text.length > 11)
+						else if(win.username.text == username && win.password.text == userPass)
+						{
+							removeMe(event);
+							var loginUser:Array=new Array;
+							loginUser[0] = username;
+							var objectLoginUser:Object=
+								{
+									key:"loginuser",
+									data:loginUser
+								};
+							//loginButton.label = "Logout";
+							ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DATA_PUBLISH,objectLoginUser));
+						}
+						else
+						{
+							win.loginError.text = "Incorrect name and password.";
+						}
+					}
+					//For keyword enter ::  should be merged above
+					function processLogin_E(event:KeyboardEvent):void
+					{
+						if(event.keyCode == Keyboard.ENTER)
+						{
+							if(win.username.text == "" || win.password.text == "")
+							{
+								win.loginError.text = "Username and password are required.";
+							}
+							else if(win.username.text == username && win.password.text == userPass)
+							{
+								removeMe(event);
+								var loginUser:Array=new Array;
+								loginUser[0] = username;
+								var objectLoginUser:Object=
+									{
+										key:"loginuser",
+										data:loginUser
+									};
+								ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DATA_PUBLISH,objectLoginUser));
+							}
+							else
+							{
+								win.loginError.text = "Incorrect name and password.";
+							}
+						}
+					}
+				}
+				else{
+					var loginUser:Array=new Array;
+					loginUser[0] = "guest";
+					var objectLoginUser:Object=
+						{
+							key:"loginuser",
+							data:loginUser
+						};
+					ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DATA_PUBLISH,objectLoginUser));
+					//loginButton.label = "Login";
+					
+					if(configXML.about.type=="samoa" || configXML.about.type=="dubai")
+					{
+						var win2:Welcome = PopUpManager.createPopUp(map, Welcome, true) as Welcome;
+						PopUpManager.centerPopUp(win2);
+					}
+					else
+					{
+						HTMLPopup.show(aboutContent, btnLabel, txtareaWidth, txtareaHeight);
+					}
+				}
+			} */
+			
+			private function dmtoolList(event:Event):void
+			{
+				if(dmMenu.selectedIndex == 1)
+				{
+					var win:DM = PopUpManager.createPopUp(map, DM, true) as DM;
+					PopUpManager.centerPopUp(win);
+					win.loginError.text = "Total Site Visitors =  "+ numVisitors;
+					win.title = "DM";
+				}
+				if(dmMenu.selectedIndex == 0)
+				{
+					ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_RUN, 1));
+				}
+				if(dmMenu.selectedIndex == 2)
+				{
+					if(map.getLayer("shoreline") == null)
+					{
+						CursorManager.showCursor();
+						urlLoader.addEventListener(Event.COMPLETE,layercompleteHandler);
+						urlLoader.addEventListener(IOErrorEvent.IO_ERROR,errorHandler);
+						urlLoader.load( new URLRequest(shorlinePath));
+						function errorHandler(eve:Event):void
+						{
+							//Alert.show("The selected layer is not available at this time.");
+						}
+					}
+					else if(map.getLayer("shoreline").visible == false)
+					{
+						map.getLayer("shoreline").visible = true;
+					}
+					else{
+						map.getLayer("shoreline").visible = false;
+					}					
+				}
+				
+				//reset the index of dropdown index
+				dmMenu.selectedIndex = -1;
+			}
+			
+			///Shapefile add for Shoreline layers (no DBF attributes)
+			private function layercompleteHandler(event:Object):void
+			{
+				var shpByteArray:ByteArray = new ByteArray;
+				shpByteArray = urlLoader.data as ByteArray;
+				if (shpByteArray && shpByteArray.length > 0 )
+				{
+					loadShapefile_inun(shpByteArray);
+				}
+				else
+				{
+					Alert.show("Sorry, but there is a problem with the shapefile.");
+				}
+			}
+			
+			private function loadShapefile_inun(shpByteArray:ByteArray):void
+			{
+				var index:int = 0;
+				var shpReader:ShpReader = new ShpReader(shpByteArray);
+				var shapeType:int = shpReader.readShpType();
+				var graphicsLayer:GraphicsLayer = new GraphicsLayer;
+				while (shpReader.hasMore()) {
+					if (shapeType == 3) {
+						/* WC 7.21.2010 - shapefile type = polyline */
+						var shpLine:ShpLine = shpReader.readShpLine();
+						graphicsLayer.add(new com.esri.ags.Graphic(shpLine.toLine()));
+						graphicsLayer.symbol = lineGrid;
+						graphicsLayer.refresh();
+						index++;
+					}
+				}
+				graphicsLayer.name = "shoreline";
+				graphicsLayer.id = "shoreline";
+				graphicsLayer.visible;
+				map.addLayer(graphicsLayer);
+				CursorManager.removeBusyCursor();
+			}
+			
+        ]]>
+    </fx:Script>
+	<fx:Style>
+		.clickVbox {
+		borderColor: #000000;
+		backgroundColor: #CCCCCC;
+		backgroundAlpha: .6;
+		borderThickness: 10;
+		borderStyle:'inset';
+		verticalAlign: 'middle';
+		horizontalAlign: 'center';
+		}
+		.closeVbox {
+		borderColor: #000000;
+		backgroundColor: #CCCCCC;
+		backgroundAlpha: .6;
+		borderThickness: 10;
+		borderStyle:'inset'; 
+		verticalAlign: 'middle';
+		horizontalAlign: 'center';
+		}
+		.VRule{
+			color: #333333;
+		}
+	</fx:Style>
+	<fx:Declarations>
+		<net:URLLoader id="urlLoader" dataFormat="{URLLoaderDataFormat.BINARY}" />
+		<mx:SWFLoader id="swfLdr" complete="swfLdr_completeHandler(event);" />
+		<esri:SimpleLineSymbol id="lineGrid" color="0x5377EA" width="1"/>
+	</fx:Declarations>
+
+    <s:Group id="headerGroup" 
+             width="100%" height="96">
+        <!-- basic structure is an hbox with
+             logoIcon: a logo (if specified)
+             titleGroup: the title on top of the subtitle
+             widgetBox: icons for all widgets specified in main configuration file
+             linkBox: "link buttons" for all links specified in main configuration file
+        -->
+	
+		<s:BorderContainer id="patternBG" width="100%" height="{headerGroup.height - 45}" borderVisible="false"/>
+			
+        <mx:HBox id="headerContent"
+                 width="100%"  height="{headerGroup.height - 45}"
+                 backgroundAlpha="1"
+				 backgroundColor="0x3d9bbf"
+                 horizontalGap="1"
+                 paddingLeft="2"
+                 verticalAlign="middle"
+                 verticalScrollPolicy="off">
+            <mx:Image id="logoIcon"
+                      horizontalAlign="left" maxWidth="0"
+                      maxHeight="{headerContent.height}"
+					  source="@Embed(source='assets/images/dubai_municipality.png')"
+                      verticalAlign="middle"/>
+            <s:VGroup id="titleGroup"
+                      height="{headerContent.height}" paddingRight="6" paddingLeft="6" width="0"
+                      gap="0">
+                <s:Label id="bannerTitle" styleName="BannerTitle"/>
+                <s:Label id="bannerSubtitle" styleName="BannerSubtitle"/>
+				<s:filters>
+					<s:GlowFilter color="{glowColor}" strength="7" alpha="0.8"/>
+				</s:filters>
+            </s:VGroup>
+
+            <s:HGroup id="widgetBox"
+                     width="100%" gap="0" verticalAlign="middle"
+                     horizontalAlign="center">
+				<mx:HBox verticalAlign="middle">
+					<mx:LinkButton fontSize="15" paddingLeft="0" buttonMode="true" 
+								   click="navigateToURL(new URLRequest('http://www.dubaicoast.ae'), '_self')"
+								   cornerRadius="3" styleName="BannerSubtitle" selectionColor="0x00CCFF"  toolTip="Main Page"
+								   label="Home" useHandCursor="true"/>
+					<mx:Image height="5" width="4" source="@Embed(source='assets/images/whitespacer.gif')" horizontalAlign="center"/>
+					<mx:LinkButton cornerRadius="3" styleName="BannerSubtitle"  fontSize="15" selectionColor="0x00CCFF" 
+								   toolTip="Warnings" label="Warning" id="dataW" 
+								   buttonMode="true" visible="true" click="showWarnings()" />
+					<mx:Image height="5" width="4" source="@Embed(source='assets/images/whitespacer.gif')" horizontalAlign="center"/>
+					<mx:LinkButton fontSize="15" toolTip="Predicted Data" label="Predicted Data" id="dataV" cornerRadius="3" styleName="BannerSubtitle" selectionColor="0x00CCFF"  
+							  buttonMode="true" visible="true" click="showLayers()" />
+					<mx:Image height="5" width="4" source="@Embed(source='assets/images/whitespacer.gif')" horizontalAlign="center"/>
+					<mx:LinkButton fontSize="15" toolTip="Oil Spill" label="Oil Spill" id="oilS" cornerRadius="3" styleName="BannerSubtitle" fontFamily="Myriad Web Pro" selectionColor="0x00CCFF" 
+							  buttonMode="true" visible="true" click="showOil()" />
+					<mx:Image height="5" width="4" source="@Embed(source='assets/images/whitespacer.gif')" horizontalAlign="center"/>
+					<mx:LinkButton fontSize="15" toolTip="Inundation" label="Inundation" id="ident" cornerRadius="3" styleName="BannerSubtitle" selectionColor="0x00CCFF" 
+								   buttonMode="true" visible="true" click="showInun()" />
+					<mx:Image height="5" width="4" source="@Embed(source='assets/images/whitespacer.gif')" horizontalAlign="center"/>
+					<mx:LinkButton fontSize="15" toolTip="Draw and Measure" label="Draw/Measure"  id="drawM" cornerRadius="3" fontFamily="Myriad Web Pro" styleName="BannerSubtitle" selectionColor="0x00CCFF" 
+							 buttonMode="true" visible="true" click="showDraw()" />	
+					<mx:Image height="5" width="4" source="@Embed(source='assets/images/whitespacer.gif')" horizontalAlign="center"/>
+					<mx:LinkButton fontSize="15" toolTip="Print Map" label="Print" id="printM" cornerRadius="3" styleName="BannerSubtitle" selectionColor="0x00CCFF" 
+							  buttonMode="true" visible="true" click="showPrint()" />
+					<mx:Image height="5" width="4" source="@Embed(source='assets/images/whitespacer.gif')" horizontalAlign="center"/>
+					<mx:LinkButton fontSize="15" toolTip="Help" label="Help" cornerRadius="3" styleName="BannerSubtitle" selectionColor="0x00CCFF"
+							  buttonMode="true" visible="true" click="showAbout()" id="homeIcon"/>
+					<mx:Image height="5" width="4" id="dmmenusq" source="@Embed(source='assets/images/whitespacer.gif')" horizontalAlign="center"/>
+					<s:DropDownList id="dmMenu" toolTip="DM Administrator Tools" width="95"  change="dmtoolList(event)" top="3" left="0" 
+									requireSelection="false" skinClass="widgets.HeaderController.skins.DropDownDMskin"
+									itemRenderer="widgets.HeaderController.skins.DropDownRendererDM" >
+						<s:dataProvider>
+							<s:ArrayList source="['Comparison', 'Total Visitors', 'Shoreline on/off']" />
+						</s:dataProvider>
+					</s:DropDownList>
+					<!--<mx:Image toolTip="Data Viewer" height="51" id="dataV" source="@Embed(source='assets/images/dubaiIcons/Data_View_Ico.jpg')" horizontalAlign="center" rollOver="img_rollOverHandler(event);"
+							  rollOut="img1_rollOutHandler(event);" buttonMode="true" visible="true" click="showLayers()" />
+					<mx:Image toolTip="Oil Spill" id="oilS" source="@Embed(source='assets/images/dubaiIcons/OilSpill_Ico.jpg')" horizontalAlign="center" rollOver="img_rollOverHandler(event);"
+							  rollOut="img1_rollOutHandler(event);" buttonMode="true" visible="true" click="showOil()" />
+					<mx:Image toolTip="Draw and Measure"  id="drawM" source="@Embed(source='assets/images/dubaiIcons/Draw_Measure_Ico.jpg')" horizontalAlign="center" rollOver="img_rollOverHandler(event);"
+							  rollOut="img1_rollOutHandler(event);"  buttonMode="true" visible="true" click="showDraw()" />					
+					<mx:Image toolTip="Identify Points" id="ident" source="@Embed(source='assets/images/dubaiIcons/Identify_Ico.jpg')" horizontalAlign="center" rollOver="img_rollOverHandler(event);"
+							  rollOut="img1_rollOutHandler(event);"  buttonMode="true" visible="true" click="showInun()" />
+					<mx:Image toolTip="Print Map" id="printM" source="@Embed(source='assets/images/dubaiIcons/Print_Ico.jpg')" horizontalAlign="center" rollOver="img_rollOverHandler(event);"
+							  rollOut="img1_rollOutHandler(event);" buttonMode="true" visible="true" click="showPrint()" />
+					<mx:Image toolTip="Help" source="@Embed(source='assets/images/dubaiIcons/Help_Ico.jpg')" horizontalAlign="center" rollOver="img_rollOverHandler(event);"
+							  rollOut="img1_rollOutHandler(event);" buttonMode="true" visible="true" click="showAbout()" id="homeIcon"/>-->	
+				</mx:HBox>
+				<s:filters>
+					<!--<s:GlowFilter color="{glowColor}" strength="11" alpha="0.7" />-->
+				</s:filters>
+            </s:HGroup>
+
+            <mx:Spacer width="0"/>
+            <mx:HBox id="linkBox"
+                     horizontalAlign="right"
+                     paddingRight="6"
+                     verticalAlign="middle">
+				<!--<mx:LinkButton id="dmMenu" label="DM" visible="false" change="dmtoolList(event)" dataProvider="['DM Tools', 'Total Visitors', 'Wave Comparison']"/>-->
+                <mx:HBox verticalAlign="middle">
+					<mx:VBox horizontalAlign="right">
+						<mx:LinkButton click="navigateToURL( new URLRequest( '/logout' ), '_self' );" label="Logout" id="loginButton"/>
+						<s:Label text="{username}" height="0" color="0xFFFFFF"/>
+					</mx:VBox>
+					
+					<mx:Image id="fullScIcon" visible="true" toolTip="Full Screen Map"
+							  horizontalAlign="left" click="{toggleFullScreen()}"
+							  buttonMode="true" 
+							  source="@Embed(source='assets/images/full_screen.png')"
+							  verticalAlign="middle"/>
+                </mx:HBox>
+            </mx:HBox>
+		</mx:HBox>
+		
+        <s:VGroup id="menuToolTip"
+                  x="{xOver + 12 - menuToolTipBox.width/2}" y="{headerContent.height}"
+                  gap="0"
+                  horizontalAlign="center"
+                  visible="false">
+            <s:Graphic id="menuTriangle" visible="{menuToolTip.visible}">
+                <s:Group>
+                    <s:Path data="m 7 0 l 7 14 l -14 0 z">
+                        <s:fill>
+                            <mx:SolidColor alpha="1" color="{getStyle('contentBackgroundColor')}"/>
+                        </s:fill>
+                    </s:Path>
+                </s:Group>
+            </s:Graphic>
+            <s:BorderContainer id="menuToolTipBox"
+                               width="{menuTitle.width + 8}" height="{menuTitle.height +2}"
+                               backgroundColor="{getStyle('contentBackgroundColor')}"
+                               borderVisible="false"
+                               cornerRadius="10"
+                               visible="{menuToolTip.visible}">
+                <s:layout>
+                    <s:HorizontalLayout horizontalAlign="center" verticalAlign="middle"/>
+                </s:layout>
+                <s:Label id="menuTitle"
+                         paddingBottom="4"
+                         paddingLeft="5"
+                         paddingRight="5"
+                         paddingTop="5"
+                         visible="{menuToolTip.visible}"/>
+            </s:BorderContainer>
+        </s:VGroup>
+        <s:BorderContainer id="widgetList" 
+                           x="{xOver + 4 - widgetListDG.width/2}" y="{headerContent.height}" width="{widgetListDG.width + 4}" height="{widgetListDG.height + 2}"
+                           backgroundColor="{getStyle('contentBackgroundColor')}"
+                           borderColor="{getStyle('color')}"
+                           borderVisible="true"
+                           cornerRadius="3" 
+                           rollOut="widgetList_rollOutHandler(event)"
+                           visible="false">
+            <HeaderController:WidgetListDataGroup id="widgetListDG" 
+                                                  width="150"
+                                                  dataProvider="{groupWidgetAC}"
+                                                  visible="{widgetList.visible}"
+                                                  widgetListItemClick="widgetList_widgetItemClickHandler(event)">
+                <HeaderController:layout>
+                    <s:VerticalLayout paddingTop="6" 
+                                      useVirtualLayout="true"
+                                      verticalAlign="middle"/>
+                </HeaderController:layout>
+            </HeaderController:WidgetListDataGroup>
+			
+        </s:BorderContainer>
+        <s:filters>
+            <s:DropShadowFilter alpha="0.5"
+                                blurX="10"
+                                blurY="10"/>
+        </s:filters>
+    </s:Group>
+</viewer:BaseWidget>

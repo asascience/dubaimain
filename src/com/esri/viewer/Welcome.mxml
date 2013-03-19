@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dialog.mxml -->
+<mx:TitleWindow xmlns:mx="http://www.adobe.com/2006/mxml"
+        layout="vertical"  close="titlewindow1_closeHandler(event)"
+	    titleStyleName="myPanelTitle" showCloseButton="false" creationPolicy="all"
+		creationComplete="loadconfig()" width="510" height="556"
+        horizontalAlign="center" cornerRadius="12" verticalAlign="middle" xmlns:s="library://ns.adobe.com/flex/spark">
+
+    <mx:Script>
+        <![CDATA[
+			import mx.controls.Alert;
+			import mx.events.CloseEvent;
+			import mx.events.FlexEvent;
+			import mx.managers.PopUpManager;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			
+			private var alert:Alert;
+			
+			private var xml:XML = new XML;
+			private var myTimer1:Timer;
+			[Bindable] private var num1:uint = 0;
+			
+			//configurable using configFile for delete scenario
+			private var adminText:String;
+			private var passwordText:String;
+			
+			private function loadconfig():void 
+			{
+				/* var configService:HTTPService = new HTTPService();
+				configService.url = "widgets/SamoaSplash/SplashWidgetDubai.xml";
+				configService.resultFormat = HTTPService.RESULT_FORMAT_E4X;
+				configService.addEventListener(Event.COMPLETE, httpService_result);
+				configService.send(); */
+				var snd:URLLoader = new URLLoader;
+				
+				snd.load(new URLRequest("widgets/SamoaSplash/SplashWidgetDubai.xml"));
+				snd.addEventListener(IOErrorEvent.IO_ERROR, onSoundIOError, false, 0, true);
+				snd.addEventListener(Event.COMPLETE, httpService_result);				
+				function onSoundIOError (e:IOErrorEvent)
+				{
+					trace("An Error Occured and it looked like this.", e.text);
+				}
+				
+				//new URLLoader(new URLRequest("widgets/SamoaSplash/SplashWidgetDubai.xml")).addEventListener(Event.COMPLETE, httpService_result);				
+				
+			}
+			protected function titlewindow1_closeHandler(event:CloseEvent):void
+			{
+				PopUpManager.removePopUp(this);
+			}
+			
+			private function httpService_fault(evt:FaultEvent):void {
+				var title:String = evt.type + " (" + evt.fault.faultCode + ")";
+				var text:String = evt.fault.faultString;
+				alert = Alert.show(text, title);
+			}
+			
+			private function httpService_result(evt:Event):void {
+				xml = XML(evt.currentTarget.data);
+				setstartWin();
+			}
+			
+			private function setstartWin():void
+			{
+				this.title = xml.title;
+				
+				//b1.label=xml.btnlabel;
+				//b2.label=xml.btnlabel2;
+				
+				label1.label=xml.tabs.entry[0].label;
+				l1.label=xml.tabs.entry[1].label;
+				l2.label=xml.tabs.entry[2].label;
+				l3.label=xml.tabs.entry[3].label;
+				
+				fisrtPage.htmlText = xml.tabs.entry[0].content; 
+				
+				//var t1:Text = new Text;
+				//t1.percentWidth = 100;
+				t1.htmlText = xml.tabs.entry[1].content
+				//var t2:Text = new Text;
+				//t2.percentWidth = 100;
+				t2.htmlText = xml.tabs.entry[2].content;
+				//var t3:Text = new Text;
+				//t3.percentWidth = 100;
+				t3.htmlText = xml.tabs.entry[3].content;
+				
+				l1.addChild(t1);
+				l2.addChild(t2);
+				l3.addChild(t3);
+				
+				this.width = xml.width;
+				this.height = xml.height;
+				
+				adminText = xml.admi;
+				passwordText = xml.pwor;
+			}
+			
+            private function titleWindow_close(evt:MouseEvent):void {
+                PopUpManager.removePopUp(this);
+				var loginUser:Array=new Array;
+				loginUser[0] = "guest";
+				var objectLoginUser:Object=
+					{
+						key:"loginuser",
+						data:loginUser
+					};
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DATA_PUBLISH,objectLoginUser));
+            }
+			
+			private function loginMe(event:MouseEvent):void
+			{
+				if(user.text == "" || pass.text == "")
+				{
+					error.text = "Username and password are required.";
+					error.visible = true;
+				}
+				else if(user.text == adminText && pass.text == passwordText)
+				{
+					PopUpManager.removePopUp(this);
+					error.visible = false;
+					var loginUser:Array=new Array;
+					loginUser[0] =adminText;
+					var objectLoginUser:Object=
+						{
+							key:"loginuser",
+							data:loginUser
+						};
+					ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DATA_PUBLISH,objectLoginUser));
+				}
+				else
+				{
+					error.text = "You do not have full permissions";
+					error.visible = true;
+				}
+			}
+			//duplicate for enter button 
+			private function loginMeEnter(event:FlexEvent):void
+			{
+				if(user.text == "" || pass.text == "")
+				{
+					error.text = "Username and password are required.";
+					error.visible = true;
+				}
+				else if(user.text == adminText && pass.text == passwordText)
+				{
+					PopUpManager.removePopUp(this);
+					error.visible = false;
+					var loginUser:Array=new Array;
+					loginUser[0] =adminText;
+					var objectLoginUser:Object=
+						{
+							key:"loginuser",
+							data:loginUser
+						};
+					ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DATA_PUBLISH,objectLoginUser));
+				}
+				else
+				{
+					error.text = "You do not have full permissions";
+					error.visible = true;
+				}
+			}
+			private function showscreen(evt:MouseEvent):void {
+				if(loginscreen.visible == true)
+				{
+					loginscreen.visible = false;
+					relogin.label = "Show Login";
+					error.visible = false;
+				}
+				else{
+					loginscreen.visible = true;
+					relogin.label = "Hide Login";
+					relogin.visible = false;
+				}
+			}
+			
+        ]]>
+    </mx:Script>
+	<mx:Style>
+		.myPanelTitle {
+			textIndent: 170;
+			fontSize: 16;
+			fontWeight: bold;
+		}
+	</mx:Style>
+	<mx:Fade id="fade" />
+
+	<mx:TabNavigator tabOffset="88" width="100%" height="100%" creationPolicy="all" x="2">
+		<mx:VBox paddingBottom="10" horizontalAlign="left" paddingLeft="5" paddingRight="5" id="label1" width="100%" height="100%" dropShadowVisible="true" cornerRadius="6">
+			<mx:Text condenseWhite="true" id="fisrtPage" width="100%" height="80%"/>
+			<mx:HBox horizontalAlign="left" horizontalGap="145">
+				<!--<mx:Image source="@Embed(source='assets/images/dubai-gov-logo.jpg')"  height="100" />
+				<mx:Image source="@Embed(source='assets/images/dm-logo.jpg')"   height="80" />	-->
+			</mx:HBox>
+			<mx:VBox horizontalAlign="center" paddingLeft="148">
+				<mx:LinkButton useHandCursor="true" id="gust" color="0x3363CC" fontSize="19" label="Continue as Guest" textDecoration="underline" click="titleWindow_close(event)" buttonMode="true"/>
+				<mx:LinkButton useHandCursor="true" id="relogin" color="0x3363CC" label="Sign in" click="showscreen(event)" buttonMode="true" textDecoration="underline"/>				
+			</mx:VBox>
+			<mx:HBox id="loginscreen" paddingLeft="30" paddingRight="20" showEffect="fade" hideEffect="fade" paddingTop="5" paddingBottom="5" borderVisible="false" verticalAlign="middle" borderStyle="outset" visible="false" horizontalAlign="center">
+				<mx:Label id="us" text="User Name:"/>
+				<s:TextInput id="user" width="80" />
+				<mx:Label id="ps" text="Password:"/>
+				<s:TextInput enter="loginMeEnter(event)" id="pass" displayAsPassword="true" width="80" />
+				<mx:Button label="Sign In" click="loginMe(event);"/>
+			</mx:HBox>
+			<mx:Label id="error" fontSize="11" color="0xB20000" visible="false"/>
+		</mx:VBox>
+		<mx:VBox id="l1" width="100%" creationPolicy="all" paddingLeft="5" paddingRight="5" height="100%" dropShadowVisible="true" cornerRadius="6">
+			<mx:Text condenseWhite="true" id="t1" width="480" height="100%"/>
+		</mx:VBox>
+		<mx:VBox id="l2" width="100%" height="100%" paddingLeft="5" paddingRight="5" dropShadowVisible="true" cornerRadius="6">
+			<mx:Text condenseWhite="true" id="t2" width="100%" height="100%"/>
+		</mx:VBox>
+		<mx:VBox id="l3" width="100%" height="100%" paddingLeft="5" paddingRight="5" dropShadowVisible="true" cornerRadius="6">
+			<mx:Text condenseWhite="true" id="t3" width="100%" height="100%"/>
+		</mx:VBox>
+	</mx:TabNavigator>
+	<!-- <mx:Canvas height="1" width="100%" dropShadowVisible="true">
+		<mx:VBox paddingLeft="15" width="100%">
+			<mx:HBox width="100%">
+				<mx:Text text="Username:"/>
+				<mx:TextInput id="userW" width="90"/>
+				<mx:Text text="Password:"/>
+				<mx:TextInput paddingRight="2" displayAsPassword="true" id="passW" width="90" />
+			</mx:HBox>
+			<mx:HBox paddingLeft="15" width="100%">
+				<mx:CheckBox textAlign="left" selected="false" label="Accept Terms"/>
+				<mx:LinkButton buttonMode="true" fontWeight="bold" id="b2" useHandCursor="true" click="titleWindow_close(event);" />
+				<mx:LinkButton buttonMode="true"  fontWeight="bold" id="b1" useHandCursor="true" click="titleWindow_close(event);" />
+			</mx:HBox>
+		</mx:VBox>
+    </mx:Canvas>-->
+</mx:TitleWindow>

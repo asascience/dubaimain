@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:HBox xmlns:mx="http://www.adobe.com/2006/mxml"
+		 xmlns:s="library://ns.adobe.com/flex/spark" horizontalGap="1">
+	<mx:Metadata>
+        [Event(name="change", type="flash.events.Event")]
+    </mx:Metadata>
+	<mx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		
+		.roundedTI
+		{
+		corner-radius: 10;
+		borderStyle: solid;
+		borderSkin: ClassReference("com.esri.viewer.skins.DateFieldSkin");
+		}
+		
+	</mx:Style>
+    <mx:Script>
+        <![CDATA[
+            
+            [Bindable] private var _selectedDate:Date = new Date();
+			
+			//default range:  three days from today
+			private var today:Date = new Date();
+			
+			[Bindable] public var dateRange:Object = {rangeStart:new Date(today.getTime()-1000 * 60 * 60 * 24 * 60),rangeEnd:new Date(today.getTime()+(1000 * 60 * 60 * 24 * 3))};
+            
+            public function get selectedDate():Date
+            {
+                this.validateNow();
+                return this._selectedDate;
+            }
+            
+            [Bindable]
+            public function set selectedDate(value:Date):void
+            {
+                this._selectedDate = value
+                this.dateASA.selectedDate = this._selectedDate;
+                this.hours.value = this._selectedDate.hours;
+                // Minutes are disabled
+                // this.minutes.value = this._selectedDate.minutes
+                
+                this.validateNow();
+            }
+            
+            override public function validateProperties():void
+            {
+                super.validateProperties();
+            }
+            
+            public function handleChange():void
+            {
+                var militaryHours:int = hours.value;
+				//trace("Date Handle Change: " + this.dateASA.selectedDate)
+                var selDate:Date = this.dateASA.selectedDate;
+                // Minutes are disabled... would need to uncomment the below line and
+                // also add 'minutes,' in the date variable assignment below.
+                // var minutes:int = minutes.value;
+                var date:Date = new Date(
+                                        selDate.getFullYear(),
+                                        selDate.getMonth(),
+                                        selDate.getDate(),
+                                        militaryHours)
+                this.selectedDate = date;
+                this.invalidateProperties();
+                this.validateNow();
+                this.dispatchEvent(new Event("change"));
+            }
+            
+            private function formatNumber(e:Event) : void {
+              var nsMask:String = "00"
+              var value:String = e.target.value.toString();
+              value = (nsMask + value).substr(-nsMask.length);
+              e.target.mx_internal::inputField.text = value;
+            }
+            
+        ]]>
+    </mx:Script>
+    <!--<mx:DateField id="dateASA" formatString="{resourceManager.getString('timeslider', 'DATEFORMAT')}" selectedDate="{new Date()}" change="handleChange()" />-->
+	<mx:DateField width="105" editable="false" selectableRange="{dateRange}" textInputStyleName="roundedTI" id="dateASA" focusColor="0x64b1cb" formatString="DD/MM/YYYY" selectedDate="{new Date()}" change="handleChange()" />
+	<mx:Spacer width="5"/>
+    <mx:NumericStepper focusColor="0x64b1cb" borderColor="0x666666" borderAlpha="1" enabled="true" id="hours" maxChars="2" width="45" minimum="0" maximum="23" stepSize="1" change="handleChange()" valueCommit="handleChange()" textAlign="center" creationComplete="formatNumber(event)" />
+    <!--  Minutes are disabled
+    <mx:Label text=":" textAlign="center"/>
+    <mx:NumericStepper id="minutes" maxChars="2" width="45" minimum="0"  maximum="59" stepSize="1" change="handleChange()" valueCommit="handleChange()" textAlign="center"/>
+    -->
+</mx:HBox>

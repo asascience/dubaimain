@@ -1,0 +1,593 @@
+<?xml version="1.0" encoding="utf-8"?>
+<viewer:BaseWidget xmlns:fx="http://ns.adobe.com/mxml/2009"
+    			   xmlns:s="library://ns.adobe.com/flex/spark"
+    			   xmlns:mx="library://ns.adobe.com/flex/mx"
+   				   xmlns:viewer="com.esri.viewer.*" alpha="1"
+				   xmlns:timeSlider="ASA.components.TimeSlider.*"
+				   widgetConfigLoaded="init()" height="61">
+	<fx:Style>
+
+		.cardViewEstimationPop {
+		
+		fontSize: 11;
+		backgroundAlpha: 1;
+		backgroundColor: #3d9bbf;
+		borderStyle: solid;
+		borderColor: #666666;
+		borderAlpha: 0.95;
+		borderThickness: 1;
+		paddingLeft: 5;
+		paddingTop: 5;
+		paddingRight: 5;
+		paddingBottom: 5;
+		cornerRadius: 10;
+		dropShadowEnabled: true;
+		}
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		mx|CheckBox {
+			/* Unselected icons */
+			upIcon: Embed(source="assets/images/icon_clock.png");
+			overIcon: Embed(source="assets/images/icon_clock.png");
+			downIcon: Embed(source="assets/images/icon_clock.png");
+			/* Selected icons */
+			selectedUpIcon: Embed(source="assets/images/icon_clock.png");
+			selectedOverIcon: Embed(source="assets/images/icon_clock.png");
+			selectedDownIcon: Embed(source="assets/images/icon_clock.png");
+		}
+		mx|HSlider{
+			
+		}
+		.checkboxStyle {
+		fontSize: 14;
+		backgroundAlpha: 0.8;
+		borderAlpha: 0.95;
+		color: #000000
+		}
+		
+		.cardViewEstimationSlider {
+		labelOffset: 36;
+		thumbOffset: 0;
+		dataTipOffset: 5;
+		tickOffset: 17;
+		tickLength: 10;
+		tickThickness: 1;
+		invertThumbDirection: true;
+		
+		}
+	</fx:Style>
+
+    <fx:Metadata>
+		[ResourceBundle("TimeSlider")]
+	</fx:Metadata>
+	<fx:Script>
+        <![CDATA[		
+			import com.esri.ags.esri_internal;
+			import com.esri.viewer.AppEvent;
+			import com.esri.viewer.ViewerContainer;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.controls.DateChooser;
+			import mx.events.CalendarLayoutChangeEvent;
+			import mx.events.FlexEvent;
+			import mx.managers.PopUpManager;
+			import mx.resources.ResourceManager;
+			
+			import spark.components.supportClasses.ItemRenderer;
+			import spark.events.IndexChangeEvent;
+			
+			import widgets.TimeSlider.components.AsaAppEvent;
+			import widgets.TimeSlider.components.TimeSliderPrimitives.*;
+			import widgets.TimeSlider.components.util.DateTimeUtilities;
+			
+			private var aboutContent:String;
+			private var btnLabel:String = "OK";
+			private var txtareaWidth:Number;
+			private var txtareaHeight:Number;
+
+			
+			[Bindable]
+			private var _timer:BindableTimer;
+			[Bindable]
+			public var _timeCount:int;
+			[Bindable]
+			private var _maxTime:int;
+			[Bindable]
+			private var _allSteps:Array = new Array(1,5,10,15,30,60);
+			
+			[Bindable]
+			private var _sdLabel:String = new String();
+			[Bindable]
+			private var _edLabel:String = new String();
+			[Bindable]
+			private var _cdLabel:String = new String();
+			
+			[Bindable]
+			private var _StartDate:Date=new Date(1,1,1);
+			[Bindable]
+			private var _EndDate:Date=new Date(1,1,1);
+			[Bindable]
+			private var _currentTime:Date;
+			public var _numFrames:Number;
+			[Bindable]
+			private var _SliderRate:Number=2000; 
+			[Bindable]
+			private var _Interval:int=60;
+			
+			private const millisecondsPerMinute:int = 1000 * 60;
+			private const millisecondsPerHour:int = 1000 * 60 * 60;
+			private const millisecondsPerDay:int = 1000 * 60 * 60 * 24;
+			private var playingBack:Boolean;
+			//initial time zone as GMT
+			private var _timeZone:Number;
+			private var _lastTimeZone:Number;
+			private var computerTimeZone:Number;
+			[Bindable]
+			private var timeZoneLabel:String;
+			[Bindable]
+			private var userArray:String = "guest";
+			
+			private var isZoomingIn:Boolean = false;
+			
+			private var hashTable:Object;
+			
+            private function init():void
+            {               
+				//NEW CODE FOR START & END DATES; & RESETING TIMESLIDER ON SCENARIO COMPLETION
+				ViewerContainer.addEventListener(AppEvent.START_DATE_CHANGED, startDateChange);
+				ViewerContainer.addEventListener(AppEvent.END_DATE_CHANGED, endDateChange);
+				ViewerContainer.addEventListener(AppEvent.MODEL_LOAD_COMPLETE, reset);
+				ViewerContainer.addEventListener(AppEvent.TIME_ZONE_CHANGED, timeZoneChanged);
+				ViewerContainer.addEventListener(AppEvent.ECOP_START_CHANGE, startDateChange);
+				ViewerContainer.addEventListener(AppEvent.ECOP_END_CHANGE, endDateChange);
+				ViewerContainer.addEventListener(AppEvent.TIMESLIDER_INTERVAL_CHANGE, intervalChange);
+				ViewerContainer.addEventListener(AppEvent.DISPLAY_RATE_CHANGE, displayRateChange);
+				ViewerContainer.addEventListener(AppEvent.DATA_PUBLISH, receivedData);
+				
+				//Switching states fixes graphics gltich on play/pause buttons when first clicked
+				currentState="State2";
+				currentState="State1";
+
+				//Set start and end dates 
+				_StartDate = new Date();
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DATA_SENT_TIME,_StartDate));
+				
+				_EndDate = new Date();
+				
+				//make the start and end dates three day apart or less 
+				_EndDate.setTime(_EndDate.getTime() + millisecondsPerDay*2.5);
+				
+				/* if(_StartDate.timezoneOffset == 300)
+				{
+					_StartDate.setMinutes(_StartDate.getMinutes()+540);
+				} */
+				//force to DM time
+				_StartDate.setHours(_StartDate.getHours()+(_StartDate.timezoneOffset+240)/60);
+				
+				_currentTime = new Date(_StartDate.getTime());
+				
+				//computerTimeZone=-_StartDate.getTimezoneOffset()/60.0;
+				
+				computerTimeZone=4;//fix timezone
+				_timeZone=computerTimeZone;
+				timeZoneLabel=generateTimeZoneLabel(_timeZone);
+				_lastTimeZone=computerTimeZone;
+				//show date/time vals as ZULU
+				_sdLabel = DateTimeUtilities.DateTimeToZulu(_StartDate);
+				_cdLabel = _sdLabel;
+				_edLabel = DateTimeUtilities.DateTimeToZulu(_EndDate);
+				
+				_timeCount = 0;
+				playingBack=false;
+				
+				updateMaxTime();
+				
+				//_timer = new BindableTimer(rateSlide_.value, 0);
+				_timer = new BindableTimer(_SliderRate, 0);
+				
+				_timer.addEventListener(TimerEvent.TIMER, timeInc);
+            }
+			private function receivedData(event:AppEvent):void
+			{
+				hashTable=event.data as Object;
+				
+				if(hashTable.key == "loginuser")
+				{
+					userArray=hashTable.data;
+					
+					if(userArray.toLowerCase() == "czwms" || userArray.toLowerCase() == "emergency")
+					{
+						settings.visible = true;						
+					}
+					else{
+						settings.visible = false;	
+					}
+				}
+			}
+			
+			
+		//SAW Functions to read event listener data (Widget to Widget talkback)	
+			private function startDateChange(event:AppEvent):void
+			{
+				_StartDate = new Date(event.data);
+				//add by Xiaowen, transfer to Beijing Time
+				/*if(_StartDate.hours<16)
+				{
+					_StartDate.hours+=8;
+				}
+				else{
+					_StartDate.date+=1;
+					_StartDate.hours-=16;
+				}*/
+				updateMaxTime();
+				_TimeSlider.setThumbValueAt(0,0)
+			}
+			
+			private function endDateChange(event:AppEvent):void
+			{
+				_EndDate = new Date(event.data);
+				//add by Xiaowen, transfer to Beijing Time
+				/*if(_EndDate.hours<16)
+				{
+					_EndDate.hours+=8;
+				}
+				else{
+					_EndDate.date+=1;
+					_EndDate.hours-=16;
+				}*/
+				updateMaxTime();
+			}
+			
+			private function updateMaxTime():void
+			{
+				//
+				_numFrames = new Number( ((getDaysDifference(_StartDate, _EndDate) / 1000 / 60)) / Number(_Interval) );
+				_maxTime = (getDaysDifference(_StartDate, _EndDate) / 1000 / 60) / Number(60);
+				_currentTime = new Date(_StartDate.getTime() + (_TimeSlider.value * 60 *1000));
+				
+				//show current time (as ZULU)
+				_cdLabel = DateTimeUtilities.DateTimeToZulu(_currentTime);
+				this._timeCount = _TimeSlider.value/Number(_Interval);
+			}
+
+		//TIMESLIDER FUNCTIONS	
+			public function get currentTime():Date
+			{
+				return _currentTime;
+			}
+			
+			public function setCurrentDateToStartDate():void
+			{
+				stop();
+				_currentTime = new Date(_StartDate.getTime());
+				_cdLabel = DateTimeUtilities.DateTimeToZulu(_currentTime);
+				//ViewerContainer.setTime(new String(_currentTime));
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.TIME_SLIDER_TIME_CHANGED, _currentTime));
+			}
+			
+			public function setCurrentDate(inDate:Date):void
+			{
+				stop();
+				_currentTime = new Date(inDate.getTime());
+				_cdLabel = DateTimeUtilities.DateTimeToZulu(_currentTime);
+				_timeCount= (getDaysDifference(_StartDate, _currentTime) / 1000 / 60) / Number(_Interval);
+				_TimeSlider.value=_timeCount*Number(60);
+				
+				//ViewerContainer.setTime(new String(_currentTime));
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.TIME_SLIDER_TIME_CHANGED, _currentTime));
+			}
+			
+			public function reset(event:AppEvent):void
+			{	
+				currentState="State1";
+				map.mapNavigationEnabled = true;
+				
+				_timeCount = 0;
+				playingBack=false;
+				_timer.stop();
+				
+				updateMaxTime();
+				_timer = new BindableTimer(_SliderRate, 0);
+				_timer.addEventListener(TimerEvent.TIMER, timeInc);
+				updateTime();
+				map.doubleClickZoomEnabled = false;
+			}
+			
+			//new function for client to set/update ts start and end dates
+			public function setDateRange(startDate:Date, endDate:Date, overRide:Boolean=false):void
+			{
+
+				var diff:Number = ((getDaysDifference(startDate, endDate) / 1000 / 60));
+				var numFrames:Number = (diff / Number(_Interval));
+				
+				if(diff <= 0) {
+				} else if( numFrames > 60 ) {
+					
+				} else 
+				{
+					_StartDate = new Date(startDate.getTime());
+					_currentTime = new Date(_StartDate.getTime());
+					_EndDate = new Date(endDate.getTime());
+					_sdLabel = DateTimeUtilities.DateTimeToZulu(_StartDate);
+					_edLabel = DateTimeUtilities.DateTimeToZulu(_EndDate);
+					_cdLabel = _sdLabel;
+					_maxTime = (getDaysDifference(_StartDate, _EndDate) / 1000 / 60) / Number(_Interval);
+					_numFrames = numFrames;
+					_timeCount = 0;
+					
+				}
+			}
+			
+			private function updateTime():void 
+			{			
+				_currentTime = new Date(_StartDate.getTime() + (_TimeSlider.value * 60 *1000));
+
+				//show current time (as ZULU)
+				_cdLabel = DateTimeUtilities.DateTimeToZulu(_currentTime);
+				
+				this._timeCount = _TimeSlider.value/Number(_Interval);
+
+				//ViewerContainer.setTime(new String(_currentTime));
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.TIME_SLIDER_TIME_CHANGED, _currentTime));
+			}
+			//add by Xiaowen, update currentTime, but don't dispatch event
+			private function liveDraggingUpdateTime():void 
+			{			
+				_currentTime = new Date(_StartDate.getTime() + (_TimeSlider.value * 60 *1000));
+				
+				//show current time (as ZULU)
+				_cdLabel = DateTimeUtilities.DateTimeToZulu(_currentTime);
+				
+				this._timeCount = _TimeSlider.value/Number(_Interval);
+				
+			}
+			private function timeInc(event:TimerEvent):void 
+			{
+				if((!(playingBack) && _timeCount == _maxTime) || (playingBack && _timeCount==0))
+				{
+					currentState="State1";
+					_timer.stop();
+				}
+				else
+				{
+					if(playingBack)
+					{ _timeCount--;}
+					else
+					{_timeCount++;}
+				}
+				_TimeSlider.values[0];
+				_TimeSlider.values[1];
+				
+				_currentTime = new Date(_StartDate.getTime() + (_TimeSlider.value * 60 *1000));
+				//show current time (as ZULU)
+				_cdLabel = DateTimeUtilities.DateTimeToZulu(_currentTime);
+				
+				//ViewerContainer.setTime(new String(_currentTime));
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.TIME_SLIDER_TIME_CHANGED, _currentTime));
+			}
+						
+			private function playF():void
+			{
+				currentState="State2";
+				map.mapNavigationEnabled = false;
+				playingBack=false;
+				_timer.start();	
+				map.doubleClickZoomEnabled = false;
+			}
+			
+			private function playB():void
+			{
+				playingBack=true;
+				_timer.start();
+				map.doubleClickZoomEnabled = false;
+			}
+			
+			private function pause():void 
+			{
+				currentState="State1";
+				map.mapNavigationEnabled = true;
+				_timer.stop();
+				map.doubleClickZoomEnabled = false;
+			}
+			
+			private function stop():void
+			{
+				currentState="State1";
+				map.mapNavigationEnabled = true;
+				_timer.stop();
+				_timeCount = 0;
+				map.doubleClickZoomEnabled = false;
+			}
+			private function stepBack():void
+			{   
+				currentState="State1";
+				map.mapNavigationEnabled = true;
+				playingBack=false;
+				_timer.stop();
+				if(!_timer.running) {
+					_timeCount--;
+					updateTime();
+				}
+				map.doubleClickZoomEnabled = false;
+			}
+			
+			private function stepForward():void
+			{
+				currentState="State1";
+				map.mapNavigationEnabled = true;
+				playingBack=false;
+				_timer.stop();
+				if(!_timer.running) {
+					_timeCount++;
+					updateTime();
+				}
+				map.doubleClickZoomEnabled = false;
+			}
+			
+			private function getDaysDifference(minDate:Date, maxDate:Date):Number
+			{
+				return Math.ceil((maxDate.getTime() - minDate.getTime()));
+			} 
+			
+			private function formatNumber(event:Event):void 
+			{			
+				var nsMask:String = "00";
+				var value:String = event.target.value.toString();
+				value = (nsMask + value).substr(-nsMask.length);
+				event.target.mx_internal::inputField.text = value;
+			}
+			
+			private function sliderTipFormat(item:Object):String {
+				//return String(_currentTime);
+				return _currentTime.toString();
+			}
+
+
+			protected function timeZoneChanged(event:AppEvent):void
+			{
+				// 
+				_lastTimeZone=_timeZone;
+				_timeZone=Number(event.data);
+				timeZoneLabel=generateTimeZoneLabel(_timeZone);
+				dateChangeByTimeZone();
+			}
+			private function dateChangeByTimeZone():void
+			{
+				var timeDifference:Number=_timeZone-_lastTimeZone;
+				_StartDate.hours+=int(timeDifference);
+				_StartDate.minutes+=((timeDifference%1)*60);
+				_EndDate.hours+=int(timeDifference);
+				_EndDate.minutes+=((timeDifference%1)*60);
+				_currentTime = new Date(_StartDate.getTime() + (_TimeSlider.value * 60 *1000));
+			}
+			protected function settings_clickHandler(event:MouseEvent):void
+			{
+				//show the timeslider setting
+				var _timesliderSettingPanel:TimeSliderSettings= new TimeSliderSettings();
+				
+				_timesliderSettingPanel.TimeZone=new Number(_timeZone);
+				_timesliderSettingPanel.EcopStartDate=_StartDate;
+				_timesliderSettingPanel.EcopEndDate=_EndDate;
+				_timesliderSettingPanel.TimeInterval=new int( _Interval);
+				_timesliderSettingPanel.Rate=new Number(_SliderRate);
+				//popup
+				PopUpManager.addPopUp(_timesliderSettingPanel,this.parent,false);
+				PopUpManager.centerPopUp(_timesliderSettingPanel);
+			}
+			protected function intervalChange(event:AppEvent):void
+			{
+				_Interval=int(event.data);
+				updateMaxTime();
+			}
+			protected function displayRateChange(event:AppEvent):void
+			{
+				_SliderRate=Number(event.data);
+				_timer.delay=_SliderRate;
+			}
+			
+			private function generateTimeZoneLabel(_timeZonePara:Number):String
+			{
+				var label:String="";
+				if(_timeZonePara>0)
+				{
+					label+="GMT +";
+				}
+				else if(_timeZonePara==0)
+				{
+					label+="GMT, UTC";
+					return label;
+				}
+				else
+				{
+					label+="GMT -";
+					_timeZonePara=-_timeZonePara;
+				}
+				if((_timeZonePara%1)==0)
+				{
+					label+=_timeZonePara.toString().length==1?"0"+_timeZonePara.toString():_timeZonePara.toString();
+					label+=":00";
+				}
+				else
+				{
+					var timeZoneHours:int=int(_timeZonePara);
+					var timeZoneMin:Number=_timeZonePara%1;
+					label+=timeZoneHours.toString().length==1?"0"+timeZoneHours.toString():timeZoneHours.toString();
+					label+=":"+(timeZoneMin*60).toString();
+				}
+				if(label == "GMT +04:00")
+				{
+					label = " UAE";
+				}
+				return label;
+			}
+			public function changeSize():void
+			{
+				if(cb.selected== true){
+					estimationPop.visible= true;
+				}
+				else{
+					estimationPop.visible= false;
+				}
+			}
+			private function updateDataTip(item:Object):String{
+				
+				
+				//return item.valueOf()/60 +" Hours";
+				/* var hourNum:int=int(_TimeSlider.value/60);
+				var minNum:int=int(_TimeSlider.value%60);
+				var returnStr:String='Elapsed Time:'
+				returnStr+=hourNum.toString()+' Hour(s)'
+				returnStr+=" "+minNum.toString()+' Minute(s)'; */
+				return currentTimeLabel.text;
+			} 
+        ]]>
+    </fx:Script>	
+	<fx:Declarations>
+		<mx:GlowFilter id="glow1" blurX="1.2" blurY="1.2"
+					   color="0xCCCCCC"
+					   strength="10"/>
+		<mx:GlowFilter id="glow2" blurX="1.6" blurY="1.6"
+					   color="0xCCCCCC"
+					   strength="10"/>	
+		<mx:Zoom id="zoomIn" zoomWidthTo="1" duration="1200" zoomHeightTo="1" />
+		<mx:Zoom id="zoomOut" zoomWidthTo=".5" duration="1200" zoomHeightTo=".5" />
+		<mx:Move id="moveLeftShow" xFrom="600" xTo="32" yTo="0" duration="1600" />
+	</fx:Declarations>
+	<viewer:states>
+		<s:State name="State1"/>
+		<s:State name="State2"/>
+	</viewer:states>
+		<mx:HBox alpha="1">
+			<mx:CheckBox id="cb" selected="true" textRollOverColor="0x000000" textSelectedColor="0x000000" styleName="checkboxStyle" label="" toolTip="Show/Hide Time Slider" click="changeSize()"/>
+			<mx:VBox alpha="1" hideEffect="{zoomOut}" showEffect="{moveLeftShow}" visible="true" id="estimationPop" styleName="cardViewEstimationPop"  width="100%" height="100%" horizontalAlign="left" horizontalScrollPolicy="off" verticalScrollPolicy="off" 
+					 paddingTop="7" paddingRight="10" paddingLeft="10" verticalAlign="middle">
+				<mx:HBox>
+					<s:Label text="Time Slider: " fontSize="13" fontWeight="bold" color="0xFFFFFF"/>
+					<s:Label text=" Press play to animate predictions" fontSize="13" fontWeight="normal" color="0xFFFFFF"/>
+					<s:Label id="settings" toolTip="Time Slider Settings" paddingLeft="83" fontSize="13" fontWeight="bold"  buttonMode="true" text="Settings" color="0xFFFFFF" textDecoration="underline" click="settings_clickHandler(event)"/>
+					<!--<s:Label id="settings" toolTip="Time Slider Settings" paddingLeft="10" buttonMode="true" source="widgets/TimeSlider/assets/images/Configuration.PNG" height="24" width="24" click="settings_clickHandler(event)"/>-->
+				</mx:HBox>
+				<mx:HBox>
+					<mx:Image id="Reset" toolTip="Reset" click="reset(null)" source="widgets/TimeSlider/assets/images/reset.png" width="24" height="24" />
+					<mx:Image id="IncBack" toolTip="Step Back" click="stepBack()" source="widgets/TimeSlider/assets/images/rewind.png" width="24" height="24"/>
+					<s:VGroup>
+						<mx:HSlider id="_TimeSlider" width="240" liveDragging="true" allowTrackClick="false" styleName="cardViewEstimationPop"
+									maximum="{_maxTime*Number(_Interval)}" value="{_timeCount*Number(_Interval)}"
+									snapInterval="{_Interval}" thumbRelease="updateTime()"
+									change="liveDraggingUpdateTime()" dataTipFormatFunction="updateDataTip"
+									dataTipPlacement="top" tickColor="black" tickInterval="{_Interval}"
+									height="25" filters="{[glow1]}">
+							<!--dataTipFormatFunction="sliderTipFormat" -->
+						</mx:HSlider>
+					</s:VGroup>	
+					<mx:Image id="IncForward" toolTip="Step Forward" click="stepForward()" source="widgets/TimeSlider/assets/images/forward.png" width="24" height="24"/>
+					<mx:Image id="PlayForward" toolTip="Play"  click="playF()" source="widgets/TimeSlider/assets/images/play.png" includeIn="State1" width="24" height="24"/>
+					<mx:Image id="Pause" click="pause()" toolTip="Pause" source="widgets/TimeSlider/assets/images/pause.png" width="24" includeIn="State2" height="24"/>
+					<mx:VBox paddingTop="0" paddingBottom="0">
+						<s:Label id="currentTimeZoneLabel" text="{ResourceManager.getInstance().getString('TimeSlider','timeZoneLabel')+timeZoneLabel}" height="11" color="0xFFFFFF"/>
+						<s:Label id="currentTimeLabel" text="{DateTimeUtilities.convertDateEuro(_currentTime)}"  height="11" color="0xFFFFFF"/>
+					</mx:VBox>
+				</mx:HBox>
+			</mx:VBox>
+		</mx:HBox>
+</viewer:BaseWidget>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:HBox xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%" horizontalAlign="center">
+	<mx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import mx.events.ListEvent;
+			
+			import widgets.ECOP.components.events.RiskLevelEvent;
+			
+			[Bindable]
+			public var riskLevels:ArrayCollection;
+			
+			private function onInitialize():void{
+				//Creating the initial dataProvider for the combo box in the initialize event
+				//so that in the set data function this data is available
+				riskLevels = new ArrayCollection([{label:"High", data:"high"},
+					{label:"Medium", data:"medium"},
+					{label:"Low", data:"low"}])
+			}
+			
+			override public function set data(value:Object):void{
+				if(value != null){
+					super.data = value;
+					if(combo && riskLevels){
+						//find out the index of item where the data matches the risk level
+						var riskLevelItem:Object;
+						for(var i:int=0; i<riskLevels.length; i++){
+							riskLevelItem = riskLevels.getItemAt(i);
+							if(riskLevelItem.stylz == value.visible){
+								//set the value of the combo box to reflect the 
+								//appropriate value of risk in the item of dataProvider of the dataGrid
+								combo.selectedItem = riskLevelItem;
+								break;
+							}
+						 }
+					}
+				}
+			}
+			
+			private function onRiskLevelChange(event:ListEvent):void {
+				//dispatch an event which is handled at the application level
+				//the third Param is the new risk level which is obtained from the combo box
+				var riskLevelEvent:RiskLevelEvent = new RiskLevelEvent(RiskLevelEvent.CHANGE, this.data, event.target.value, true);
+				this.dispatchEvent(riskLevelEvent);
+			}
+		]]>
+	</mx:Script>
+	<mx:ComboBox id="combo" dataProvider="{riskLevels}" fontSize="10" change="onRiskLevelChange(event)"/>
+</mx:HBox>

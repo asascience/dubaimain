@@ -1,0 +1,1138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<viewer:BaseWidget xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				   xmlns:s="library://ns.adobe.com/flex/spark"
+				   xmlns:net="flash.net.*"
+				   xmlns:mx="library://ns.adobe.com/flex/mx" xmlns:viewer="com.esri.viewer.*" layout="absolute"
+				   initialize="basewidget1_initializeHandler(event)" cornerRadius="0" dropShadowVisible="false"
+ 				   widgetConfigLoaded="basewidget1_widgetConfigLoadedHandler(event)"  
+				   remove="basewidget1_removeHandler(event)" xmlns:esri="http://www.esri.com/2008/ags" xmlns:skins="widgets.WarningViewer.skins.*" 
+				   xmlns:WarningViewer="widgets.WarningViewer.*" xmlns:toc="widgets.TOC.toc.*" xmlns:toc1="com.esri.viewer.components.toc.*" >
+
+	<fx:Style source="css/style.css">
+
+	</fx:Style>
+	<fx:Metadata>
+		[ResourceBundle("LayerViewer")]
+	</fx:Metadata>
+	<fx:Script>
+		<![CDATA[
+			import com.esri.ags.Graphic;
+			import com.esri.ags.geometry.MapPoint;
+			import com.esri.ags.layers.GraphicsLayer;
+			import com.esri.ags.layers.Layer;
+			import com.esri.ags.symbols.SimpleFillSymbol;
+			import com.esri.ags.symbols.SimpleLineSymbol;
+			import com.esri.ags.symbols.SimpleMarkerSymbol;
+			import com.esri.ags.tools.DrawTool;
+			import com.esri.viewer.AppEvent;
+			import com.esri.viewer.ViewerContainer;
+			import com.esri.viewer.utils.Hashtable;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.DataGrid;
+			import mx.events.FlexEvent;
+			import mx.events.IndexChangedEvent;
+			import mx.events.ListEvent;
+			import mx.resources.ResourceManager;
+			
+			import org.vanrijkom.dbf.*;
+			
+			import widgets.OilSpill.components.wms.*;
+			import widgets.ShapeFiles.ShpPolygon;
+			import widgets.ShapeFiles.ShpReader;
+			import widgets.ShapeFiles.nochump.util.zip.ZipEntry;
+			import widgets.ShapeFiles.nochump.util.zip.ZipFile;
+			import widgets.TimeSlider.components.util.DateTimeUtilities;
+			import widgets.WarningViewer.skins.*;
+			
+			private var _OilModelSource:String;
+			
+			public var drawTool:DrawTool;
+			private var _params:URLVariables;
+			
+			private var warningArea:Layer;
+			[Bindable]
+			private var graph:Graphic = new Graphic;
+			private var hashTable:Hashtable;
+			[Bindable]
+			private var currentTime:Date=new Date();
+			private var loginUser:Array=new Array();
+			private var _timeZone:Number;
+			private var idPoint:MapPoint;
+			
+			//for the serverURL in main config file or the widget's config file
+			private var _serverURL:String;
+			
+			private var LayersTab:Boolean = false;
+			private var clickWarningAreas:Boolean = true;
+			[Bindable]
+			private var induColor:uint;
+			private var clrmap:Array;
+			[Bindable]
+			private var idLayer:String = new String;			
+				
+			[Bindable]
+			private var userArray:String = "guest";
+			
+			private var userObject:Object;
+			[Bindable]
+			private var areaNames:Array = new Array;
+			
+			[Bindable]
+			private var locale:String = "en-GB";
+			
+			//This is the main array collection for the area list
+			//needs to be updated according to the shapefile dbf, this is updated acording to text files
+			//Id's need to match id of shapefile
+			[Bindable]
+			private var areaWarningData:ArrayCollection =  new ArrayCollection([
+				//off shore
+				{id:"22",Name:"Palm Deira Offshore",Beach:"0",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"20",Name:"World Islands North Offshore",Beach:"0",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"18",Name:"World Islands South Offshore",Beach:"0",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"16",Name:"Palm Jumeirah Offshore",Beach:"0",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"1",Name:"Jebel Ali Offshore",Beach:"0", waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				
+				///Near Shore
+				{id:"29",Name:"Palm Deira Nearshore 2",Beach:"2",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"31",Name:"Palm Deira Nearshore 1",Beach:"2",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"27",Name:"Jumeirah Nearshore",Beach:"2",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"21",Name:"World Islands North",Beach:"2",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"19",Name:"World Islands South",Beach:"2",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"26",Name:"Umm Suqeim Nearshore",Beach:"2",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},				
+				{id:"17",Name:"Palm Jumeirah Nearshore",Beach:"2",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},				
+				{id:"28",Name:"Jebel Ali Port Nearshore 2",Beach:"2",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"2",Name:"Jebel Ali Port Nearshore 1",Beach:"2", waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"25",Name:"Palm Jebel Ali Nearshore",Beach:"2",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"23",Name:"Jebel Ali Nearshore 2",Beach:"2",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"24",Name:"Jebel Ali Nearshore 1",Beach:"2",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				
+				///Beach
+				{id:"30",Name:"Al Mamzar",Beach:"1",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"3",Name:"Jumeirah Open Beach",Beach:"1",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"4",Name:"Jumeirah Beach Park",Beach:"1",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"5",Name:"Jumeirah 3",Beach:"1",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"6",Name:"Umm Suqeim 1",Beach:"1",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"7",Name:"Umm Suqeim 2",Beach:"1",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"8",Name:"Umm Suqeim 3",Beach:"1",Beach:"1",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"9",Name:"Palm Jumeirah",Beach:"1",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"10",Name:"Al Sofooh",Beach:"1",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"11",Name:"DEWA",Beach:"1",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"12",Name:"DUBAL",Beach:"1",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"13",Name:"Jebel Ali Port",Beach:"1",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"14",Name:"Palm Jebel Ali",Beach:"1",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"},
+				{id:"15",Name:"Dubai Waterfront",Beach:"1",waveoffshore:"nowarning",windoffshore:"nowarning",wavenearshore:"nowarning",windnearshore:"nowarning",swim:"nowarning"}				
+			]);
+			
+			protected function basewidget1_initializeHandler(event:FlexEvent):void
+			{
+				ViewerContainer.addEventListener(AppEvent.TIME_ZONE_CHANGED, timeZoneChanged);
+				//Get hashTable
+				ViewerContainer.addEventListener(AppEvent.DATA_SENT, receivedData);
+				//ViewerContainer.addEventListener(AppEvent.LANGUAGE_CHANGED, languageChanged);
+			}
+			
+			private function padding(num:Number):String
+			{
+				if(String(num).length==1){
+					return "0"+num.toString(); 
+				}
+				else{
+					return num.toString();
+				}
+			}
+			
+			protected function basewidget1_widgetConfigLoadedHandler(event:Event):void
+			{				
+				if(configXML)
+				{
+					//loading warning area shapefiles
+					fetchSharedData();
+					//warningsLay.value = 1;
+					
+					disclaimer2.text = configXML.warningdisclaimer;
+					
+					//area names
+					var areas:String = configXML.areaNames;	
+					areaNames = areas.split(",");
+					var setDate:Date = new Date;
+					//subtract two days to get file
+					/* if(setDate.getTimezoneOffset() == 300)
+					{
+						setDate.setTime(setDate.getTime()-1000*60*60*24);
+					}
+					else{
+						setDate.setTime(setDate.getTime()-1000*60*60*48);
+					}
+					var warnURL:String = configXML.areaFile+"warn_"+setDate.fullYear.toString()+padding(setDate.month+1)+padding(setDate.date)+".txt"; */
+					var warnURL:String = configXML.areaFile+"current.txt";
+					
+					var warningurl:URLLoader = new URLLoader;
+					warningurl.load(new URLRequest(warnURL));
+					warningurl.addEventListener(IOErrorEvent.IO_ERROR, onSoundIOError, false, 0, true);
+					warningurl.addEventListener(Event.COMPLETE, warnhttpService_result);
+					
+					function onSoundIOError (e:IOErrorEvent):void
+					{
+						trace("An Error Occured and it looked like this.", e.text);
+					}
+					
+					function warnhttpService_result(evt:Event):void 
+					{
+						var arearesult:String = evt.currentTarget.data as String;
+						var areaRecords:Array = arearesult.split("\n");
+						
+						var areaL:String = "";
+						var areaA:Array = [];
+						
+						//create round date to match site access with closest warning record of 6 hour increments	
+						//convert time to Dubai Time
+						var roundDate:Date = new Date;
+						roundDate.setHours(roundDate.getHours()+(roundDate.timezoneOffset+240)/60);
+						var realTime:Date = new Date;
+						realTime.setHours(realTime.getHours()+(realTime.timezoneOffset+240)/60);
+						var roundedDate:Date = DateTimeUtilities.getFeatureDateWarningToDBDate(roundDate);
+						var diffHour:Number = realTime.hours - roundedDate.hours;
+						
+						for(var i:uint = 0; i< areaRecords.length; i++) 
+						{ 
+							var areaRecordString:String = areaRecords[i] as String;
+							var areaRecord:Array = areaRecordString.split(",");
+							
+							var areaRecordObject:Object = new Object;
+							
+							var added:Boolean = false;
+															
+							//make sure there is a record
+							if(areaRecord[0] != "")
+							{
+								var recObj:Object;
+								//check to see if the area has already been recorded
+								if(areaL == areaRecord[0])
+								{
+									added = true;
+								}
+								else{
+									added = false;
+								}
+								
+								//add record to Array collection
+								if(added == false && areaL != "")
+								{
+									recObj.data = areaA;
+									areaWarningData.itemUpdated(recObj);
+									areaA = [];
+								}
+								
+								//grab object from created ArrayCollection that will be used to populate DataGrid
+								if(getItemIndexByProperty("Name",areaRecord[0])>-1)
+								{
+									recObj= areaWarningData.getItemAt(getItemIndexByProperty("Name",areaRecord[0]));
+								}
+								
+								areaRecordObject["AREA"] = areaRecord[0];
+								areaRecordObject["WINDFLAG"] = areaRecord[4];
+								areaRecordObject["WAVEFLAG"] = areaRecord[7];
+								
+								//converting time string to date
+								var timeArray:Array = String(areaRecord[1]).split(" ");
+								var nDate:Array = String(timeArray[0]).split("-");
+								var nTime:Array = String(timeArray[1]).split(":");
+								
+								//swith to JAN three leter month
+								var monthDigit:Number = DateTimeUtilities.numbertoMonth(String(nDate[1]).toUpperCase());
+								
+								//to do the comparison
+								var tempDate:Date =new Date(Number(nDate[2]),monthDigit,Number(nDate[0]),Number(nTime[0]));
+								var newTime:Date =new Date(Number(nDate[2]),monthDigit,Number(nDate[0]),Number(nTime[0]));
+																
+								//only allow 24 hour increments from site access time
+								var begDate:Date = new Date(roundedDate.getTime()-1000*60*60*3);
+								var endDate:Date = new Date(roundedDate.getTime()+1000*60*60*20);
+								
+								//convert time to Dubai Time
+								newTime.hours = newTime.hours+4;
+								
+								//only grab a 24 hour window
+								if(newTime.getTime()>begDate.getTime() &&newTime.getTime()< endDate.getTime())
+								{
+									areaA.push(areaRecordObject);
+									
+									//newTime.hours = newTime.hours+4;
+									areaRecordObject["DATE"] = newTime;
+									
+									//check to see if there is any warnings
+									if(areaRecord[7]>0)
+									{
+										recObj.swim = "swimwarning15";
+										if(areaRecord[7]>1)
+										{
+											recObj.wavenearshore = "warning";
+											if(areaRecord[7]>2)
+											{
+												recObj.waveoffshore = "warning";
+											}
+										}
+									}
+									if(areaRecord[4]>0)
+									{
+										recObj.windnearshore = "warning";
+										if(areaRecord[4]>1)
+										{
+											recObj.windoffshore = "warning";
+										}
+									}
+								}
+								
+								areaL = areaRecord[0];
+								
+								if(i==areaRecords.length-5)
+								{
+									recObj.data = areaA;
+									areaWarningData.itemUpdated(recObj);
+								}
+							}
+						}
+
+						areaWarningData.refresh();
+						var s:ArrayCollection = areaWarningData;
+						
+						warningNearS.dataProvider =filterNearShore(areaWarningData);
+						warningSwim.dataProvider=filterBeach(areaWarningData);
+						warningA.dataProvider=filterOffshore(areaWarningData);
+						viewLayer();
+					}
+				}
+				else
+				{
+					nowarninglabel.text = "No forecast available at this time";
+				}
+				
+				//call after warning config files have been parsed
+				
+				
+				if(hashTable.containsKey("timezone"))
+				{
+					_timeZone=hashTable.find("timezone") as Number;
+				}
+				else
+				{
+					//use computer's timezone
+					//var tempDate:Date=new Date();
+					//_timeZone=-tempDate.getTimezoneOffset()/60.0;
+					
+					//use utc
+					_timeZone=4;
+				}
+				var flashVars:Object=stage.loaderInfo.parameters;
+				userArray = flashVars.group;
+			}
+			
+			//Used for updating the Array Collection for warning system
+			private function getItemIndexByProperty(property:String, value:String):Number
+			{
+				for (var i:Number = 0; i < areaWarningData.length; i++)
+				{
+					var obj:Object = Object(areaWarningData[i])
+					if (obj[property] == value)
+						return i;
+				}
+				return -1;
+			}
+			
+			protected function basewidget1_removeHandler(event:FlexEvent):void{
+			}
+			private function widgetClosedHandler(event:Event):void
+			{
+				warningsLay.selected = false;
+				visibleWarnings();
+				map.infoWindow.hide();
+			}
+			private function widgetOpenHandler(event:Event):void
+			{
+				warningsLay.selected = true;
+				visibleWarnings();
+				map.doubleClickZoomEnabled = false;
+			}
+			
+			private function receivedData(event:AppEvent):void
+			{
+				hashTable=event.data as Hashtable;
+				if(hashTable.containsKey("loginuser"))
+				{
+					userArray=hashTable.find("loginuser");
+				}
+			}
+			
+			private function timeZoneChanged(event:AppEvent):void
+			{
+				if(hashTable.containsKey("timezone"))
+				{
+					_timeZone=hashTable.find("timezone") as Number;
+				}
+			}
+			
+     //for warning layer via shapefile
+			public function viewLayer():void
+			{
+				var layr:String = new String();
+				layr = configXML.filelocation + "Warnings.zip";
+				urlLoader1.load( new URLRequest(layr));
+			}
+			
+			private function completeHandler(event:Object):void
+			{
+				var shpByteArray:ByteArray;
+				var dbfByteArray:ByteArray;
+				
+				const zipFile:ZipFile =  new ZipFile(urlLoader1.data);                
+				for each (var entry:ZipEntry in zipFile.entries)
+				{
+					const name:String = entry.name.toLowerCase();
+					if (name.indexOf("__macosx") > -1)
+					{
+						continue;
+					}
+					if (name.indexOf(".shp") === name.length - 4)
+					{
+						shpByteArray = zipFile.getInput(entry);
+					}
+					if (name.indexOf(".dbf") === name.length - 4)
+					{
+						dbfByteArray = zipFile.getInput(entry);
+					}
+				}
+				if (shpByteArray && shpByteArray.length > 0 && dbfByteArray && dbfByteArray.length > 0)
+				{
+					loadShapefile(shpByteArray, dbfByteArray);
+				}
+				urlLoader1 = null;
+			}
+			
+			private function loadShapefile(shpByteArray:ByteArray, dbfByteArray:ByteArray):void
+			{
+				var index:int = 0;
+				const shpReader:ShpReader = new ShpReader(shpByteArray);
+				const dbfHeader:DbfHeader = new DbfHeader(dbfByteArray);
+				var shapeType:int = shpReader.readShpType();
+				
+				while (shpReader.hasMore()) {
+					if (shapeType == 5) {
+						
+						var shpPolygon:ShpPolygon = shpReader.readShpPolygon();
+						var dbfRecord:DbfRecord = DbfTools.getRecord(dbfByteArray, dbfHeader, index++);
+						
+						//call the warning datagrid item using the objectid in the shapefile dbf file with the id number from the warning arraycollection
+						var recObj:Object = areaWarningData.getItemAt(getItemIndexByProperty("id",dbfRecord.values[dbfHeader.fields[0].name].replace(/\s+/g, '')));
+						
+						/* FOR LABELLING  not used
+						var fldIdx:int;
+						var txtSym:TextSymbol = new TextSymbol;
+						txtSym.placement = "start";
+						var doneFlag:Boolean = false;
+						for (fldIdx = 0; fldIdx < dbfHeader.fields.length; fldIdx++) {
+							txtSym.text = StringUtil.trim(dbfRecord.values[dbfHeader.fields[2].name]);
+						}  */
+						
+						//Add Swim Icon to warning
+						if(recObj.swim != "nowarning" && recObj.Beach == "1")
+						{
+							var swimF:Graphic = new Graphic(shpPolygon.toPolygon().extent.center,swimFlag);
+							swimF.toolTip = "Swim Warning! \n"+recObj.Name;
+							swimF.attributes = recObj;
+							swimF.addEventListener(MouseEvent.CLICK,mouseClicklabel);
+							graphicsLayer_warningSwim.add(swimF);
+						}
+						if(recObj.Beach == "1")
+						{
+							var swimA:Graphic = new Graphic(shpPolygon.toPolygon(), highlightTabspoly);
+							swimA.attributes = recObj;
+							graphicsLayer_warningSwimpoly.add(swimA);
+						}
+						if(recObj.Beach == "2")
+						{
+							var nearA:Graphic = new Graphic(shpPolygon.toPolygon(), highlightTabspoly);
+							nearA.attributes = recObj;
+							graphicsLayer_warningNear.add(nearA);
+						}
+						if(recObj.Beach == "0")
+						{
+							var offA:Graphic = new Graphic(shpPolygon.toPolygon(), highlightTabspoly);
+							offA.attributes = recObj;
+							graphicsLayer_warningOFF.add(offA);
+						}
+
+						if(recObj.Beach == "1"&&recObj.swim != "nowarning")
+						{
+							var graph:Graphic = new Graphic(shpPolygon.toPolygon(), nohighlite);
+							graph.toolTip = recObj.Name;
+							graph.attributes = recObj;
+							graph.checkForMouseListeners = false;
+							graph.addEventListener(MouseEvent.CLICK,mouseClicklabel);
+							graphicsLayer_warning.add(graph);
+							
+							nowarninglabel.visible = false;
+						}
+						else if(recObj.Beach == "0"&&(recObj.waveoffshore =="warning"))
+						{
+							var graph:Graphic = new Graphic(shpPolygon.toPolygon(), nohighlite);
+							graph.toolTip = recObj.Name;
+							graph.attributes = recObj;
+							graph.checkForMouseListeners = false;
+							graph.addEventListener(MouseEvent.CLICK,mouseClicklabel);
+							graphicsLayer_warning.add(graph);
+							
+							nowarninglabel.visible = false;
+						}
+						else if(recObj.Beach == "2"&&(recObj.wavenearshore =="warning"))
+						{
+							var graph:Graphic = new Graphic(shpPolygon.toPolygon(), nohighlite);
+							graph.toolTip = recObj.Name;
+							graph.attributes = recObj;
+							graph.checkForMouseListeners = false;
+							graph.addEventListener(MouseEvent.CLICK,mouseClicklabel);
+							graphicsLayer_warning.add(graph);
+							
+							nowarninglabel.visible = false;
+						}
+						else
+						{
+							var graph:Graphic = new Graphic(shpPolygon.toPolygon(), emptyPoly);
+							graph.toolTip = recObj.Name;
+							
+							graph.attributes = recObj;
+							graph.checkForMouseListeners = false;
+							graph.addEventListener(MouseEvent.CLICK,mouseClicklabel);
+							graphicsLayer_warning.add(graph);
+						}
+					}
+				}
+				
+				graphicsLayer_warning.id = "Warn_layer";
+				map.addLayer(graphicsLayer_warningSwimpoly);
+				map.addLayer(graphicsLayer_warningOFF);
+				map.addLayer(graphicsLayer_warningNear);
+				
+				map.addLayer(graphicsLayer_warning);
+				map.addLayer(graphicsLayer_warningSwim);
+			}
+			
+			private function mouseClicklabel(event:MouseEvent):void
+			{
+				if(clickWarningAreas == true)
+				{	
+					const mapPoint:MapPoint = map.toMapFromStage(event.stageX, event.stageY);
+					const point : Point = map.toScreen( mapPoint );					
+					
+					if(event.currentTarget.attributes.Beach == 1)
+					{
+						var popuptabs2:PopUpTabBarSwimmin = new PopUpTabBarSwimmin;
+						popuptabs2.warningsingleArray = event.currentTarget.attributes;
+						map.infoWindowContent = popuptabs2;
+						map.infoWindowContent.height = 154;
+					}
+					else{
+						var popuptabs:PopUpTabBar = new PopUpTabBar;
+						if(event.currentTarget.attributes.Beach == 2)
+						{
+							popuptabs.craft = true;
+						}
+						
+						popuptabs.warningsingleArray = event.currentTarget.attributes;
+						map.infoWindowContent = popuptabs;
+						map.infoWindowContent.height = 191;
+					}
+					
+					map.infoWindowContent.percentWidth = 160;
+					map.infoWindow.setStyle("backgroundColor", "0x3d9bbf");
+					
+					map.infoWindow.setStyle("shadowDistance", 5);
+					map.infoWindow.setStyle("fontSize", 12);
+					map.infoWindowContent.alpha = 1;
+					map.infoWindow.setStyle("infoPlacement", 'right');
+					map.infoWindow.setStyle("infoOffsetX", 95);
+					
+					map.infoWindowContent.width = 300;
+					
+					map.infoWindow.label = event.currentTarget.attributes.Name;
+					map.infoWindow.show(map.toMap(point));	
+					if(map.extent.contains(map.toMap(point))==false)
+					{
+						map.centerAt(map.toMap(point));
+					}
+				}
+			}
+			
+			private function closeInfoWindow(event:Event):void
+			{
+				warningA.selectedIndex = -1;
+				warningSwim.selectedIndex = -1;
+				warningNearS.selectedIndex = -1;
+			}
+			
+			private function highlightArea(event:ListEvent):void
+			{
+				var lay:Object= warningA.dataProvider[event.rowIndex];
+				for each (var entry:Graphic in graphicsLayer_warning.graphicProvider)
+				{
+					if(String(lay.id) == entry.attributes.id)
+					{
+						entry.symbol = highlite;
+					}
+					else 
+					{
+						if(entry.attributes.Beach == "2"&&(entry.attributes.wavenearshore == "warning"))
+						{
+							entry.symbol = nohighlite;
+						}
+						else if(entry.attributes.Beach == "0"&&(entry.attributes.waveoffshore == "warning"))
+						{
+							entry.symbol = nohighlite;
+						}
+						else if(entry.attributes.Beach == "1"&&entry.attributes.swim != "nowarning")
+						{
+							entry.symbol = nohighlite;
+						}
+						else{
+							entry.symbol = emptyPoly;
+						}
+					} 
+				}
+				graphicsLayer_warning.refresh();
+			}
+			
+			private function highlightAreaSwim(event:ListEvent):void
+			{
+				var lay:Object= warningSwim.dataProvider[event.rowIndex];
+				for each (var entry:Graphic in graphicsLayer_warning.graphicProvider)
+				{
+					if(String(lay.id) == entry.attributes.id)
+					{
+						entry.symbol = highlite;
+					}
+					else 
+					{
+						if(entry.attributes.Beach == "2"&&(entry.attributes.wavenearshore == "warning"))
+						{
+							entry.symbol = nohighlite;
+						}
+						else if(entry.attributes.Beach == "0"&&(entry.attributes.waveoffshore == "warning"))
+						{
+							entry.symbol = nohighlite;
+						}
+						else if(entry.attributes.Beach == "1"&&entry.attributes.swim != "nowarning")
+						{
+							entry.symbol = nohighlite;
+						}
+						else{
+							entry.symbol = emptyPoly;
+						}
+					} 
+				}
+				graphicsLayer_warning.refresh();
+			}
+			
+			private function highlightAreaNear(event:ListEvent):void
+			{
+				var lay:Object= warningNearS.dataProvider[event.rowIndex];
+				for each (var entry:Graphic in graphicsLayer_warning.graphicProvider)
+				{
+					if(String(lay.id) == entry.attributes.id)
+					{
+						entry.symbol = highlite;
+					}
+					else 
+					{
+						if(entry.attributes.Beach == "2"&&(entry.attributes.wavenearshore == "warning"))
+						{
+							entry.symbol = nohighlite;
+						}
+						else if(entry.attributes.Beach == "0"&&(entry.attributes.waveoffshore == "warning"))
+						{
+							entry.symbol = nohighlite;
+						}
+						else if(entry.attributes.Beach == "1"&&entry.attributes.swim != "nowarning")
+						{
+							entry.symbol = nohighlite;
+						}
+						else{
+							entry.symbol = emptyPoly;
+						}
+					} 
+				}
+				graphicsLayer_warning.refresh();
+			}
+			
+			private function mouseOutSelection(event:ListEvent):void
+			{
+				//var lay:Object= warningA.dataProvider[event.rowIndex];
+				for each (var entry:Graphic in graphicsLayer_warning.graphicProvider)
+				{
+					if(entry.attributes.Beach == "2"&&(entry.attributes.wavenearshore == "warning"))
+					{
+						entry.symbol = nohighlite;
+					}
+					else if(entry.attributes.Beach == "0"&&(entry.attributes.waveoffshore == "warning"))
+					{
+						entry.symbol = nohighlite;
+					}
+					else if(entry.attributes.Beach == "1"&&entry.attributes.swim != "nowarning")
+					{
+						entry.symbol = nohighlite;
+					}
+					else{
+						entry.symbol = emptyPoly;
+					}
+				}
+				graphicsLayer_warning.refresh();
+			}
+			
+			private function highlightAreaInfoSwim(event:ListEvent):void
+			{
+				var lay:Object= warningSwim.dataProvider[event.rowIndex];
+				for each (var entry:Graphic in graphicsLayer_warning.graphicProvider)
+				{
+					if(String(lay.id) == entry.attributes.id)
+					{	
+						var popuptabs:PopUpTabBarSwimmin = new PopUpTabBarSwimmin;
+							
+						popuptabs.warningsingleArray = lay;
+						
+						map.infoWindowContent = popuptabs;
+						map.infoWindowContent.percentWidth = 160;
+						map.infoWindow.setStyle("backgroundColor", "0x3d9bbf");
+						
+						map.infoWindow.setStyle("shadowDistance", 5);
+						map.infoWindow.setStyle("fontSize", 12);
+						map.infoWindowContent.alpha = 1;
+						map.infoWindow.setStyle("infoPlacement", 'right');
+						map.infoWindow.setStyle("infoOffsetX", 95);
+						map.infoWindowContent.height = 154;
+						map.infoWindowContent.width = 300;
+						map.infoWindow.label = lay.Name;
+						map.infoWindow.show(entry.geometry.extent.center);
+						map.infoWindow.addEventListener(Event.CLOSE, closeInfoWindow);
+						if(map.extent.contains(entry.geometry.extent.center)==false)
+						{
+							map.centerAt(entry.geometry.extent.center);
+						}
+					}
+				}
+			}
+			
+			private function highlightAreaInfoNear(event:ListEvent):void
+			{
+				var lay:Object= warningNearS.dataProvider[event.rowIndex];
+				for each (var entry:Graphic in graphicsLayer_warning.graphicProvider)
+				{
+					if(String(lay.id) == entry.attributes.id)
+					{	
+						var popuptabs:PopUpTabBar = new PopUpTabBar;
+						
+						popuptabs.warningsingleArray = lay;
+						popuptabs.craft = true;
+						map.infoWindowContent = popuptabs;
+						map.infoWindowContent.percentWidth = 160;
+						map.infoWindow.setStyle("backgroundColor", "0x3d9bbf");
+						
+						map.infoWindow.setStyle("shadowDistance", 5);
+						map.infoWindow.setStyle("fontSize", 12);
+						map.infoWindowContent.alpha = 1;
+						map.infoWindow.setStyle("infoPlacement", 'right');
+						map.infoWindow.setStyle("infoOffsetX", 95);
+						map.infoWindowContent.height = 191;
+						map.infoWindowContent.width = 300;
+						map.infoWindow.label = lay.Name;
+						map.infoWindow.show(entry.geometry.extent.center);
+						map.infoWindow.addEventListener(Event.CLOSE, closeInfoWindow);
+						
+						if(map.extent.contains(entry.geometry.extent.center)==false)
+						{
+							map.centerAt(entry.geometry.extent.center);
+						}
+					}
+				}
+			}
+			
+			private function highlightAreaInfo(event:ListEvent):void
+			{
+				var lay:Object= warningA.dataProvider[event.rowIndex];
+				for each (var entry:Graphic in graphicsLayer_warning.graphicProvider)
+				{
+					if(String(lay.id) == entry.attributes.id)
+					{	
+						var popuptabs:PopUpTabBar = new PopUpTabBar;
+						
+						popuptabs.warningsingleArray = lay;
+						
+						map.infoWindowContent = popuptabs;
+						map.infoWindowContent.percentWidth = 160;
+						map.infoWindow.setStyle("backgroundColor", "0x3d9bbf");
+						
+						map.infoWindow.setStyle("shadowDistance", 5);
+						map.infoWindow.setStyle("fontSize", 12);
+						map.infoWindowContent.alpha = 1;
+						map.infoWindow.setStyle("infoPlacement", 'right');
+						map.infoWindow.setStyle("infoOffsetX", 95);
+						map.infoWindowContent.height = 191;
+						map.infoWindowContent.width = 300;
+						map.infoWindow.label = lay.Name;
+						map.infoWindow.show(entry.geometry.extent.center);
+						map.infoWindow.addEventListener(Event.CLOSE, closeInfoWindow);
+						
+						if(map.extent.contains(entry.geometry.extent.center)==false)
+						{
+							map.centerAt(entry.geometry.extent.center);
+						}
+					}
+				}
+			}
+			private function visibleWarnings():void
+			{
+				if(warningsLay.selected == false)
+				{
+					if(map.getLayer("Warn_layer"))
+					{
+						map.getLayer("Warn_layer").visible = false;
+					}
+					graphicsLayer_warningSwim.visible = false;
+					graphicsLayer_warningSwimpoly.visible = false;
+					graphicsLayer_warningNear.visible = false;
+					graphicsLayer_warningOFF.visible = false;
+				}
+				else{
+					if(map.getLayer("Warn_layer"))
+					{
+						map.getLayer("Warn_layer").visible = true;
+					}
+					graphicsLayer_warningSwim.visible = true;
+					if(accord.selectedIndex == 0)
+					{
+						graphicsLayer_warningSwimpoly.visible = true;
+						graphicsLayer_warningNear.visible = false;
+						graphicsLayer_warningOFF.visible = false;
+					}
+					if(accord.selectedIndex == 1)
+					{
+						graphicsLayer_warningNear.visible = true;
+						graphicsLayer_warningSwimpoly.visible = false;
+						graphicsLayer_warningOFF.visible = false;
+					}
+					if(accord.selectedIndex == 2)
+					{
+						graphicsLayer_warningOFF.visible = true;
+						graphicsLayer_warningNear.visible = false;
+						graphicsLayer_warningSwimpoly.visible = false;
+					}
+				} 
+			}
+			
+			private function showperc(item:Number):String
+			{
+				return Number(item)*100 + " %";
+			}
+			
+			private function filterBeach(arry:ArrayCollection):ArrayCollection
+			{
+				var beachArray:ArrayCollection = new ArrayCollection();
+				for each (var item:Object in arry)
+				{
+					if(item.Beach == "1")
+					{
+						beachArray.addItem(item);
+					}
+				}
+				//bring the warnings areas to the top of the list
+				/* var sort:Sort = new Sort();
+				sort.fields = [new SortField("swim",false,true),new SortField("Name",false,false)];
+				
+				beachArray.sort = sort;
+				beachArray.refresh(); */
+				
+				return beachArray;
+			}
+			
+			private function filterNearShore(arry:ArrayCollection):ArrayCollection
+			{
+				var beachArray:ArrayCollection = new ArrayCollection();
+				for each (var item:Object in arry)
+				{
+					if(item.Beach == "2")
+					{
+						beachArray.addItem(item);
+					}
+				}
+				//bring the warnings areas to the top of the list
+				/* var sort:Sort = new Sort();
+				sort.fields = [new SortField("swim",false,true),new SortField("Name",false,false)];
+				
+				beachArray.sort = sort;
+				beachArray.refresh(); */
+				
+				return beachArray;
+			}
+			
+			private function filterOffshore(arry:ArrayCollection):ArrayCollection
+			{
+				var shoreArray:ArrayCollection = new ArrayCollection();
+				for each (var item:Object in arry)
+				{
+					if(item.Beach == "0")
+					{
+						shoreArray.addItem(item);
+					}
+				}
+				//bring the warnings areas to the top of the list
+				/* var sort:Sort = new Sort();
+				sort.fields = [new SortField("wave",false,true),new SortField("Name",false,false)];
+				
+				shoreArray.sort = sort;
+				shoreArray.refresh(); */
+				return shoreArray;
+			}
+			
+			private function registerForEmails():void
+			{
+				if(userArray.toLowerCase() == "guest")
+				{
+					var myURL:URLRequest = new URLRequest("/"+locale+"/login");
+					navigateToURL(myURL,"_blank");
+				}
+				else{
+					var myURL:URLRequest = new URLRequest("/"+locale+"/account");
+					navigateToURL(myURL,"_blank");
+				}
+			}
+			
+			public function onMouseOver(evt:MouseEvent):void
+			{
+				//mouseOut="mouseOutSelectionAcc(event)" mouseOver="onMouseOver(event)"  
+				var strName:String = evt.target.name;
+				var strLen:int = String("_header").length;
+				if(strName.indexOf("_header") > -1)
+				{
+				}
+			}
+
+			protected function accord_changeHandler(event:IndexChangedEvent):void
+			{
+				visibleWarnings();
+			}
+
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<net:URLLoader id="urlLoader1" dataFormat="{URLLoaderDataFormat.BINARY}" complete="completeHandler(event);" />				
+		<mx:GlowFilter id = "glowFilter" color = "0x3D9BBF"
+					   blurX = "1" blurY = "1" quality = "1" alpha = "0.5" />
+		<esri:SimpleMarkerSymbol id="ptIdentify" style="circle" color="0xFF3333" size="11"/>
+		<esri:SimpleLineSymbol id="lineW" color="0x302522" width="4"/>
+		<esri:SimpleLineSymbol id="lineGrid" color="0x302522" width=".5"/>
+		<esri:SimpleFillSymbol color="0x024B79" alpha=".9" style="solid" outline="{lineW}" id="highlite"/>
+		<esri:SimpleLineSymbol id="lines" color="0x302522" width="1"/>
+		
+		<esri:SimpleLineSymbol id="highlightTabs" color="0x333333" width="2"/>
+		<esri:SimpleFillSymbol id="highlightTabspoly" style="solid" alpha=".7" color="0x7F7F7F" outline="{highlightTabs}"/>
+		
+		<esri:SimpleFillSymbol color="0xFF0000" style="solid" outline="{lines}" id="nohighlite"/>
+		<esri:SimpleFillSymbol style="null" outline="{lines}" id="emptyPoly"/>
+		
+		<esri:PictureMarkerSymbol id="swimFlag" source="assets/images/RedFlag12x12.png"/>
+		<s:Animate id="anim" duration="10000" repeatBehavior="loop"
+				   repeatCount="0" repeatDelay="500">
+			<s:motionPaths>
+				<s:SimpleMotionPath id="pth" property="horizontalScrollPosition" />
+			</s:motionPaths>
+		</s:Animate>
+	</fx:Declarations>
+	<esri:GraphicsLayer id="graphicsLayer_warning" />
+	<esri:GraphicsLayer id="graphicsLayer_warningSwim" visible="true"/>
+	<esri:GraphicsLayer id="graphicsLayer_warningSwimpoly" visible="true"/>
+	<esri:GraphicsLayer id="graphicsLayer_warningNear" visible="false"/>
+	<esri:GraphicsLayer id="graphicsLayer_warningOFF" visible="false"/>
+	<viewer:WidgetTemplate closed="widgetClosedHandler(event)" open="widgetOpenHandler(event)" enableResizeButton="false" enableMinimizeButton="true" enableIcon="false" 
+							leftPadding="0" iconWidth="0" id="LayerViewerWT" width="304" height="536">
+		<viewer:layout>
+			<s:VerticalLayout gap="0" paddingTop="0"/>
+		</viewer:layout>
+			<mx:VBox borderVisible="true"  verticalScrollPolicy="off" styleName="WarningNavigator" horizontalScrollPolicy="off" label="{ResourceManager.getInstance().getString('LayerViewer','mapTab')}" horizontalAlign="left"  
+					 height="100%">
+				<mx:VBox paddingTop="2"  paddingLeft="2" width="100%" horizontalAlign="center">
+					<s:Label text="Warning predictions provided for 24 hours from time of site access." color="0x3d9bbf" fontSize="12" width="290" fontWeight="bold"/>
+					<s:Label paddingLeft="5" paddingTop="-1" paddingBottom="-2" visible="true" color="0xcd1b21" id="nowarninglabel" text="No adverse conditions expected within the next 24 hours" fontSize="11"/>
+				</mx:VBox>
+				<s:VGroup gap="-1" paddingLeft="-1" width="100%">
+					<mx:HBox paddingTop="5" paddingLeft="-1" paddingRight="2" horizontalAlign="center" height="100%" width="100%" backgroundColor="0xD2E3E0" borderColor="0x000000" borderAlpha="1"  borderStyle="solid"  borderVisible="true" verticalAlign="middle">
+						<s:Label paddingBottom="1" text="Warnings" paddingTop="0" paddingRight="16" fontSize="14" fontWeight="bold"/>
+						<mx:CheckBox paddingBottom="3" label="on/off" id="warningsLay"  selected="true" change="visibleWarnings()"/>
+						<!--<s:Label text="off" paddingLeft="7"  fontSize="12" />
+						<s:HSlider dataTipFormatFunction="showperc" snapInterval=".1" liveDragging="true" maximum="1" minimum="0" 
+						width="51" value="1" id="warningsLay" change="visibleWarnings()"/>
+						<s:Label text="on"  fontSize="12" />-->
+					</mx:HBox>
+				</s:VGroup>
+				<mx:Accordion id="accord" change="accord_changeHandler(event)" creationPolicy="all" paddingTop="-7" borderVisible="false" headerRenderer="widgets.WarningViewer.AccordianSkin" 
+							  color="0x3d9bbf" chromeColor="0xFFFFFF" paddingRight="0"  width="100%" fontSize="13" fontWeight="bold"  selectedIndex="0" height="244" openDuration="400">					
+					<mx:VBox paddingTop="-3" icon="@Embed(source='assets/images/swimwarning12.png')" label="Coastal Area                 SWIMMING" verticalScrollPolicy="off" paddingLeft="3" width="100%" horizontalAlign="left">
+						<mx:DataGrid horizontalGridLines="true" showHeaders="false" itemRollOut="mouseOutSelection(event)" rollOverColor="0xDBEBEB" itemRollOver="highlightAreaSwim(event)" itemClick="highlightAreaInfoSwim(event)" selectable="true" 
+									 horizontalGridLineColor="0xCCCCCC" alternatingItemColors="[0xf3f8f4]" resizableColumns="false" id="warningSwim" width="100%" 
+									 headerBackgroundSkin="widgets.WarningViewer.skins.DataGridSkin" accentColor="0xb5d0d0" headerHeight="30" height="181" borderVisible="false" >
+							<mx:columns>
+								<mx:DataGridColumn headerText="Today's Warning's" dataField="Name" color="0x999999" itemRenderer="widgets.WarningViewer.skins.WarningColorsSwim"  width="160" id="dgwarning1" fontWeight="bold" fontSize="12"/>
+								<mx:DataGridColumn headerText="Swim Warning" color="0x3d9bbf" width="40"  fontSize="10">
+									<mx:itemRenderer>
+										<fx:Component>
+											<mx:HBox horizontalAlign="center" width="100%" height="100%" verticalAlign="middle">
+												<mx:Image source="{'assets/images/'+data.swim+'.png'}" toolTip="{(data.swim == 'swimwarning15') ? 'Swim Warning': 'None at this time' }" />
+											</mx:HBox>
+										</fx:Component>
+									</mx:itemRenderer>
+								</mx:DataGridColumn>
+								<mx:DataGridColumn color="0xcd1b21"  width="16"  fontWeight="bold" fontSize="12"/>
+							</mx:columns>
+						</mx:DataGrid>
+						<!--<mx:List id="warningA" width="100%" borderVisible="false"  selectedIndex="0" 
+								dataProvider="{areaNames}" fontWeight="bold" itemClick="highlightAreaInfo(event)" height="100%" color="0xcd1b21" itemRollOver="highlightArea(event)">
+						</mx:List>-->
+					</mx:VBox>
+					<mx:VBox paddingTop="-3" label="Nearshore Warnings          WAVE" verticalScrollPolicy="off" paddingLeft="3" width="100%" horizontalAlign="left">
+						<mx:DataGrid horizontalGridLines="true" showHeaders="false" itemRollOut="mouseOutSelection(event)" rollOverColor="0xDBEBEB" itemRollOver="highlightAreaNear(event)" itemClick="highlightAreaInfoNear(event)" selectable="true" 
+									 horizontalGridLineColor="0xCCCCCC" alternatingItemColors="[0xf3f8f4]" resizableColumns="false" id="warningNearS" width="100%" 
+									 headerBackgroundSkin="widgets.WarningViewer.skins.DataGridSkin" accentColor="0xb5d0d0" headerHeight="30" height="181" borderVisible="false" >
+							<mx:columns>
+								<mx:DataGridColumn headerText="Today's Warning's" dataField="Name" color="0x999999"  width="183" itemRenderer="widgets.WarningViewer.skins.WarningColorsNearshore" id="dgwarning2"  fontWeight="bold" fontSize="12"/>
+								<!--<mx:DataGridColumn headerText="Swim Warning" color="0x3d9bbf" width="40"  fontSize="10">
+									<mx:itemRenderer>
+										<fx:Component>
+											<mx:HBox horizontalAlign="center" width="100%" height="100%" verticalAlign="middle">
+												<mx:Image source="{'assets/images/'+data.craft+'.png'}" toolTip="{(data.craft == 'swimwarning15') ? 'Small Craft Warning': 'None at this time' }" />
+											</mx:HBox>
+										</fx:Component>
+									</mx:itemRenderer>
+								</mx:DataGridColumn>-->
+								<!--<mx:DataGridColumn headerText="Wind" color="0x3d9bbf" width="40"  fontSize="10">
+									<mx:itemRenderer>
+										<fx:Component>
+											<mx:HBox horizontalAlign="center" width="100%" height="100%" verticalAlign="middle">
+												<mx:Image source="{'assets/images/'+data.windnearshore+'.png'}" toolTip="{(data.windnearshore == 'warning') ? 'Nearshore Wind Warning': 'None at this time' }" />
+											</mx:HBox>
+										</fx:Component>
+									</mx:itemRenderer>
+								</mx:DataGridColumn>-->
+								<mx:DataGridColumn headerText="Wave" color="0x3d9bbf" width="40"  fontSize="10">
+									<mx:itemRenderer>
+										<fx:Component>
+											<mx:HBox paddingLeft="13" horizontalAlign="center" width="100%" height="100%" verticalAlign="middle">
+												<mx:Image source="{'assets/images/'+data.wavenearshore+'.png'}" toolTip="{(data.wavenearshore == 'warning') ? 'Nearshore Wave Warning': 'None at this time' }"/>
+											</mx:HBox>
+										</fx:Component>
+									</mx:itemRenderer>
+								</mx:DataGridColumn>
+								<mx:DataGridColumn color="0xcd1b21"  width="17"  fontWeight="bold" fontSize="12"/>
+							</mx:columns>
+						</mx:DataGrid>
+					</mx:VBox>
+					<mx:VBox paddingTop="-3" label="Offshore Warnings             WAVE" verticalScrollPolicy="off" fontSize="14" paddingLeft="3" width="100%" horizontalAlign="left">
+						<mx:DataGrid horizontalGridLines="true" showHeaders="false" itemRollOut="mouseOutSelection(event)" rollOverColor="0xDBEBEB" itemRollOver="highlightArea(event)" itemClick="highlightAreaInfo(event)" selectable="true" 
+									 horizontalGridLineColor="0xCCCCCC" alternatingItemColors="[0xf3f8f4]" resizableColumns="false" id="warningA" width="100%" 
+									 headerBackgroundSkin="widgets.WarningViewer.skins.DataGridSkin" accentColor="0xb5d0d0" headerHeight="30" height="181" borderVisible="false" >
+							<mx:columns>
+								<mx:DataGridColumn headerText="Today's Warning's" itemRenderer="widgets.WarningViewer.skins.WarningColorsOffshore" dataField="Name" color="0x999999"  width="182" id="dgwarning3"  fontWeight="bold" fontSize="12"/>
+								<!--<mx:DataGridColumn headerText="Wind" color="0x3d9bbf" width="54"  fontSize="10">
+									<mx:itemRenderer>
+										<fx:Component>
+											<mx:HBox paddingLeft="13" horizontalAlign="center" width="100%" height="100%" verticalAlign="middle">
+												<mx:Image source="{'assets/images/'+data.windoffshore+'.png'}" toolTip="{(data.windoffshore == 'warning') ? 'Offshore Wind Warning': 'None at this time' }"/>
+											</mx:HBox>
+										</fx:Component>
+									</mx:itemRenderer>
+								</mx:DataGridColumn>-->
+								<mx:DataGridColumn headerText="Wave" color="0x3d9bbf" width="57"  fontSize="10">
+									<mx:itemRenderer>
+										<fx:Component>
+											<mx:HBox horizontalAlign="center" width="100%" height="100%" verticalAlign="middle">
+												<mx:Image source="{'assets/images/'+data.waveoffshore+'.png'}" toolTip="{(data.waveoffshore == 'warning') ? 'Offshore Wave Warning': 'None at this time' }" />
+											</mx:HBox>
+										</fx:Component>
+									</mx:itemRenderer>
+								</mx:DataGridColumn>
+								<mx:DataGridColumn color="0xcd1b21"  width="26"  fontWeight="bold" fontSize="12"/>
+							</mx:columns>
+						</mx:DataGrid>
+					</mx:VBox>
+				</mx:Accordion>
+				<s:HGroup gap="-2" paddingLeft="3" paddingTop="-5" paddingBottom="-6">
+					<mx:VBox paddingTop="8" color="0x58595B" paddingRight="5">
+						<s:Label text="Legend:" textDecoration="underline" fontWeight="bold"/>
+						<mx:HBox>
+							<mx:Image source="assets/images/nowarning.png" width="14"/>
+							<s:Label text="= No Warning" fontSize="11" fontWeight="bold"/>
+						</mx:HBox>
+						<!--<mx:HBox>
+							<mx:Image source="assets/images/wadvisory.png"/>
+							<s:Label text="= Advisory" fontWeight="bold"/>
+						</mx:HBox>-->
+						<mx:HBox>
+							<mx:Image source="assets/images/warning.png"/>
+							<s:Label text="= Warning" fontSize="11" fontWeight="bold"/>
+						</mx:HBox>
+						<mx:HBox>
+							<mx:Image source="assets/images/swimwarning12.png"/>
+							<s:Label text="= Swimming " fontSize="11" width="72" fontWeight="bold"/>
+						</mx:HBox>
+						<s:Label text=" Warning" paddingTop="-3" fontSize="11" paddingLeft="26" fontWeight="bold"/>
+					</mx:VBox>
+					<mx:VRule height="100%"/>
+					<mx:TitleWindow paddingLeft="1" paddingTop="-1" color="0x3d9bbf" chromeColor="0xb5d0d0" headerHeight="20" backgroundColor="0xF4F8F5" dropShadowVisible="false"  
+									width="106" horizontalScrollPolicy="off" height="99" title="Warning" borderVisible="false">
+						<s:VGroup horizontalAlign="left" paddingTop="4">
+							<!--<s:Label text="Wind Advisory" color="0x58595B" fontWeight="bold" fontSize="10"/>
+							<s:Label text="Wind Warning" color="0x58595B" fontWeight="bold" fontSize="10"/>-->
+							<s:Label text=" Swimming " paddingTop="2" color="0x58595B" fontWeight="bold" fontSize="10"/>
+							<!--<s:Label text=" Nearshore Wind " color="0x58595B" fontWeight="bold" fontSize="10"/>-->
+							<s:Label text=" Nearshore Wave " fontWeight="bold" color="0x58595B" fontSize="10"/>
+							<!--<s:Label text=" Offshore Wind " color="0x58595B" fontWeight="bold" fontSize="10"/>-->
+							<s:Label text=" Offshore Wave " color="0x58595B" fontWeight="bold" fontSize="10"/>
+						</s:VGroup>
+					</mx:TitleWindow>
+					<mx:TitleWindow dropShadowVisible="false" paddingLeft="0" paddingTop="-1" color="0x3d9bbf" chromeColor="0xb5d0d0" horizontalScrollPolicy="off" headerHeight="20" 
+									backgroundColor="0xF4F8F5" width="88" height="99" title="Criteria" borderVisible="false">
+						<s:VGroup paddingTop="4">
+							<s:Label text="Waves >=1m" paddingTop="2" color="0x58595B"  fontSize="10"/>
+							<!--<s:Label text="Winds >=12 m/s" color="0x58595B"  fontSize="10"/>-->
+							<s:Label text="Waves >=1.6 m" color="0x58595B"  fontSize="10"/>
+							<!--<s:Label text="Winds >=18 m/s" color="0x58595B"  fontSize="10"/>-->
+							<s:Label text="Waves >2m" color="0x58595B"  fontSize="10"/>
+						</s:VGroup>
+					</mx:TitleWindow>
+				</s:HGroup>
+				<mx:HBox paddingTop="0" width="290" paddingLeft="2" height="45" horizontalAlign="center" verticalAlign="middle" backgroundColor="0xcd1b21">
+					<s:Label id="disclaimer2" fontSize="11" width="280" paddingTop="2" height="94%" color="0xE7E9E9" />
+				</mx:HBox>
+				<mx:HBox paddingLeft="-4" paddingTop="-3" horizontalAlign="center" width="100%">
+					<mx:LinkButton id="registerEmail" width="100%" fontSize="11" icon="@Embed(source='assets/images/edit_markertool.png')" label="Register for email alerts" 
+								   textDecoration="underline" click="registerForEmails()"/>
+				</mx:HBox>
+				<!-- sliding/animated text 
+				<mx:HBox width="100%">
+						<mx:Text text="Waves:"/>
+						<mx:TextInput borderVisible="false" id="warns_flood" width="100%" height="25" fontSize="12" color="0xB20039"
+									  text="No warnings currently" editable="false"
+									  creationComplete="createWarnings();" rollOver="anim.pause();" rollOut="anim.resume();"/>
+				</mx:HBox>
+				<mx:HBox width="100%">
+					<mx:Text text="Wind:   "/>
+					<s:TextInput borderVisible="false" id="warns" width="100%" height="25" fontSize="12" color="0xB20039"
+							 text="Wind Advisory for DubaiMarina - PalmDiera Offshore - PalmDiera - Diera/AlMamzar - MaritimeCity"
+							 editable="false" creationComplete="createWarnings();" rollOver="anim.pause();"
+							 rollOut="anim.resume();"/>
+				</mx:HBox>
+				<mx:HBox width="100%">
+					<mx:Text text="Craft:    "/>
+					<s:TextInput borderVisible="false" id="warns_craft" width="100%" height="25" fontSize="12" color="0xB20039"
+								 text="Small craft advisory for DubaiMarina - PalmDiera Offshore - PalmDiera - Diera/AlMamzar - MaritimeCity"
+								 editable="false" creationComplete="createWarnings();" rollOver="anim.pause();" rollOut="anim.resume();"/>
+				</mx:HBox>-->
+			</mx:VBox> 
+	</viewer:WidgetTemplate>
+</viewer:BaseWidget>

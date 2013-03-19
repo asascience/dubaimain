@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:TitleWindow chromeColor="0x7F7F7F" titleStyleName="myPanelTitle1" cornerRadius="10" showCloseButton="true" xmlns:mx="http://www.adobe.com/2006/mxml" autoLayout="true" 
+				close="titleWindow_close(event);" >
+	<mx:Form>
+		<mx:FormItem label="User Name">
+			<mx:TextInput borderSkin="mx.skins.halo.HaloBorder" id="username" width="100%"/>
+		</mx:FormItem>
+		<mx:FormItem label="Password">
+			<mx:TextInput borderSkin="mx.skins.halo.HaloBorder" id="password" displayAsPassword="true" width="100%" />
+		</mx:FormItem>
+		<mx:Text id="loginError" color="0xFF0000"/>
+	</mx:Form>
+	<mx:VBox  paddingLeft="110" paddingBottom="10"  horizontalAlign="center">
+		<mx:Button label="Login" id="okButton" />
+		<!--<mx:Button  label="Cancel" id="cancelButton" />-->
+	</mx:VBox>
+	<mx:Script>
+		<![CDATA[
+			import mx.core.IFlexDisplayObject;
+			import mx.events.CloseEvent;
+			import mx.managers.PopUpManager;
+			
+			[Bindable]
+			public var source:String;
+			
+			private function init():void {
+				PopUpManager.centerPopUp(this);
+				this.setFocus();
+			}
+			
+			private function titleWindow_close(evt:CloseEvent):void {
+				PopUpManager.removePopUp(evt.target as IFlexDisplayObject);
+			}
+		]]>
+	</mx:Script>
+	<mx:Style>
+		.myPanelTitle1 {
+			fontSize: 15;
+			fontWeight: bold;
+			color: white;
+		}
+	</mx:Style>
+</mx:TitleWindow>

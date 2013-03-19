@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     ////////////////////////////////////////////////////////////////////////////////
+     //
+     // Copyright (c) 2010 ESRI
+     //
+     // All rights reserved under the copyright laws of the United States.
+     // You may freely redistribute and use this software, with or
+     // without modification, provided you include the original copyright
+     // and use restrictions.  See use restrictions in the file:
+     // <install location>/License.txt
+     //
+     ////////////////////////////////////////////////////////////////////////////////
+-->
+<viewer:BaseWidget xmlns:fx="http://ns.adobe.com/mxml/2009"
+                   xmlns:s="library://ns.adobe.com/flex/spark"
+                   xmlns:mx="library://ns.adobe.com/flex/mx"
+                   xmlns:viewer="com.esri.viewer.*"
+                   widgetConfigLoaded="configLoaded()">
+    <fx:Script>
+        <![CDATA[
+			import com.esri.viewer.AppEvent;
+			import com.esri.viewer.ViewerContainer;
+			import com.esri.viewer.components.HTMLPopup;
+			
+			import flash.filters.BitmapFilterQuality;
+			
+			import mx.containers.Box;
+			import mx.containers.TabNavigator;
+			import mx.controls.Alert;
+			import mx.controls.Label;
+			import mx.controls.TabBar;
+			import mx.core.FlexGlobals;
+			import mx.events.FlexEvent;
+			import mx.managers.PopUpManager;
+			
+			import spark.components.BorderContainer;
+			import spark.components.Button;
+			import spark.components.TabBar;
+			import spark.components.TextArea;
+			import spark.components.VGroup;
+			import spark.filters.GlowFilter;
+			import spark.layouts.HorizontalLayout;
+
+            private var content:String = "content";
+            private var btnLabel:String = "OK"
+            private var txtareaWidth:Number;
+            private var txtareaHeight:Number;
+			
+			private var s:BorderContainer;
+			private var t:Timer;
+			
+			private var nav:Boolean = false
+			private var conf:Boolean = false;
+			
+			/* private function init():void
+			{
+				var configXML:XML;
+				var configXMLLoader:URLLoader=new URLLoader;
+				configXMLLoader.load(new URLRequest("widgets/SamoaSplash/SamoaSplashWidget.xml"));
+				configXMLLoader.addEventListener(Event.COMPLETE,configLoaded);
+			} */
+
+            private function configLoaded():void
+            {
+                if (configXML)
+                {
+                    content = configXML.content || "";
+                    btnLabel = configXML.btnlabel || "OK";
+                    txtareaWidth = configXML.width || 500;
+                    txtareaHeight = configXML.height || 500;				
+					var xl:XMLList = configXML.tabs.children();
+					
+					this.label = configXML.title;
+					
+					s = new BorderContainer();
+					s.width = txtareaWidth;
+					s.height = txtareaHeight;
+
+					var hl:HorizontalLayout = new HorizontalLayout();
+					hl.horizontalAlign = "center";
+					
+					s.layout = new HorizontalLayout;
+					s.setStyle("cornerRadius", 10);
+					s.addEventListener(FlexEvent.CREATION_COMPLETE, ccHandler);
+					
+					var g:spark.filters.GlowFilter = new spark.filters.GlowFilter();
+					g.alpha = 0.8;
+					g.blurX = 50;
+					g.blurY = 50;
+					g.color = 0xFFFFF3;
+					g.quality = BitmapFilterQuality.MEDIUM;
+					g.strength = 1;
+					
+					s.filters = [g]; 
+					
+					var v:VGroup = new VGroup();
+					v.percentHeight = 100;
+					v.percentWidth = 100;
+					v.horizontalAlign = "center";
+					v.paddingBottom = 5;
+					
+					var l:Label = new Label();
+					l.text = configXML.title;
+					l.setStyle("fontWeight", "bold");
+					l.setStyle("fontSize", 16);
+					v.addElement(l);
+					
+					var tabs:TabNavigator = new TabNavigator();
+					tabs.percentHeight = 100;
+					tabs.percentWidth = 100;
+					tabs.setStyle("paddingTop", 0);
+					
+					
+					for each(var o:XML in xl)
+					{
+						var b:Box = new Box();
+						b.label = o.label;
+						
+						var h:TextArea = new TextArea();
+						h.setStyle("borderVisible", false);
+						h.percentHeight = 100;
+						h.percentWidth = 100;
+						h.text = o.content;
+						
+						b.addChild(h);
+						tabs.addChild(b);
+					}
+					
+					v.addElement(tabs); 
+				
+					var close:Button = new Button();
+					close.label = btnLabel;
+					close.addEventListener(MouseEvent.CLICK, pClose);
+					close.setStyle("borderColor", 0xFFFFF3);
+					
+					v.addElement(close);
+					
+					s.addElement(v);
+					
+					var parent:Sprite = Sprite(FlexGlobals.topLevelApplication);
+					
+					//HTMLPopup.show(content, btnLabel, txtareaWidth, txtareaHeight);
+					PopUpManager.addPopUp(s,parent,true,null);
+					PopUpManager.centerPopUp(s);
+					//t = new Timer(100,0);
+					//t.addEventListener(TimerEvent.TIMER, timed);
+					//t.start();
+		
+                }
+            }
+			private function timed(event:TimerEvent):void
+			{
+				t.stop();
+				
+				var parent:Sprite = Sprite(FlexGlobals.topLevelApplication);
+				
+				PopUpManager.addPopUp(s,parent,true,null);
+				PopUpManager.centerPopUp(s);
+			}
+			private function pClose(event:MouseEvent):void
+			{
+				PopUpManager.removePopUp(s);
+			}
+			protected function ccHandler(event:FlexEvent):void
+			{
+				s.setStyle("backgroundColor", FlexGlobals.topLevelApplication.getStyle("contentBackgroundColor"));
+				s.setStyle("backgroundAlpha", FlexGlobals.topLevelApplication.getStyle("backgroundAlpha"));
+				s.setStyle("borderColor", 0xFFFFF3);
+			}
+        ]]>
+    </fx:Script>
+</viewer:BaseWidget>

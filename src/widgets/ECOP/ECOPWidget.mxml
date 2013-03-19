@@ -1,0 +1,1179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<viewer:BaseWidget xmlns:fx="http://ns.adobe.com/mxml/2009"
+				   xmlns:axiis="http://www.axiis.org/2009"
+                   xmlns:s="library://ns.adobe.com/flex/spark"
+                   xmlns:mx="library://ns.adobe.com/flex/mx"
+				   xmlns:esri="http://www.esri.com/2008/ags"
+                   xmlns:viewer="com.esri.viewer.*"
+                   widgetConfigLoaded="init()" xmlns:degrafa="http://www.degrafa.com/2007" xmlns:local="*" xmlns:ECOP="widgets.ECOP.*">
+    <fx:Script>
+        <![CDATA[
+			import com.esri.ags.Graphic;
+			import com.esri.ags.SpatialReference;
+			import com.esri.ags.events.*;
+			import com.esri.ags.geometry.*;
+			import com.esri.ags.layers.GraphicsLayer;
+			import com.esri.ags.layers.Layer;
+			import com.esri.ags.symbols.PictureMarkerSymbol;
+			import com.esri.ags.tools.DrawTool;
+			import com.esri.ags.utils.ProjUtils;
+			import com.esri.ags.utils.WebMercatorUtil;
+			import com.esri.viewer.AppEvent;
+			import com.esri.viewer.ViewerContainer;
+			
+			import flash.net.URLVariables;
+			import flash.text.engine.TabAlignment;
+			
+			import mx.collections.ArrayCollection;
+			import mx.collections.ArrayList;
+			import mx.collections.Sort;
+			import mx.collections.SortField;
+			import mx.containers.Panel;
+			import mx.controls.Alert;
+			import mx.controls.ComboBox;
+			import mx.controls.List;
+			import mx.controls.ToolTip;
+			import mx.events.FlexEvent;
+			import mx.events.ListEvent;
+			import mx.managers.CursorManager;
+			import mx.managers.ToolTipManager;
+			import mx.messaging.FlexClient;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.rpc.http.HTTPService;
+			
+			import org.axiis.DataCanvas;
+			import org.axiis.core.BaseLayout;
+			import org.axiis.data.DataSet;
+			
+			import spark.components.TitleWindow;
+			
+			import widgets.ECOP.components.events.ActiveChangeEvent;
+			import widgets.ECOP.components.ui.PlotStickChart;
+			import widgets.ECOP.components.ui.WindCompassAnimation;
+			import widgets.ECOP.components.utils.Hashtable;
+			import widgets.ECOP.components.utils.TimeSeriesChart;
+			import widgets.ECOP.components.wms.WMSGetCapabilities;
+			import widgets.ECOP.components.wms.WMSLayer;
+			//import com.esri.ags.layers.WMSLayer;
+			//show all layers at start
+			private var allLayersShown:Boolean = false;
+			private var _httpService:HTTPService;
+			
+			private var selectedLayer:String = new String;
+						
+			private var _ECOPSource:String;
+			
+			private var currentTime:Date = new Date();
+			public var drawTool:DrawTool;
+			
+			private var _params:URLVariables;
+			private var ecopCaps:WMSGetCapabilities;
+			[Bindable]
+			private var ecopLayers:ArrayCollection; //results out of the getCapabilities. Holds obj and hash
+			[Bindable]
+			private var ecopSelectedLayers:Array;   //ecop wms layers selected for viewing/added to Map
+			[Bindable]
+			private var ecopSelectedNames:Array;    //ecop layer NAMES selected for viewing
+			
+			[Bindable]
+			private var ecopCurrents:ArrayCollection;
+			[Bindable]
+			private var ecopWinds:ArrayCollection;
+			[Bindable]
+			private var ecopOther:ArrayCollection;
+			
+			//Icons for Tab Navigator
+			[Bindable]
+			[Embed(source="assets/images/winds-25.png")]
+			private var windIcon:Class;
+			[Bindable]
+			[Embed(source="assets/images/currents-25.png")]
+			private var currentIcon:Class;
+			[Bindable]
+			[Embed(source="assets/images/waves-25.png")]
+			private var otherIcon:Class;
+						
+			private var graphicsLayer:GraphicsLayer;
+			private var idPoint:MapPoint;
+			private var selectedLayer23:String = new String;
+			
+			private var myToolTip:ToolTip;
+			
+			protected function showCursorToolTip(event:MouseEvent):void
+			{
+				if(myToolTip==null)
+				{
+					myToolTip = ToolTipManager.createToolTip("Click Location to Show Graph", stage.mouseX, stage.mouseY) as ToolTip;
+				}
+				if(myToolTip !=null)
+				{
+					if(stage != null)
+					{
+						myToolTip.x=stage.mouseX;
+						myToolTip.y=stage.mouseY;
+					}
+				}	
+			}
+			
+            private function init():void
+            {
+				graphicsLayer = new GraphicsLayer();
+				
+                if (configXML)
+                {
+					_ECOPSource = configXML.ASAMapServices.ecop;
+                }
+				
+				ViewerContainer.addEventListener(AppEvent.TIME_SLIDER_TIME_CHANGED, timeChanged);
+				
+				loadECOP();
+				ecopSelectedLayers=new Array();
+				ecopSelectedNames=new Array();
+            }
+			private function timeChanged(event:AppEvent):void
+			{
+				currentTime = event.data as Date;	
+				updateLayers();
+			}
+			private function loadECOP():void
+			{
+				for each (var ecopLayer:WMSLayer in ecopSelectedLayers)
+				{
+					map.removeLayer(ecopLayer);
+				}
+				ecopCaps = new WMSGetCapabilities(_ECOPSource);
+				ecopCaps.addEventListener(ActiveChangeEvent.DATA_GET_DONE, ecopResultsHandler);
+			}
+			private function ecopResultsHandler(evnt:ActiveChangeEvent):void
+			{
+				statusB.visible = true;
+				if(evnt.dataReturnedType!="ECOP")
+				{
+					return;
+				}
+				ecopLayers = new ArrayCollection(ecopCaps.capsArray.source);
+				
+				ecopCurrents = new ArrayCollection();
+				ecopWinds = new ArrayCollection();
+				ecopOther = new ArrayCollection();
+				
+				var layerList:String = configXML.iLayers;
+				
+				function contains(src:String, str:String):Boolean
+				{
+					if (src.search(str)>0)
+					{
+						return true;
+					}
+					else
+					{
+						return false;
+					}
+				}
+				
+				//Section for eliminating layers from config file
+				if(configXML.showalllayers == "true")
+				{
+					refreshLay.visible = true;
+					if(allLayersShown == true)
+					{
+						refreshLay.toolTip="Show Layers in Extent";
+						allLayersShown = false;	
+						for(var a:int=0;a < ecopLayers.length;a++)
+						{
+							var layerInfo:Hashtable = ecopLayers[a].values as Hashtable;
+							var bBox:String;
+							var extent:String = "";
+							
+							if(layerInfo.containsKey("LatLonExtent"))
+							{
+								bBox=layerInfo.find("LatLonExtent");
+								var bounds:Array = bBox.split(",");
+								for each (var bound:Number in bounds)
+								{
+									extent+=bound.toFixed(4) + " ";
+								}
+							}
+							if(layerInfo.containsKey("Styles"))
+							{
+								var stylzs:ArrayCollection = new ArrayCollection();
+								var sty:Array = new Array;
+								sty=layerInfo.find("Styles");
+								for(var a2s:int=0;a2s < sty.length;a2s++)
+								{
+									stylzs.addItem(sty[a2s].data);
+								}
+							}
+							
+							if (contains(layerList,ecopLayers[a].title) == false){
+								if(ecopLayers[a].type == "CURRENTS")
+								{
+									var curr:String = ecopLayers[a].title;
+									var currnew:String = curr.replace("Currents","");
+									var currObj:Object = ecopLayers[a];
+									currObj.tLabel = currnew;
+									currObj.stylz = stylzs;
+									//Alert.show(stylzs.toString());
+									ecopCurrents.addItem(currObj);
+								}
+								else if(ecopLayers[a].type == "WINDS")
+								{
+									var wins:String = ecopLayers[a].title;
+									var winsnew:String = wins.replace("Winds","");
+									var winsnew2:String = winsnew.replace("WRF","");
+									var winsObj:Object = ecopLayers[a];
+									winsObj.tLabel = winsnew2;
+									winsObj.stylz = stylzs;
+									ecopWinds.addItem(winsObj);
+								} 
+								else if(ecopLayers[a].type == "OTHER")
+								{
+									var othsObj:Object = ecopLayers[a];
+									othsObj.stylz = stylzs;
+									ecopOther.addItem(othsObj);
+								}
+							}
+							else{
+							}
+						}
+					}
+					else
+					{
+						refreshLay.toolTip = "Show All Layers";
+						allLayersShown = true;
+						if(configXML.iLayerCommand == "show")
+						{
+							for(var a:int=0;a < ecopLayers.length;a++)
+							{
+								var layerInfo:Hashtable = ecopLayers[a].values as Hashtable;
+								var bBox:String;
+								var extent:String = "";
+								
+								if(layerInfo.containsKey("LatLonExtent"))
+								{
+									bBox=layerInfo.find("LatLonExtent");
+									var bounds:Array = bBox.split(",");
+									for each (var bound:Number in bounds)
+									{
+										extent+=bound.toFixed(4) + " ";
+									}
+								}
+								var t:WebMercatorExtent = new WebMercatorExtent(bounds[0],bounds[1],bounds[2],bounds[3]);
+								
+								if(map.extent.intersects(t))
+								{
+									if (contains(layerList,ecopLayers[a].title) == true){
+										if(ecopLayers[a].type == "CURRENTS")
+										{
+											var curr:String = ecopLayers[a].title;
+											var currnew:String = curr.replace("Currents","");
+											var currObj:Object = ecopLayers[a];
+											currObj.tLabel = currnew;
+											
+											ecopCurrents.addItem(currObj);
+										}
+										else if(ecopLayers[a].type == "WINDS")
+										{
+											var wins:String = ecopLayers[a].title;
+											var winsnew:String = wins.replace("Winds","");
+											var winsnew2:String = winsnew.replace("WRF","");
+											var winsObj:Object = ecopLayers[a];
+											winsObj.tLabel = winsnew2;
+											ecopWinds.addItem(winsObj);
+										} 
+										else if(ecopLayers[a].type == "OTHER")
+										{
+											ecopOther.addItem(ecopLayers[a]);
+										}
+									}
+									else{
+									}
+								}
+							}
+						}
+						if(configXML.iLayerCommand == "hide")
+						{	
+							for(var a2:int=0;a2 < ecopLayers.length;a2++)
+							{
+								var layerInfo:Hashtable = ecopLayers[a2].values as Hashtable;
+								var bBox:String;
+								var extent:String = "";
+								
+								if(layerInfo.containsKey("LatLonExtent"))
+								{
+									bBox=layerInfo.find("LatLonExtent");
+									var bounds:Array = bBox.split(",");
+									for each (var bound:Number in bounds)
+									{
+										extent+=bound.toFixed(4) + " ";
+									}
+								}
+								if(layerInfo.containsKey("Styles"))
+								{
+									var stylzs:ArrayCollection = new ArrayCollection();
+									var sty:Array = new Array;
+									sty=layerInfo.find("Styles");
+									for(var a2s:int=0;a2s < sty.length;a2s++)
+									{
+										stylzs.addItem(sty[a2s].data);
+									}
+								}
+								
+								var t:WebMercatorExtent = new WebMercatorExtent(bounds[0],bounds[1],bounds[2],bounds[3]);
+								
+								if(map.extent.intersects(t))
+								{
+									if (contains(layerList,ecopLayers[a2].title) == false){
+										if(ecopLayers[a2].type == "CURRENTS")
+										{
+											var curr:String = ecopLayers[a2].title;
+											var currnew:String = curr.replace("Currents","");
+											var currObj:Object = ecopLayers[a2];
+											currObj.tLabel = currnew;
+											currObj.stylz = stylzs;
+											ecopCurrents.addItem(currObj);
+										}
+										else if(ecopLayers[a2].type == "WINDS")
+										{
+											var wins:String = ecopLayers[a2].title;
+											var winsnew:String = wins.replace("Winds","");
+											var winsnew2:String = winsnew.replace("WRF","");
+											var winsObj:Object = ecopLayers[a2];
+											winsObj.tLabel = winsnew2;
+											winsObj.stylz = stylzs;
+											ecopWinds.addItem(winsObj);
+										} 
+										else if(ecopLayers[a2].type == "OTHER")
+										{
+											var othsObj:Object = ecopLayers[a2];
+											othsObj.stylz = stylzs;
+											ecopOther.addItem(othsObj);
+										}
+									}
+									else{
+									}
+								}
+							}
+						}
+					}
+				}
+				else
+				{
+					if(allLayersShown == true)
+					{
+						refreshLay.toolTip="Show Layers in Extent";
+						allLayersShown = false;
+						for(var a:int=0;a < ecopLayers.length;a++)
+						{
+							if (contains(layerList,ecopLayers[a].title) == false){
+								if(ecopLayers[a].type == "CURRENTS")
+								{
+									ecopCurrents.addItem(ecopLayers[a]);
+								}
+								else if(ecopLayers[a].type == "WINDS")
+								{
+									ecopWinds.addItem(ecopLayers[a]);
+								} 
+								else if(ecopLayers[a].type == "OTHER")
+								{
+									ecopOther.addItem(ecopLayers[a]);
+								}
+							}
+							else{
+							}
+						}					
+					}
+					else
+					{
+						refreshLay.toolTip = "Show All Layers";
+						allLayersShown = true;
+						if(configXML.iLayerCommand == "show")
+						{
+							for(var a:int=0;a < ecopLayers.length;a++)
+							{
+								var layerInfo:Hashtable = ecopLayers[a].values as Hashtable;
+								var bBox:String;
+								var extent:String = "";
+								
+								if(layerInfo.containsKey("LatLonExtent"))
+								{
+									bBox=layerInfo.find("LatLonExtent");
+									var bounds:Array = bBox.split(",");
+									for each (var bound:Number in bounds)
+									{
+										extent+=bound.toFixed(4) + " ";
+									}
+								}
+								
+								var t:WebMercatorExtent = new WebMercatorExtent(bounds[0],bounds[1],bounds[2],bounds[3]);
+								
+								if(map.extent.intersects(t))
+								{
+									if (contains(layerList,ecopLayers[a].title) == true){
+										if(ecopLayers[a].type == "CURRENTS")
+										{
+											var curr:String = ecopLayers[a].title;
+											var currnew:String = curr.replace("Currents","");
+											var currObj:Object = ecopLayers[a];
+											currObj.tLabel = currnew;
+											ecopCurrents.addItem(currObj);
+										}
+										else if(ecopLayers[a].type == "WINDS")
+										{
+											var wins:String = ecopLayers[a].title;
+											var winsnew:String = wins.replace("Winds","");
+											var winsnew2:String = winsnew.replace("WRF","");
+											var winsObj:Object = ecopLayers[a];
+											winsObj.tLabel = winsnew2;
+											ecopWinds.addItem(winsObj);
+										} 
+										else if(ecopLayers[a].type == "OTHER")
+										{
+											
+											ecopOther.addItem(ecopLayers[a]);
+										}
+									}
+									else{
+									}
+								}
+							}
+						}
+						if(configXML.iLayerCommand == "hide")
+						{	
+							for(var a:int=0;a < ecopLayers.length;a++)
+							{
+								var layerInfo:Hashtable = ecopLayers[a].values as Hashtable;
+								var bBox:String;
+								var extent:String = "";
+								
+								if(layerInfo.containsKey("LatLonExtent"))
+								{
+									bBox=layerInfo.find("LatLonExtent");
+									var bounds:Array = bBox.split(",");
+									for each (var bound:Number in bounds)
+									{
+										extent+=bound.toFixed(4) + " ";
+									}
+									
+								}
+								var t:WebMercatorExtent = new WebMercatorExtent(bounds[0],bounds[1],bounds[2],bounds[3]);
+								
+								if(map.extent.intersects(t))
+								{
+									if (contains(layerList,ecopLayers[a].title) == false){
+										if(ecopLayers[a].type == "CURRENTS")
+										{
+											ecopCurrents.addItem(ecopLayers[a]);
+										}
+										else if(ecopLayers[a].type == "WINDS")
+										{
+											ecopWinds.addItem(ecopLayers[a]);
+										} 
+										else if(ecopLayers[a].type == "OTHER")
+										{
+											ecopOther.addItem(ecopLayers[a]);
+										}
+									}
+									else{
+									}
+								}
+							}
+						}
+					}
+				}
+				
+				/* Create the Sort object and add the SortField object created earlier to the array of fields to sort on. */
+				var dataSortField:SortField = new SortField();
+				dataSortField.name = "title";
+				
+				var numericDataSort:Sort = new Sort();
+				numericDataSort.fields = [dataSortField];
+				
+				ecopOther.sort = numericDataSort;
+				ecopOther.refresh();
+				ecopWinds.sort = numericDataSort;
+				ecopWinds.refresh();
+				ecopCurrents.sort = numericDataSort;
+				ecopCurrents.refresh();
+				statusB.visible = false;				
+				ecopCaps.removeEventListener(ActiveChangeEvent.DATA_GET_DONE, ecopResultsHandler);	
+			}
+			
+			private function showEcopInfo(event:MouseEvent):void
+			{
+				if(event.currentTarget.selectedItem==null)
+				{
+					return;
+				}
+				
+				var layerInfo:Hashtable = event.currentTarget.selectedItem.values as Hashtable;
+				var bBox:String;
+				var extent:String = "";
+				var dex:String = "";				
+				
+				if(layerInfo.containsKey("LatLonExtent"))
+				{
+					bBox=layerInfo.find("LatLonExtent");
+					var bounds:Array = bBox.split(",");
+					for each (var bound:Number in bounds)
+					{
+						extent+=bound.toFixed(4) + " ";
+					}
+				}
+				
+				if(layerInfo.containsKey("Abstract"))
+				{
+					dex = layerInfo.find("Abstract");
+				}
+				var textStr:String = new String;
+				if(dex == "some abstract")
+				{
+					textStr = "<b>Name:</b> " + event.currentTarget.selectedItem.nameKey +
+						"<br><b>Bounding Box:</b> " + extent; 
+				}
+				else if(dex == "none")
+				{
+					textStr = "<b>Name:</b> " + event.currentTarget.selectedItem.nameKey +
+						"<br><b>Bounding Box:</b> " + extent; 
+				}
+				else
+				{
+					textStr = "<b>Name:</b> " + event.currentTarget.selectedItem.nameKey +
+						"<br><b>Bounding Box:</b> " + extent +
+						"<br><b>Description:</b> " + dex;
+				}
+				selectedLayer = event.currentTarget.selectedItem.nameKey;
+				//stylesCB.dataProvider = event.currentTarget.selectedItem.stylz;
+				//larLab.text = "Select Style for Layer: "+ selectedLayer;
+				ecopLayerInfo.htmlText=textStr;
+			}
+			private function popupstyle(event:MouseEvent):void
+			{
+				if(event.currentTarget.selectedItem==null)
+				{
+					return;
+				}
+				
+				var layerInfo:Hashtable = event.currentTarget.selectedItem.values as Hashtable;
+				var bBox:String;
+				var extent:String = "";
+				var dex:String = "";				
+				
+				if(layerInfo.containsKey("LatLonExtent"))
+				{
+					bBox=layerInfo.find("LatLonExtent");
+					var bounds:Array = bBox.split(",");
+					for each (var bound:Number in bounds)
+					{
+						extent+=bound.toFixed(4) + " ";
+					}
+				}
+				
+				if(layerInfo.containsKey("Abstract"))
+				{
+					dex = layerInfo.find("Abstract");
+				}
+				var textStr:String = new String;
+				if(dex == "some abstract")
+				{
+					textStr = "<b>Name:</b> " + event.currentTarget.selectedItem.nameKey +
+						"<br><b>Bounding Box:</b> " + extent; 
+				}
+				else if(dex == "none")
+				{
+					textStr = "<b>Name:</b> " + event.currentTarget.selectedItem.nameKey +
+						"<br><b>Bounding Box:</b> " + extent; 
+				}
+				else
+				{
+					textStr = "<b>Name:</b> " + event.currentTarget.selectedItem.nameKey +
+						"<br><b>Bounding Box:</b> " + extent +
+						"<br><b>Description:</b> " + dex;
+				}
+				selectedLayer = event.currentTarget.selectedItem.nameKey;
+				stylesCB.dataProvider = event.currentTarget.selectedItem.stylz;
+				larLab.text =selectedLayer;
+				ecopLayerInfo.htmlText=textStr;
+				styler.visible = true;
+				styler.height = 120;
+				wTemplate.height = 540;
+			}
+			private function zoom2Lay():void
+			{
+				if(ecopLayerInfo.text)
+				{
+					var LayInfo:String = ecopLayerInfo.text;
+					var bb:String = LayInfo.substring( LayInfo.search("Box:")+String("Box: ").length, LayInfo.length);
+					var bbArray:Array = bb.split(" ");
+					if(bbArray[0] == -180.0000)
+					{
+						var full:WebMercatorExtent = new WebMercatorExtent(-179,-39,139,69);
+						map.extent = full;
+					}
+					else
+					{
+						var layerExtent:WebMercatorExtent = new WebMercatorExtent(bbArray[0],bbArray[1],bbArray[2],bbArray[3]);				
+						map.extent = layerExtent;
+					}
+				}
+			}
+			public function refreshStyle(event:ListEvent):void
+			{
+				var layerName:String = larLab.text;
+				var layerIndx:int = ecopSelectedNames.indexOf(layerName);
+				
+				var imageType:String = new String;
+				if(fileFormat.selectedIndex == 0)
+				{
+					imageType = "gif";
+				}
+				if(fileFormat.selectedIndex == 1)
+				{
+					imageType = "png";
+				}
+				
+				var styleOption:String = stylesCB.selectedLabel;
+				var lyrIndx:int=0;
+				
+				var lr:Layer =  map.getLayer(layerName);
+				
+				if(map.getLayer(layerName))
+				{
+					for each (var ecopLayer:WMSLayer in ecopSelectedLayers)
+					{
+						if(ecopLayer.id == layerName)
+						{
+							map.removeLayer(ecopLayer);
+							delete ecopSelectedLayers[lyrIndx];
+							break;
+						}
+						lyrIndx++;
+					}
+					var ecopLyr:WMSLayer=new WMSLayer(_ECOPSource, layerName, layerName,imageType,styleOption);
+					
+					ecopLyr.addEventListener(LayerEvent.UPDATE_START,layerAdd);
+					ecopLyr.addEventListener(LayerEvent.UPDATE_END,layerAddedEnd);
+					
+					map.addLayer(ecopLyr);
+					
+					ecopLyr._time=currentTime.setHours(datenew.hours+(currentTime.timezoneOffset/60));
+					ecopLyr.refresh();
+					
+					//delete the existing layer and replace it with new style layer bug keep it synched with datagrid 
+					ecopSelectedLayers.push(ecopLyr);
+					ecopSelectedNames.splice(lyrIndx,layerName);
+					
+					var spliced:Array = ecopSelectedLayers.splice(lyrIndx,1);
+					spliced=ecopSelectedNames.splice(lyrIndx, 1); 
+					
+					statusB.visible = false;
+				}
+			}
+				
+			public function toggleECOP(event:MouseEvent):void
+			{	
+				var layerName:String = event.target.parent.parent.parent.selectedItem.nameKey;
+				
+				var layerIndx:int = ecopSelectedNames.indexOf(layerName);
+				var added:Boolean=(layerIndx>-1);  //was this layer added before
+				
+				//since we are using an item renderer for the checkbox in the datagrid, we must update 
+				//the underlying data source in order to make sure the checkbox retains the correct checked
+				//state even when re-drawn.
+				
+				var ecopObj:Object = event.target.parent.parent.parent.dataProvider.getItemAt(event.target.parent.parent.parent.selectedIndex);
+				var checkBoxSelected:Boolean=!(ecopObj.visible);
+				
+				//Setting string from get capabilities and drop down menu for user style choice
+				//Selects only from the options that are set in the database
+				
+				//var styleOption:String = ecopObj.lab;
+				var styleOption:String = stylesCB.selectedLabel;
+				
+				/* if(styleOption == null)
+				{
+					var sa:ArrayCollection = event.target.parent.parent.parent.selectedItem.stylz;
+					styleOption = sa[0];
+				} */
+				
+				var imageType:String = new String;
+				if(fileFormat.selectedIndex == 0)
+				{
+					imageType = "gif";
+				}
+				if(fileFormat.selectedIndex == 1)
+				{
+					imageType = "png";
+				}
+				
+				if(checkBoxSelected)
+				{
+					//Update the underlying data
+					ecopObj.visible=true;
+					if(!(added)) //create a new wms layer, add to map and add to the wms layer arrays
+					{
+						var ecopLyr:WMSLayer=new WMSLayer(_ECOPSource, layerName, layerName,imageType,styleOption);
+						
+						ecopLyr.addEventListener(LayerEvent.UPDATE_START,layerAdd);
+						ecopLyr.addEventListener(LayerEvent.UPDATE_END,layerAddedEnd);
+						
+						map.addLayer(ecopLyr);
+						ecopLyr._time=currentTime.setHours(datenew.hours+(currentTime.timezoneOffset/60));;
+						ecopLyr.refresh();
+						ecopSelectedLayers.push(ecopLyr);
+						ecopSelectedNames.push(layerName);
+					}
+				}
+				else
+				{
+					var lyrIndx:int=0;
+					ecopObj.visible=false; //update the underlying data
+					//find the wms layer and delete it from the map
+					for each (var ecopLayer:WMSLayer in ecopSelectedLayers)
+					{
+						if(ecopLayer.id==ecopObj.nameKey)
+						{
+							map.removeLayer(ecopLayer);
+							break;
+						}
+						lyrIndx++;
+					}
+					statusB.visible = false;
+					//remove from the wms array and the names tracking array
+					var spliced:Array = ecopSelectedLayers.splice(lyrIndx,1);
+					spliced=ecopSelectedNames.splice(lyrIndx, 1);
+				}
+			}
+			
+			private function layerAdd(event:LayerEvent):void
+			{
+				statusB.visible = true;
+			}
+			private function layerAddedEnd(event:LayerEvent):void
+			{
+				statusB.visible = false;
+			}
+			
+			public function clearAllEcop():void
+			{
+				// just like toggling off all selected layers
+				var EcopLayersWinds:DataGrid = new DataGrid;
+				var EcopLayersOther:DataGrid = new DataGrid;
+				
+				for each (var ecopLayer:WMSLayer in ecopSelectedLayers)
+				{
+					map.removeLayer(ecopLayer);
+				}
+				for each (var ecopObj:Object in ecopLayers)
+				{
+					ecopObj.visible=false; //update the underlying data
+				}
+				
+				ecopSelectedLayers.length = 0;
+				ecopSelectedNames.length = 0;
+				data = false;
+				EcopLayersCurrents.invalidateList();
+				EcopLayersWinds.invalidateList();
+				EcopLayersOther.invalidateList();
+			}
+			private function updateLayers():void
+			{
+				for(var i:int=0;i<ecopSelectedLayers.length;i++)
+				{
+					ecopSelectedLayers[i]._time = currentTime.setHours(datenew.hours+(currentTime.timezoneOffset/60));;
+					ecopSelectedLayers[i].refresh();
+				}
+			}
+			private function identifyLayer():void
+			{
+				map.addLayer(graphicsLayer);
+				drawTool = new DrawTool();
+				drawTool.map = map;
+				drawTool.showDrawTips = false;
+				drawTool.markerSymbol = ptIdentify;
+				drawTool.activate(DrawTool.MAPPOINT);
+				drawTool.addEventListener(DrawEvent.DRAW_END, drawEnd);
+				map.addEventListener(MouseEvent.MOUSE_MOVE, showCursorToolTip);
+				identify.selected = true;
+			}
+			private function drawEnd(event:DrawEvent):void
+			{
+				graphicsLayer.clear();
+				graphicsLayer.add(event.graphic);
+				
+				idPoint = event.graphic.geometry as MapPoint;
+				identifyFeatures();
+				drawTool.deactivate();
+				drawTool.removeEventListener(DrawEvent.DRAW_END, drawEnd);
+				map.removeEventListener(MouseEvent.MOUSE_MOVE, showCursorToolTip);
+				ToolTipManager.destroyToolTip(myToolTip);
+				myToolTip=null;
+			}
+			private function identifyFeatures():void
+			{
+				CursorManager.setBusyCursor();
+				if(ecopSelectedLayers.length > 0)
+				{
+					//first map click on this layer? create the parameters basic data
+					_params = new URLVariables();
+					//much of the original getMapRequest used for the wmsLayer must be re-utilized: taken away because it doesn't allow for layer refresh on zoom
+					//_params = ecopSelectedLayers[0].params;
+					_params.transparent = "true";
+					
+					_params.version = "1.1.1";
+					_params.styles = "";
+					_params.layers = ecopSelectedLayers[0].params.layers;
+					selectedLayer23 = ecopSelectedLayers[0].params.layers;
+					
+					//specific to getFeatureInfo:
+					_params.request = "GetFeatureInfo"; 
+					_params.info_format = "text/plain";
+					_params.format="text/plain";
+					_params.exceptions = "application/vnd.ogc.se_xml";
+					_params.srs = "EPSG:3857";
+					_params._dc= "1298660600532";
+					_params.width = map.width;
+					_params.height = map.height;
+						
+					_params.bbox = map.extent.xmin + "," + map.extent.ymin + "," + map.extent.xmax + "," + map.extent.ymax; 
+						
+					//*****need to do a loop here and append all the layers
+					_params.query_layers=ecopSelectedLayers[0].params.layers;
+					_params.feature_count="3";   //TODO: determine ideal
+					
+					//add the pixel points of this click:
+					_params.x = map.toScreen(idPoint).x.toFixed();
+					_params.y = map.toScreen(idPoint).y.toFixed();
+					
+					var _time:Date = new Date();
+					var formatTime:String = new String(_time.fullYear + "-" + String(Number(_time.month+1)) + "-" + _time.date + "T" + _time.toTimeString().substr(0,5));
+					
+					_params.time = formatTime;
+					_httpService = new HTTPService();
+					_httpService.url = ecopSelectedLayers[0].url;
+					_httpService.addEventListener("result", resultHandler);
+					_httpService.addEventListener("fault", onFault);
+					_httpService.resultFormat = "xml"; 
+					_httpService.send(_params);
+				}
+				else{
+					CursorManager.removeBusyCursor();
+				}
+			}
+			private function identifyClear():void
+			{
+				identify.selected = false;
+				graphicsLayer.clear();
+			}
+			private function  resultHandler(evnt:ResultEvent):void                
+			{   
+				try
+				{
+					var identifyResults:XML = new XML(evnt.result);
+					processIdentifyResultsForChart(identifyResults);
+				}
+				catch (error:Error)
+				{
+					Alert.show("An error occured in processing identify request result: " + error.message);
+				}
+				finally
+				{
+					_httpService.removeEventListener("result", resultHandler);
+				}
+				CursorManager.removeBusyCursor();
+			}
+			private function onFault(event:FaultEvent):void
+			{                    
+				Alert.show("An error occured in processing identify request: " + event.fault.toString());   
+				_httpService.removeEventListener("fault",onFault);   
+				CursorManager.removeBusyCursor();
+			}
+			private function processIdentifyResultsForChart(identifyResults:XML):void
+			{
+				//parse the results into an infoWindow
+				var sPoints:XMLList = identifyResults.Point;
+				var linedata:Array = [];
+				var lineDataCollection:ArrayCollection = new ArrayCollection;
+				var directionUnit:String="";
+				var speedUnit:String="";
+				var title:String;
+				for(var i:uint=0; i <sPoints.length(); i++)
+				{
+					var pointRec:XML = sPoints[i]; 
+					var values:XMLList = pointRec.children();
+					var lo:Object = {};
+					
+					for(var j:uint=0; j <values.length(); j++)
+					{
+						var valRec:XML = values[j];
+						var units:String=valRec.@Unit;
+						var Type:String=valRec.@Var;
+						var Value:String = valRec.toString();
+						
+						if(units=="" && Type =="")
+						{
+							try
+							{lo.TIME = Value.toString(); }
+							catch(err:Error)
+							{lo.TIME = Value.toString();}
+						}
+						else
+						{	
+							var dotIndx:int = Value.indexOf(".");
+							if (!(dotIndx == -1))
+							{
+								if(Type.toUpperCase()=="DIRECTION"){
+									directionUnit=units;
+									lo.DIRECTION=Number(Value).toFixed(4);}
+								else{
+									title=Type; 
+									speedUnit=units;
+									lo.SPEED=Number(Value).toFixed(4);
+								} 
+							}
+							else
+							{
+								if(Type.toUpperCase()=="DIRECTION"){
+									directionUnit=units;
+									lo.DIRECTION=Value;}
+								else{
+									title=Type;	
+									speedUnit=units;
+									lo.SPEED=Value;} 
+							}
+						} 
+					}
+					
+					linedata.push(lo);    
+					lineDataCollection.addItem(lo);
+					
+					var compss:WindCompassAnimation = new WindCompassAnimation;
+					var chartTabs:TabNavigator = new TabNavigator;
+					var chrt:TimeSeriesChart = createGraph("Speed","SPEED","TIME",linedata,speedUnit,directionUnit,title);
+					var sPlot:PlotStickChart = new PlotStickChart;
+					
+					if(linedata.length>1)
+					{
+						if(title == "Water Velocity")
+						{
+							compss.windDataAC = lineDataCollection;
+							compss.subTitle = selectedLayer23;
+							compss.title = "Currents Forecast:";
+							compss.units = speedUnit;
+							sPlot.windDataAC = lineDataCollection;
+							
+							chartTabs.percentHeight = 100;
+							chartTabs.percentWidth = 100;
+							chartTabs.addElement(chrt);
+							chartTabs.addElement(compss);
+							chartTabs.addElement(sPlot);
+							
+							map.infoWindow.label = "EDS Graphical Data  ("+selectedLayer23+") Total Values = " + lineDataCollection.length;
+							map.infoWindowContent = chartTabs;
+							map.infoWindowContent.height = 350;
+							map.infoWindowContent.width = 495;
+							
+							map.infoWindow.show(idPoint);
+						}
+						else if(title == "Wind Velocity")
+						{
+							compss.windDataAC = lineDataCollection;
+							compss.units = speedUnit;
+							compss.subTitle = selectedLayer23;
+							compss.title = "Wind Forecast:";
+							
+							sPlot.windDataAC = lineDataCollection;
+							map.infoWindow.label = "EDS Graphical Data  ("+selectedLayer23+")  Total Values = " + lineDataCollection.length;
+							map.infoWindowContent = chartTabs;
+							chartTabs.addElement(chrt);
+							chartTabs.addElement(compss);
+							chartTabs.addElement(sPlot);
+							chartTabs.percentHeight = 100;
+							chartTabs.percentWidth = 100;
+							
+							map.infoWindowContent.height = 350;
+							map.infoWindowContent.width = 495;
+							map.infoWindow.show(idPoint);
+						}
+						else
+						{
+							compss.windDataAC = lineDataCollection;
+							compss.subTitle = selectedLayer23;
+							compss.title = "Other:";
+							compss.units = speedUnit;
+							
+							sPlot.windDataAC = lineDataCollection;
+							
+							map.infoWindow.label = "EDS Graphical Data   ("+selectedLayer23+") Total Values = " +lineDataCollection.length;
+							map.infoWindowContent = chartTabs;
+							chartTabs.addElement(chrt);
+							chartTabs.addElement(sPlot);
+							chartTabs.addElement(compss);
+							chartTabs.percentHeight = 100;
+							chartTabs.percentWidth = 100;
+							
+							map.infoWindowContent.height = 350;
+							map.infoWindowContent.width = 495;
+							map.infoWindow.show(idPoint);
+						}
+					}
+					else
+					{	
+					} 
+				}
+				CursorManager.removeBusyCursor();
+			}
+			
+			private function createGraph(name:String, field:String, timeVar:String, data:Array, units:String, altUnits:String, typeCaption:String) :TimeSeriesChart {
+				var z:TimeSeriesChart = new TimeSeriesChart();
+				z.varLabel = field;
+				z.varUnits = units;
+				z.altUnits = altUnits;
+				z.varTime = timeVar;
+				z.chartTitle = typeCaption + " in " + units.replace("in", "");
+				z.upperData = new ArrayCollection(data);
+				return z;
+			}
+			
+			private function hide_style():void
+			{
+				if(styleO)
+				{					
+					styleO.visible = !styleO.visible; 
+				}
+				if(styleW)
+				{
+					styleW.visible = !styleW.visible;
+				}
+				if(styleC)
+				{
+					styleC.visible = !styleC.visible;
+				}
+			}
+		]]>
+		
+    </fx:Script>
+	<fx:Declarations>
+		<esri:SimpleMarkerSymbol id="ptIdentify" style="circle" color="0xFF3333" size="11"/>
+	</fx:Declarations>		
+    <viewer:WidgetTemplate enableCloseButton="false" enableIcon="false" enableMinimizeButton="true" id="wTemplate" width="350" height="432">
+        <viewer:layout>
+            <s:VerticalLayout gap="2" paddingTop="4"/>
+        </viewer:layout>
+			
+		<mx:TabNavigator id="tabers" fontWeight="bold" change="{stylesCB.dataProvider= null}" borderStyle="solid" height="100%" width="100%">
+			<mx:VBox id="cu" label="Currents" icon="{currentIcon}"
+					 height="100%">
+				<mx:DataGrid id="EcopLayersCurrents" color="#0B3153" toolTip="Double Click Layer for more layer options or refresh" width="100%" height="100%" dataProvider="{ecopCurrents}"
+							 horizontalScrollPolicy="off" verticalScrollPolicy="on" doubleClickEnabled="true" doubleClick="popupstyle(event);" click="showEcopInfo(event)">
+					<mx:columns>
+						<mx:DataGridColumn headerText="View" width="23" editable="false" textAlign="center" dataField="visible">
+							<mx:itemRenderer>
+								<fx:Component>
+									<mx:HBox width="100%" height="100%" horizontalAlign="center" verticalAlign="middle">
+										<mx:CheckBox selected="{data.visible}" click="outerDocument.toggleECOP(event)"/>
+									</mx:HBox>
+								</fx:Component>
+							</mx:itemRenderer>
+						</mx:DataGridColumn>
+						<mx:DataGridColumn headerText="Title" editable="false" fontWeight="normal" visible="true" dataField="tLabel" width="150"/>
+						<mx:DataGridColumn headerText="Style" editable="true" dataField="lab" rendererIsEditor="true" visible="{showSty.selectedIndex ==0}" id="styleC" width="160">
+							<mx:itemRenderer>
+								<fx:Component> 
+										<!--<fx:Script>
+											<![CDATA[
+												import mx.collections.ArrayCollection;
+												import mx.controls.Alert;
+											// Define a property for returning 
+											// the new value to the cell.
+											[Bindable]
+											public var selectedIndex1:ArrayCollection = new ArrayCollection;
+											public var selectedIndex:ArrayCollection = new ArrayCollection;
+											]]>
+										</fx:Script>-->
+									<mx:ComboBox color="0x2CBAE8" dataProvider="{data.stylz}" fontSize="10" />									
+								</fx:Component>
+							</mx:itemRenderer>
+						</mx:DataGridColumn>
+						<mx:DataGridColumn headerText="Title" visible="false" dataField="title9" />
+					</mx:columns>
+				</mx:DataGrid>
+			</mx:VBox>
+			<mx:VBox label="Winds" icon="{windIcon}"
+					 height="100%">
+				<mx:DataGrid id="EcopLayersWinds" color="#0B3153" toolTip="Double Click Layer to See More Layer Options" width="100%" height="100%" dataProvider="{ecopWinds}"
+							 horizontalScrollPolicy="off" verticalScrollPolicy="on" doubleClickEnabled="true" doubleClick="popupstyle(event);"  click="showEcopInfo(event)">
+					<mx:columns>
+						<mx:DataGridColumn headerText="View" width="23" textAlign="center" dataField="visible">
+							<mx:itemRenderer>
+								<fx:Component>
+									<mx:HBox width="100%" height="100%" horizontalAlign="center" verticalAlign="middle">
+										<mx:CheckBox selected="{data.visible}" click="outerDocument.toggleECOP(event)"/>
+									</mx:HBox>
+								</fx:Component>
+							</mx:itemRenderer>
+						</mx:DataGridColumn>
+						<mx:DataGridColumn headerText="Title" visible="true" fontWeight="normal" dataField="tLabel" width="150"/>
+						<mx:DataGridColumn headerText="Style" visible="{showSty.selectedIndex ==0}" id="styleW" editorDataField="sty" width="160">
+							<mx:itemRenderer>
+								<fx:Component>
+									<mx:ComboBox color="0x2CBAE8" dataProvider="{data.stylz}" fontSize="10" />
+								</fx:Component>
+							</mx:itemRenderer>
+						</mx:DataGridColumn>
+						<mx:DataGridColumn headerText="Title" visible="false" dataField="title" />
+					</mx:columns>
+				</mx:DataGrid>
+			</mx:VBox>
+			<mx:VBox label="Other" icon="{otherIcon}"
+					 height="100%">
+				<mx:DataGrid id="EcopLayersOther" toolTip="Double Click Layer to See More Layer Options" color="#0B3153" width="100%" height="100%" dataProvider="{ecopOther}"
+							 horizontalScrollPolicy="off" verticalScrollPolicy="on" doubleClickEnabled="true" doubleClick="popupstyle(event);"  click="showEcopInfo(event)">
+					<mx:columns>
+						<mx:DataGridColumn headerText="View" width="23" textAlign="center" dataField="visible">
+							<mx:itemRenderer>
+								<fx:Component>
+									<mx:HBox width="100%" height="100%" horizontalAlign="center" verticalAlign="middle">
+										<mx:CheckBox selected="{data.visible}" click="outerDocument.toggleECOP(event)"/>
+									</mx:HBox>
+								</fx:Component>
+							</mx:itemRenderer>
+						</mx:DataGridColumn>
+						<mx:DataGridColumn headerText="Title" visible="true" fontWeight="normal" dataField="title" width="150"/>
+						<mx:DataGridColumn headerText="Style" visible="{showSty.selectedIndex ==0}" editorDataField="sty" id="styleO"  width="160">
+							<mx:itemRenderer>
+								<fx:Component>
+									<mx:ComboBox color="0x2CBAE8" dataProvider="{data.stylz}" fontSize="10" />
+								</fx:Component>
+							</mx:itemRenderer>
+						</mx:DataGridColumn>
+						<mx:DataGridColumn headerText="Title" visible="false" dataField="tLabel"/>
+					</mx:columns>
+				</mx:DataGrid>
+			</mx:VBox>  
+		</mx:TabNavigator>		
+		<mx:HBox width="100%" paddingLeft="8" height="65" horizontalAlign="center">
+			<mx:Text width="10"/>
+			<mx:Button icon="@Embed(source='assets/images/clearIcon2.gif')" toolTip="Clear Selectioned Layers" id="Clear" width="45" height="50" click="clearAllEcop()" />
+			<mx:Button icon="@Embed(source='assets/images/zoom.png')" toolTip="Zoom to Layer" width="45" height="50" id="zoomLay" click="zoom2Lay()" />
+			<mx:Button icon="@Embed(source='assets/images/i_info.png')" toolTip="Click to Generate Graph" width="45" height="50" id="identify" click="identifyLayer()"/>
+			<mx:Button icon="@Embed(source='assets/images/masterburner_erase.gif')" width="45" height="50" toolTip="Clear Identify Point" id="idClear" click="identifyClear()"/>
+			<mx:Button icon="@Embed(source='assets/images/arcview_fullextent.gif')" visible="false" width="45" height="50" id="refreshLay" click="loadECOP()" />
+			<mx:SWFLoader id="statusB" source="assets/images/loader.swf" visible="true" width="45" height="50"/>
+		</mx:HBox>	
+		<mx:VBox id="styler" width="100%" paddingBottom="0" height="0" paddingLeft="0" visible="false" paddingTop="0" horizontalAlign="center" >
+			<mx:HBox>
+				<mx:Text text="Style Options:" fontSize="14" fontWeight="bold"/>
+				<mx:Text id="larLab" fontWeight="bold" color="0xF8E525"/>
+				<s:Button label="Minimize" click="styler.height=0; wTemplate.height = 465; styler.visible=false;"/>
+			</mx:HBox>
+			<mx:HBox>
+				<mx:ComboBox change="refreshStyle(event)" id="stylesCB" color="0x2CBAE8" fontSize="11"/>
+				<mx:ToggleButtonBar  id="fileFormat" dataProvider="['GIF','PNG']" selectedIndex="1" />
+			</mx:HBox>
+			<mx:TextArea id="ecopLayerInfo" fontSize="11" width="100%" visible="true" height="55"/>
+			<mx:ToggleButtonBar id="showSty" visible="false" paddingLeft="3" height="0"  tabIndexChange="hide_style()" selectedIndex="1" dataProvider="['Show Style','Hide Style']"/>			
+		</mx:VBox>
+	</viewer:WidgetTemplate>
+</viewer:BaseWidget>

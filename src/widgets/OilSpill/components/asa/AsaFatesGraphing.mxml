@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+		 xmlns:viewer="com.esri.viewer.*"
+		 xmlns:asa="widgets.OilSpill.components.asa.*"
+		 width="100%" height="100%" backgroundColor="0xFFFFF3" backgroundAlpha="0.5" xmlns:renderers="com.esri.ags.renderers.*">
+	<fx:Metadata>
+		[ResourceBundle("AsaFatesGraphing")]
+	</fx:Metadata>
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		
+	</fx:Style>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<mx:DateFormatter id="labelMonthFormatter" formatString="MM/YY" />
+		<mx:DateFormatter id="labelDayFormatter" formatString="MMM DD" />
+		<mx:DateFormatter id="labelHourFormatter" formatString="JJ" />
+		<mx:DateFormatter id="labelMinuteFormatter" formatString="MM/DD/YY JJ:NN" />
+		<mx:DateFormatter id="labelDefaultFormatter" formatString="EEE MMM D" />
+		<mx:DateFormatter id="fullDateFormat" formatString="YYYY-MM-DD" />
+		<mx:DateFormatter id="labelSummaryDateFormatter" formatString="MM/DD/YY JJ:NN" />
+		
+		<fx:Array id="backgroundContents">
+			<mx:GridLines styleName="gridlines" id="backgroundGrid" horizontalStroke="{new Stroke(0xFFFFF3, 1)}" verticalStroke="{new Stroke(0xFFFFF3, 1)}" />
+			<mx:Canvas id="labelsCanvas" width="100%" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off" />
+		</fx:Array> 
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import com.esri.viewer.skins.DataTipUser;
+			
+			import mx.collections.ArrayCollection;
+			import mx.graphics.SolidColor;
+			import mx.graphics.Stroke;
+			import mx.managers.CursorManager;
+			import mx.printing.FlexPrintJob;
+			import mx.printing.FlexPrintJobScaleType;
+			import mx.resources.ResourceManager;
+			//import widgets.OilSpill.components.asa.LegendItemChinese;
+			
+			[Bindable] 
+			private var rangeData:ArrayCollection = new ArrayCollection();
+			[Bindable] 
+			private var _varLabel:String;
+			[Bindable] 
+			private var _varUnits:String="";
+			[Bindable] 
+			private var _varTime:String;
+			
+			[Bindable] 
+			public var scenarioNam:String = "";
+			
+			public function set varUnits(s:String) : void {
+				this._varUnits = s;
+			}
+			
+			public function set varLabel(s:String) : void {
+				this._varLabel = s;
+			}
+			
+			
+			public function set graphData(a:ArrayCollection):void 
+			{
+				var tmpData:ArrayCollection = a;
+				rangeData = tmpData;
+			}
+			
+			public function set varTime(s:String) : void {
+				this._varTime = s;
+			}
+			
+			private function dateParse(value:String):Date
+			{
+				if(value) {
+					var date:Array = value.split("T");
+					var dateStr:String = date[0];
+					var timeStr:String = date[1];
+					dateStr = dateStr.replace(/\-/g, "/");
+					timeStr = timeStr.replace("Z", "");
+					dateStr = dateStr + " " + timeStr.split(".")[0];
+					return new Date(Date.parse(dateStr));
+				} else {
+					return new Date();
+				}
+			}
+			/*private function formatDateLabel(value:Number, prevValue:Number, axis:DateTimeAxis):String
+			{
+			var dateValue:Date = new Date();
+			dateValue.setTime(value);
+			switch(axis.labelUnits) {
+			case "months":
+			return labelMonthFormatter.format(dateValue);
+			break;
+			case "days":
+			return labelDayFormatter.format(dateValue);
+			break;
+			case "hours":
+			return labelHourFormatter.format(dateValue);
+			break;
+			default:
+			return labelDefaultFormatter.format(dateValue);
+			break;
+			
+			}
+			}
+			*/
+			private function print():void
+			{
+				CursorManager.setBusyCursor();
+				var p:FlexPrintJob = new FlexPrintJob;
+				
+				printButt.visible = false;
+				
+				if (p.start())
+				{
+					try
+					{		
+						//this.setStyle("backgroundColor",'0x4C4C4C');
+						var now:Date = new Date();
+						p.printAsBitmap = true;
+						p.addObject(this, FlexPrintJobScaleType.NONE);
+						p.send();
+						printButt.visible = true;
+					}
+					catch (error:Error)
+					{
+						CursorManager.removeBusyCursor();
+					}
+					finally
+					{
+						CursorManager.removeBusyCursor();
+					}
+				}
+				else{
+					CursorManager.removeBusyCursor();
+					printButt.visible = true;
+				}
+			}
+		]]>
+	</fx:Script>
+	
+	<!--<mx:ViewStack id="graphStack" selectedIndex="{int(scenarioChoice.selectedValue)}" creationPolicy="all" width="100%" height="100%">
+	<s:HGroup height="16" verticalAlign="middle">
+	
+	</s:HGroup>-->
+	<mx:AreaChart id="chart" showAllDataTips="false" dataProvider="{rangeData}" type="stacked" showDataTips="true" dataTipRenderer="com.esri.viewer.skins.DataTipUser"
+				  width="100%" height="100%" paddingTop="22" paddingBottom="16" gutterBottom="42" >		
+		<mx:backgroundElements>
+			<fx:Array>
+				<mx:GridLines>
+					<mx:verticalStroke>
+						<s:SolidColorStroke alpha="1"/>
+					</mx:verticalStroke>
+					<mx:horizontalStroke>      
+						<s:SolidColorStroke alpha="1"/>
+					</mx:horizontalStroke>
+				</mx:GridLines>
+			</fx:Array>
+		</mx:backgroundElements>
+		<!--<mx:horizontalAxis>
+		<mx:DateTimeAxis title="Time(Hours)" dataUnits="hours" parseFunction="dateParse" labelFunction="formatDateLabel" />
+		</mx:horizontalAxis>-->
+		<mx:horizontalAxis>
+			<mx:LinearAxis id="xAxis" title="Hours" />
+		</mx:horizontalAxis>
+		
+		<mx:verticalAxis>
+			<mx:LinearAxis id="yAxis" baseAtZero="false" title="" />
+		</mx:verticalAxis>
+		<mx:verticalAxisRenderers>
+			<mx:AxisRenderer axis="{yAxis}" verticalAxisTitleAlignment="vertical" fontSize="11" />
+		</mx:verticalAxisRenderers>
+		<mx:horizontalAxisRenderers>
+			<mx:AxisRenderer axis="{xAxis}" tickPlacement="inside" tickLength="246" fontSize="11" />
+		</mx:horizontalAxisRenderers>
+		<mx:series>
+		</mx:series>
+	</mx:AreaChart>
+	<s:Label text="{'Oil Spill Scenario '+this.parent.label+ ' Graph'}" x="35" fontSize="17" y="7"/>
+	<mx:HBox x="5" y="{this.height-28}" height="25" horizontalAlign="center" verticalAlign="middle">
+		<s:Button label="Print" id="printButt" fontSize="11" width="50" click="print()" chromeColor="0xE5E5E5"/>	
+		<mx:Legend direction="horizontal" dataProvider="{chart}"/>
+	</mx:HBox>
+	<s:Label text="Copyright 2012. Dubai Municipality" x="286" y="10"/>
+	<s:Label text="{scenarioNam}" x="16" y="296"/>
+</mx:Canvas>

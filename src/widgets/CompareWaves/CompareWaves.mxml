@@ -1,0 +1,896 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+	////////////////////////////////////////////////////////////////////////////////
+	//Sontag Identify widget for all wmsLayer on Map
+	////////////////////////////////////////////////////////////////////////////////
+-->
+<viewer:BaseWidget xmlns:fx="http://ns.adobe.com/mxml/2009"
+				   xmlns:s="library://ns.adobe.com/flex/spark"
+				   xmlns:mx="library://ns.adobe.com/flex/mx"
+				   xmlns:esri="http://www.esri.com/2008/ags" 
+				   xmlns:viewer="com.esri.viewer.*" 
+				   creationComplete="loadWaveIcons()"
+				   layout="absolute" contentBackgroundAlpha=".8"
+				   widgetConfigLoaded="init()">
+	<fx:Script>
+		<![CDATA[
+			//xmlns:controls="widgets.ECOP.com.brightPoint.controls.*"  xmlns:degrafa="http://www.degrafa.com/2007"
+			import com.adobe.serialization.json.JSON;
+			import com.esri.ags.Graphic;
+			import com.esri.ags.Map;
+			import com.esri.ags.events.DrawEvent;
+			import com.esri.ags.geometry.Extent;
+			import com.esri.ags.geometry.Geometry;
+			import com.esri.ags.geometry.MapPoint;
+			import com.esri.ags.geometry.WebMercatorMapPoint;
+			import com.esri.ags.layers.GraphicsLayer;
+			import com.esri.ags.layers.Layer;
+			import com.esri.ags.tools.NavigationTool;
+			import com.esri.ags.utils.WebMercatorUtil;
+			import com.esri.viewer.AppEvent;
+			import com.esri.viewer.ViewerContainer;
+			import com.esri.viewer.utils.Hashtable;
+			
+			import mx.charts.CategoryAxis;
+			import mx.charts.HitData;
+			import mx.charts.Legend;
+			import mx.charts.LineChart;
+			import mx.charts.series.LineSeries;
+			import mx.collections.ArrayCollection;
+			import mx.containers.Panel;
+			import mx.containers.TabNavigator;
+			import mx.containers.TitleWindow;
+			import mx.containers.VBox;
+			import mx.controls.Alert;
+			import mx.controls.DateField;
+			import mx.core.UIComponent;
+			import mx.events.CloseEvent;
+			import mx.events.DataGridEvent;
+			import mx.events.EventListenerRequest;
+			import mx.events.ListEvent;
+			import mx.events.StateChangeEvent;
+			import mx.formatters.DateFormatter;
+			import mx.formatters.NumberFormatter;
+			import mx.graphics.SolidColor;
+			import mx.graphics.Stroke;
+			import mx.managers.CursorManager;
+			import mx.messaging.messages.HTTPRequestMessage;
+			import mx.rpc.AsyncResponder;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.rpc.http.mxml.HTTPService;
+			import mx.rpc.soap.LoadEvent;
+			import mx.rpc.xml.SimpleXMLDecoder;
+			
+			import org.alivepdf.display.Display;
+			import org.alivepdf.display.PageMode;
+			import org.alivepdf.layout.*;
+			import org.alivepdf.pdf.PDF;
+			import org.alivepdf.saving.Method;
+			
+			import spark.events.IndexChangeEvent;
+			
+			import widgets.TimeSlider.components.util.DateTimeUtilities;
+			
+			//labels			
+			[Bindable]
+			private var descriptionLabel:String;
+			private var identifyTolerance:Number = 3;
+			private var idPoint:MapPoint;
+			private var _params:URLVariables;
+			private var hashTable:Hashtable;
+			private var _httpService:HTTPService;
+			
+			[Bindable]
+			private var pointLabel:String;
+			
+			[Bindable]
+			private var _ECOPModelSource:String;
+						
+			private var selectionLabel:String;
+			private var gra:Graphic;
+			
+			private var keepActive:Boolean;
+			private var identifyPoint:MapPoint;
+			private var infoUrl:String;
+			
+			[Bindable]
+			private var identifyArrayCollection:ArrayCollection;
+						
+			private var graphicsLayer:GraphicsLayer;
+			
+			private var _x:Number;
+			private var _y:Number;
+			[Bindable]
+			private var arrLayer:Array = new Array();
+			[Bindable]
+			private var afterclick:String;
+			[Bindable]
+			private var noDataClick:String;
+			
+			[Bindable]
+			private var waveLayerPoint:GraphicsLayer = new GraphicsLayer();
+			
+			private var todaysDate:Date = new Date();
+			private var threedayagoDate:Date = new Date(todaysDate.getTime()-(1000 * 60 * 60 * 24 * 4));
+			
+			private var _timeZone:Number;
+			[Bindable]
+			private var waveURLService:String;
+			[Bindable]
+			private var getFeatureidentifyResults:XML;
+			[Bindable]
+			private var obsidentifyResults:XML;	
+			[Bindable]
+			private var currentStation:String;
+			
+			private function init():void
+			{
+				ViewerContainer.addEventListener(AppEvent.DATA_SENT, receivedData);
+				ViewerContainer.addEventListener(AppEvent.TIME_ZONE_CHANGED, timeZoneChanged);
+				ViewerContainer.addEventListener(AppEvent.TIME_SLIDER_TIME_CHANGED, updateCurrentTime);
+				
+				tocurrentDate.text = DateTimeUtilities.convertDateEuronoTime(todaysDate);
+				fromcurrentDate.text = DateTimeUtilities.convertDateEuronoTime(threedayagoDate);
+				
+				if (configXML)
+				{
+					//labels
+					_ECOPModelSource = configXML.ASAMapServices.ecop;
+					if (Number(configXML.identifytolerance) > 0)
+						identifyTolerance = Number(configXML.identifytolerance);
+					afterclick = configXML.labels.descriptionlabelafterClick;
+					noDataClick = configXML.labels.descriptionNoData;
+					waveURLService = configXML.waveURL;
+					fetchSharedData();
+				}
+				
+				if(hashTable.containsKey("timezone"))
+				{
+					_timeZone=hashTable.find("timezone") as Number;
+				}
+				else
+				{
+					//use computer's timezone
+					var tempDate:Date=new Date();
+					_timeZone=tempDate.getTimezoneOffset()/60.0;
+					//use utc
+					//_timeZone=0;
+				}
+			}
+			
+			private function loadWaveIcons():void
+			{
+				var wavePoint19:WebMercatorMapPoint = new WebMercatorMapPoint(55.255497,25.230283);
+				var waveGraphic19:Graphic = new Graphic(wavePoint19);
+				waveGraphic19.symbol = waveFlag;
+				waveGraphic19.id = "6285";
+				waveGraphic19.buttonMode = true;
+				waveGraphic19.toolTip = "Jumeirah Open Beach ADCP";
+				waveGraphic19.addEventListener(MouseEvent.CLICK, clickwaveIcon);
+				
+				var wavePoint44:WebMercatorMapPoint = new WebMercatorMapPoint(55.187019,25.146561);
+				var waveGraphic44:Graphic = new Graphic(wavePoint44);
+				waveGraphic44.symbol = waveFlag;
+				waveGraphic44.id = "44";
+				waveGraphic44.buttonMode = true;
+				waveGraphic44.toolTip = "Jumeirah Beach Hotel ADCP";
+				waveGraphic44.addEventListener(MouseEvent.CLICK, clickwaveIcon);
+				
+				var wavePoint55:WebMercatorMapPoint = new WebMercatorMapPoint(55.102967,25.417);
+				var waveGraphic55:Graphic = new Graphic(wavePoint55);
+				waveGraphic55.symbol = waveFlag;
+				waveGraphic55.id = "55";
+				waveGraphic55.buttonMode = true;
+				waveGraphic55.toolTip = "Palm Deira Offshore Buoy";
+				waveGraphic55.addEventListener(MouseEvent.CLICK, clickwaveIcon);
+				
+				var wavePoint70:WebMercatorMapPoint = new WebMercatorMapPoint(54.800322,25.066944);
+				var waveGraphic70:Graphic = new Graphic(wavePoint70);
+				waveGraphic70.symbol = waveFlag;
+				waveGraphic70.id = "70";
+				waveGraphic70.buttonMode = true;
+				waveGraphic70.toolTip = "Jebel Ali Offshore Buoy";
+				waveGraphic70.addEventListener(MouseEvent.CLICK, clickwaveIcon);
+				
+				var wavePoint74:WebMercatorMapPoint = new WebMercatorMapPoint(55.090167,25.042983);
+				var waveGraphic74:Graphic = new Graphic(wavePoint74);
+				waveGraphic74.symbol = waveFlag;
+				waveGraphic74.id = "74";
+				waveGraphic74.buttonMode = true;
+				waveGraphic74.toolTip = "DUBAL ADCP";
+				waveGraphic74.addEventListener(MouseEvent.CLICK, clickwaveIcon);
+				
+				var wavePoint95:WebMercatorMapPoint = new WebMercatorMapPoint(55.3512,25.328861);
+				var waveGraphic95:Graphic = new Graphic(wavePoint95);
+				waveGraphic95.symbol = waveFlag;
+				waveGraphic95.id = "95";
+				waveGraphic95.buttonMode = true;
+				waveGraphic95.toolTip = "Al Mamzar ADCP";
+				waveGraphic95.addEventListener(MouseEvent.CLICK, clickwaveIcon);
+				
+				/* var wavePoint138:WebMercatorMapPoint = new WebMercatorMapPoint(55.352856,25.327878);
+				var waveGraphic138:Graphic = new Graphic(wavePoint138);
+				waveGraphic138.symbol = waveFlag;
+				waveGraphic138.id = "138";
+				waveGraphic138.buttonMode = true;
+				waveGraphic138.toolTip = "Al Mamzar Tide Gauge";
+				waveGraphic138.addEventListener(MouseEvent.CLICK, clickwaveIcon);
+				
+				var wavePoint149:WebMercatorMapPoint = new WebMercatorMapPoint(54.8968,24.911186);
+				var waveGraphic149:Graphic = new Graphic(wavePoint149);
+				waveGraphic149.symbol = waveFlag;
+				waveGraphic149.id = "149";
+				waveGraphic149.buttonMode = true;
+				waveGraphic149.toolTip = "Jebel Ali Tide Gauge";
+				waveGraphic149.addEventListener(MouseEvent.CLICK, clickwaveIcon); */
+				
+				waveLayerPoint.add(waveGraphic19);
+				waveLayerPoint.add(waveGraphic44);
+				waveLayerPoint.add(waveGraphic55);
+				waveLayerPoint.add(waveGraphic70);
+				waveLayerPoint.add(waveGraphic74);
+				waveLayerPoint.add(waveGraphic95);
+				//waveLayerPoint.add(waveGraphic138);
+				//waveLayerPoint.add(waveGraphic149);
+				
+				map.addLayer(waveLayerPoint);
+			}
+	
+		//From Icon CLick
+			private function clickwaveIcon(event:MouseEvent):void
+			{
+				CursorManager.setBusyCursor();
+				var identPoint:WebMercatorMapPoint = new WebMercatorMapPoint(Number(event.currentTarget.geometry.lon),Number(event.currentTarget.geometry.lat));				
+				var iconID:String = event.currentTarget.id;
+				currentStation = event.currentTarget.toolTip + " Wave Height in Meters";
+			//ECOP GET FEATURE Comparions
+				_params = new URLVariables();
+				_params.transparent = "true";
+				_params.version = "1.1.1";
+				_params.styles = "";
+				
+				//specific to getFeatureInfo:
+				_params.request = "GetFeatureInfo"; 
+				_params.info_format = "text/plain";
+				_params.format="text/plain";
+				_params.exceptions = "application/vnd.ogc.se_xml";
+				_params.srs = "EPSG:3857";
+				_params._dc= "1298660600532";
+				_params.width = map.width;
+				_params.height = map.height;
+				
+				_params.bbox = map.extent.xmin + "," + map.extent.ymin + "," + map.extent.xmax + "," + map.extent.ymax; 
+				_params.layers = "DUBAI_WAVE_HEIGHT";
+				_params.query_layers="DUBAI_WAVE_HEIGHT";
+				_params.feature_count="3";  
+				
+				//add the point from text input
+				_params.x = map.toScreen(identPoint).x.toFixed();
+				_params.y = map.toScreen(identPoint).y.toFixed();
+				var formatTime:String = DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTCnotime(threedayagoDate,_timeZone)+"/"+DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTCnotime(todaysDate,_timeZone);
+				
+				_params.time = formatTime;
+				_httpService = new HTTPService();
+				_httpService.showBusyCursor = true;
+				_httpService.url = _ECOPModelSource;
+				_httpService.addEventListener("result", function(evnt:ResultEvent):void{
+					var msgURL:String;
+					msgURL = HTTPRequestMessage(evnt.token.message).body.layers;
+					getFeatureidentifyResults = new XML(evnt.result);
+					
+					//Wave JSON DUBAI webservice
+					var graphWaveDBservrequest:HTTPService = new HTTPService();
+					graphWaveDBservrequest.url= waveURLService +"observation[sensor_id]="+iconID+"&observation[start]="+threedayagoDate.fullYear.toString()+"-"+(threedayagoDate.month+1).toString()+"-"+threedayagoDate.date.toString()+"&observation[end]="+todaysDate.fullYear.toString()+"-"+(todaysDate.month+1).toString()+"-"+todaysDate.date.toString();
+					graphWaveDBservrequest.addEventListener(ResultEvent.RESULT,generatewaveGraph);
+					graphWaveDBservrequest.resultFormat = "object";
+					graphWaveDBservrequest.addEventListener(FaultEvent.FAULT, loadError);
+					graphWaveDBservrequest.send();
+				});
+				
+				_httpService.addEventListener("fault", onFault);
+				_httpService.resultFormat = "xml"; 
+				_httpService.send(_params);
+				
+				//Alert.show(waveURLService +"observation[sensor_id]="+iconID+"&observation[start]="+threedayagoDate.fullYear.toString()+"-"+(threedayagoDate.month+1).toString()+"-"+threedayagoDate.date.toString()+"&observation[end]="+todaysDate.fullYear.toString()+"-"+(todaysDate.month+1).toString()+"-"+todaysDate.date.toString());
+			}
+			
+			public function generatewaveGraph(event:ResultEvent):void
+			{
+				var js:Object = JSON.decode(event.result as String);				
+				processIdentifyResultsForChart(getFeatureidentifyResults, js.data, js.label);				
+				CursorManager.removeBusyCursor();
+			}
+			
+			private function timeZoneChanged(event:AppEvent):void
+			{
+				if(hashTable.containsKey("timezone"))
+				{
+					_timeZone=hashTable.find("timezone") as Number;
+				}
+			}
+			private function updateCurrentTime(event:AppEvent):void
+			{
+				todaysDate = event.data as Date;
+			}
+			private function receivedData(event:AppEvent):void
+			{
+				hashTable=event.data as Hashtable;
+			}
+			private function toBoolean(val:String):Boolean
+			{
+				if (val == "true") { return true; } else { return false; }
+			}	
+			
+			private function loadError(event:Event):void
+			{
+				Alert.show("Service not loaded");
+				CursorManager.removeBusyCursor();
+			}				
+			
+			private function widgetClosedHandler(event:Event):void
+			{
+				waveLayerPoint.visible = false;
+				this.showInfoWindow(null);
+				map.infoWindow.hide();
+				setMapNavigation(NavigationTool.PAN, "Pan Map");
+			}
+			
+			private function widgetOpenedHandler(event:Event):void
+			{
+				waveLayerPoint.visible = true;
+				//obsSeries.dataProvider = null;
+				
+				if(graphicsLayer)
+					graphicsLayer.visible = true;
+			}
+			
+			private function onFault(event:FaultEvent):void
+			{                    
+				//Alert.show("An error occured in processing identify request: " + event.fault.toString());   
+				_httpService.removeEventListener("fault",onFault);   
+				CursorManager.removeBusyCursor();
+			}
+			
+			private function mouseOutSelection(event:ListEvent):void
+			{
+				var lay:Object= stationlist.dataProvider[event.rowIndex];
+				for each (var entry:Graphic in waveLayerPoint.graphicProvider)
+				{
+					entry.symbol = waveFlag;
+				}
+				stationlist.selectedIndex = -1;
+				waveLayerPoint.refresh();
+			}
+			
+			private function highlightOb(event:ListEvent):void
+			{
+				var lay:Object= stationlist.dataProvider[event.rowIndex];
+				for each (var entry:Graphic in waveLayerPoint.graphicProvider)
+				{
+					if(entry.id == lay.oid)
+					{
+						entry.symbol = waveFlagBig;
+					}
+					else{
+						entry.symbol = waveFlag;
+					}
+				}
+				waveLayerPoint.refresh();
+			}
+			
+		//From List Click
+			private function compareresult(event:ListEvent):void
+			{
+				var lay:Object= stationlist.dataProvider[event.rowIndex];
+				
+				CursorManager.setBusyCursor();
+				var identPoint:WebMercatorMapPoint = new WebMercatorMapPoint(Number(lay.lon),Number(lay.lat));
+				
+				currentStation = lay.label + " Wave Height in Meters";
+				
+				//ECOP GET FEATURE Comparions
+				_params = new URLVariables();
+				_params.transparent = "true";
+				_params.version = "1.1.1";
+				_params.styles = "";
+				
+				//specific to getFeatureInfo:
+				_params.request = "GetFeatureInfo"; 
+				_params.info_format = "text/plain";
+				_params.format="text/plain";
+				_params.exceptions = "application/vnd.ogc.se_xml";
+				_params.srs = "EPSG:3857";
+				_params._dc= "1298660600532";
+				_params.width = map.width;
+				_params.height = map.height;
+				
+				_params.bbox = map.extent.xmin + "," + map.extent.ymin + "," + map.extent.xmax + "," + map.extent.ymax; 
+				_params.layers = "DUBAI_WAVE_HEIGHT";
+				_params.query_layers="DUBAI_WAVE_HEIGHT";
+				_params.feature_count="3";  
+				
+				//add the point from text input
+				_params.x = map.toScreen(identPoint).x.toFixed();
+				_params.y = map.toScreen(identPoint).y.toFixed();
+				var formatTime:String = DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTCnotime(threedayagoDate,_timeZone)+"/"+DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTCnotime(todaysDate,_timeZone);
+				
+				_params.time = formatTime;
+				_httpService = new HTTPService();
+				_httpService.showBusyCursor = true;
+				_httpService.url = _ECOPModelSource;
+				_httpService.addEventListener("result", function(evnt:ResultEvent):void{
+					var msgURL:String;
+					msgURL = HTTPRequestMessage(evnt.token.message).body.layers;
+					getFeatureidentifyResults = new XML(evnt.result);
+					
+					//Wave JSON DUBAI webservice
+					var graphWaveDBservrequest:HTTPService = new HTTPService();
+					graphWaveDBservrequest.url= waveURLService +"observation[sensor_id]="+lay.oid+"&observation[start]="+threedayagoDate.fullYear.toString()+"-"+(threedayagoDate.month+1).toString()+"-"+threedayagoDate.date.toString()+"&observation[end]="+todaysDate.fullYear.toString()+"-"+(todaysDate.month+1).toString()+"-"+todaysDate.date.toString();
+					graphWaveDBservrequest.addEventListener(ResultEvent.RESULT,generatewaveGraph);
+					graphWaveDBservrequest.resultFormat = "object";
+					graphWaveDBservrequest.addEventListener(FaultEvent.FAULT, loadError);
+					graphWaveDBservrequest.send();
+				});
+				
+				_httpService.addEventListener("fault", onFault);
+				_httpService.resultFormat = "xml"; 
+				_httpService.send(_params);
+			}
+			
+			private function processIdentifyResultsForChart(identifyResultsGetFeature:XML,identifyObsFeature:Object, layerName:String):void
+			{
+				//if only forecast data is available, only plot that
+				if(identifyObsFeature.length <1)
+				{
+					//graphAreaText.text = "No Observation Data at this time to compare for "+layerName.replace("Wave Height (m)","");
+					seriesObs.dataProvider = null;
+					seriesEcop.invalidateDisplayList();
+					
+					//Showing error from GetFeature Request ECOP
+					var dateFormatter:DateFormatter = new DateFormatter();
+					dateFormatter.formatString = "MM/DD/YYYY JJ:NN:SS";
+					
+					var xd:XMLDocument = new XMLDocument(identifyResultsGetFeature);
+					var decoder:SimpleXMLDecoder = new SimpleXMLDecoder(true);
+					var results:Object = decoder.decodeXML(xd);
+					
+					if(results.ServiceExceptionReport)
+					{
+						graphAreaText.text = "No model or observation data available at this time to compare for "+layerName.replace("Wave Height (m)","");
+						seriesEcop.dataProvider = null;
+						seriesObs.invalidateDisplayList();
+					}
+					else
+					{						
+						graphAreaText.text = currentStation;
+						var ac:ArrayCollection = results.Data.Point;
+						var linedata:Array = [];
+						
+						for(var i:int=0;i < ac.length;i++)
+						{
+							var lo:Object = {};
+							
+							var s:String = ac[i].Time;
+							var sr:String = s.replace("-","/");
+							var sr2:String = sr.replace("-","/");
+							
+							var forecastDate:Date = new Date(Date.parse(sr2));
+							var calDate:Date = new Date(forecastDate.getTime()+1000 * 60 * 60*4);
+							
+							var redoneString:String = dateFormatter.format(calDate);
+							
+							lo.date = redoneString;
+							
+							var valAc:ArrayCollection = new ArrayCollection();
+							
+							if(ac[i].Value is ArrayCollection)
+							{
+								valAc = ac[i].Value; 
+							}
+							else
+							{
+								valAc.addItem(ac[i].Value);
+							}
+							for(var j:int=0;j < valAc.length;j++)
+							{
+								//check to see if it is the largest number and if the observation data has come back Null
+								if(axisMax<Number(valAc[j].value) || isNaN(axisMax))
+								{
+									axisMax = Number(valAc[j].value)
+								}
+								lo[new String("s"+j)] = true;
+								lo[new String("s"+j+"Y")] = Number(valAc[j].value).toPrecision(2);
+								lo[new String("s"+j+"Variable")] = "Wave Height"; //valAc[j].Var;
+								lo[new String("s"+j+"Units")] = valAc[j].Unit;
+								lo[new String("s"+j+"Display")] = valAc[j].Var + " (" + valAc[j].Unit + ")";
+							}
+							linedata.push(lo);
+						}
+					}
+					
+					if(axisMax>1)
+					{
+						laxis.maximum = axisMax;
+					}
+					else
+					{
+						laxis.maximum = 1;
+					}
+					seriesEcop.dataProvider = new ArrayCollection(linedata);
+				}
+				else
+				{
+					var dateFormatter:DateFormatter = new DateFormatter();
+					dateFormatter.formatString = "MM/DD/YYYY JJ:NN:SS";
+										
+					var observationChartDateArray:Array = [];
+					var numb:int = 0;
+					
+					//Observation Data
+					var axisMax:Number = 0
+					for each(var obs:Array in identifyObsFeature)
+					{
+						var observationChartDate:Object = {};
+						//multiply EPOCH TIME
+						var obDate:Date =new Date(new Date(obs[0]).getTime() + 1000 * 60 * 60*4);
+						
+						if(axisMax<Number(obs[1]))
+						{
+							axisMax = Number(obs[1]);
+						}
+						
+						observationChartDate.date = dateFormatter.format(obDate.toUTCString());
+						observationChartDate.s0Y = Number(obs[1]).toPrecision(2);
+						observationChartDate.s0Variable = "Wave Height";
+						
+						observationChartDate.s0Units = "Meters";
+						observationChartDate.s0Display = Number(obs[1]).toPrecision(2)+ " Meters";
+						observationChartDateArray.push(observationChartDate);
+						numb++;
+					}
+					
+					//Showing error from GetFeature Request ECOP
+					var xd:XMLDocument = new XMLDocument(identifyResultsGetFeature);
+					var decoder:SimpleXMLDecoder = new SimpleXMLDecoder(true);
+					var results:Object = decoder.decodeXML(xd);
+					
+					if(results.ServiceExceptionReport)
+					{
+						graphAreaText.text = "No Model Data at this time to compare for "+layerName.replace("Wave Height (m)","");
+						seriesEcop.dataProvider = null;
+						seriesObs.invalidateDisplayList();
+					}
+					else
+					{
+						graphAreaText.text = currentStation;
+						var ac:ArrayCollection = results.Data.Point;
+						var linedata:Array = [];
+						
+						for(var i:int=0;i < ac.length;i++)
+						{
+							var lo:Object = {};
+							
+							var s:String = ac[i].Time;
+							var sr:String = s.replace("-","/");
+							var sr2:String = sr.replace("-","/");
+							
+							var forecastDate:Date = new Date(Date.parse(sr2));
+							var calDate:Date = new Date(forecastDate.getTime()+1000 * 60 * 60*4);
+							
+							var redoneString:String = dateFormatter.format(calDate);
+							
+							lo.date = redoneString;
+							
+							var valAc:ArrayCollection = new ArrayCollection();
+							
+							if(ac[i].Value is ArrayCollection)
+							{
+								valAc = ac[i].Value; 
+							}
+							else
+							{
+								valAc.addItem(ac[i].Value);
+							}
+							for(var j:int=0;j < valAc.length;j++)
+							{
+								if(axisMax<Number(valAc[j].value))
+								{
+									axisMax = Number(valAc[j].value)
+								}
+								lo[new String("s"+j)] = true;
+								lo[new String("s"+j+"Y")] = Number(valAc[j].value).toPrecision(2);
+								lo[new String("s"+j+"Variable")] = "Wave Height"; //valAc[j].Var;
+								lo[new String("s"+j+"Units")] = valAc[j].Unit;
+								lo[new String("s"+j+"Display")] = valAc[j].Var + " (" + valAc[j].Unit + ")";
+							}
+							linedata.push(lo);
+						}
+					}
+					
+					if(axisMax>1)
+					{
+						laxis.maximum = axisMax;
+					}
+					else
+					{
+						laxis.maximum = 1;
+					}
+					seriesObs.dataProvider = new ArrayCollection(observationChartDateArray);
+					seriesEcop.dataProvider = new ArrayCollection(linedata);
+				}
+				CursorManager.removeBusyCursor();
+			}
+			
+			private function formatNumber(s:String) : String
+			{
+				var nsMask:String = "00"
+				var value:String = s;
+				value = (nsMask + value).substr(-nsMask.length);
+				
+				return value;
+			}
+			
+			private function addDataTips(hitSpot:HitData):String
+			{	
+				var tip:String = new String; 
+				
+				var d:Date = new Date(Date.parse(hitSpot.item.date));
+								
+				if(!hitSpot.item.s1)
+				{
+					tip = "Time: " + labelSummaryDateFormatterDM.format(d) + "\n" + hitSpot.item.s0Variable + ": " + Number(hitSpot.item.s0Y).toPrecision(2) + " " + hitSpot.item.s0Units;
+				}
+				else
+				{
+					tip = "Time: " + labelSummaryDateFormatterDM.format(d) + "\n" + hitSpot.item.s0Variable + ": " + Number(hitSpot.item.s0Y).toPrecision(2) + " " + hitSpot.item.s0Units + "\n" + hitSpot.item.s1Variable + ": " + Number(hitSpot.item.s1Y).toPrecision(2) + " " + hitSpot.item.s1Units;
+				}
+				
+				return tip;
+			}
+			
+			private function dateParser(s:String):Date
+			{
+				var date:Date = new Date();
+				var offSetMS:Number = date.getTimezoneOffset() *1000;
+				var newDate:Date = new Date(Date.parse(s) - offSetMS);
+				
+				return newDate;
+			}
+			
+			private function formatDate(value:Date,previousValue:Date,axis:DateTimeAxis):String 
+			{          
+				var dateLabel:String = labelSummaryDateFormatterDM.format(value);
+				//remove for no data stations
+				if(dateLabel == "31-12-69 19:00"||dateLabel == "01-01-70 04:00"||dateLabel == "01-01-70 00:00")
+				{
+					dateLabel = "";
+				}
+				
+				return dateLabel; 
+			}
+			
+			private function formatDateHour(value:Date,previousValue:Date,axis:DateTimeAxis):String 
+			{          
+				var dateLabel:String = labelMonFormatter.format(value);
+				var dateLabelshort:String = labelHourFormatter.format(value);
+				//remove for no data stations
+				if(dateLabel == "01-01-70" ||dateLabel == "31-12-69 19:00")
+				{
+					return "";
+				}
+				if(dateLabelshort== "05:00"||dateLabelshort== "04:00"||dateLabelshort== "00:00")
+				{
+					return "  " +dateLabelshort+"\n"+dateLabel; 
+				}
+				else{
+					return dateLabelshort;
+				}
+			}
+			
+			//Save To PDF
+			private function save():void
+			{
+				SaveButt.visible = false;
+				var d:Date = new Date();
+								
+				var exportPDF:PDF=new PDF(Orientation.LANDSCAPE,"Mm",Size.A4);
+				var rs:org.alivepdf.layout.Resize= new org.alivepdf.layout.Resize("ResizePage","centered");
+				exportPDF.setDisplayMode(Display.FULL_PAGE);
+				exportPDF.addPage();
+				exportPDF.addImage(graphArea,rs,0,0,0,0,0,1,true,"PNG",100);
+				var bytes:ByteArray=exportPDF.save(Method.LOCAL);
+				var f:FileReference=new FileReference();
+				
+				f.save(bytes,"comparison_graph_"+d.date.toString()+"_"+String(d.month+1)+"_"+d.fullYear.toString() +".pdf");
+				
+				SaveButt.visible = true;
+			}
+			
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!--<mx:Resize id="resize"  duration="600"/>-->
+		<esri:PictureMarkerSymbol id="waveFlag" source="assets/images/Waves.png"/>
+		<esri:PictureMarkerSymbol id="waveFlagBig" source="assets/images/waves-32.png"/>
+		<!-- Define chart effects -->
+		<mx:SeriesSlide 
+			id="slideIn" 
+			duration="500" direction="up"
+			/>
+		<mx:SeriesSlide 
+			id="slideOut" 
+			duration="500" 
+			direction="down"
+			/>
+		<!-- Date Formatters -->
+		<mx:DateFormatter id="labelMonthFormatter" formatString="MM/YY" />
+		<mx:DateFormatter id="labelMonFormatter" formatString="DD-MM-YY" />
+		<mx:DateFormatter id="labelHourFormatter" formatString="JJ:NN" />
+		<mx:DateFormatter id="labelMinuteFormatter" formatString="MM/DD/YYYY JJ:NN:SS" />
+		<mx:DateFormatter id="labelSummaryDateFormatterDM" formatString="DD-MM-YY JJ:NN" />
+		
+		<!-- Background elements for main chart -->
+		<fx:Array id="backgroundContents">
+			<mx:GridLines styleName="gridlines" id="backgroundGrid" horizontalStroke="{new Stroke(0xCCCCCC, 1)}" verticalStroke="{new Stroke(0xCCCCCC, 1)}" />
+			<mx:Canvas id="labelsCanvas" width="100%" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off" />
+		</fx:Array> 
+	</fx:Declarations>
+	<viewer:WidgetTemplate id="wTemplate" enableIcon="false" enableMinimizeButton="true"
+		closed="widgetClosedHandler(event)" enableResizeButton="false"
+		open="widgetOpenedHandler(event)" height="440" width="435">
+		
+		<s:Group id="resultsList" height="100%" width="100%" visible="true">
+			<s:layout>
+				<s:VerticalLayout paddingBottom="1" paddingRight="3" gap="1"/>
+			</s:layout>
+			<s:HGroup width="100%">
+				<s:VGroup id="boxMessage" visible="true" horizontalAlign="center" verticalAlign="middle"
+						  width="60%">
+					<s:HGroup horizontalAlign="center">
+						<s:VGroup verticalAlign="middle" horizontalAlign="left" width="222" paddingLeft="6" paddingTop="7">
+							<s:Label verticalAlign="middle" width="200" id="descr" text="Compare model wave height and observation wave height in meters for the previous 4 days by selecting a map observation station or from the station list." paddingBottom="4" paddingTop="3"/>
+							<s:HGroup gap="4" paddingTop="5">
+								<s:Label horizontalCenter="0" id="fromcurrentDate" paddingBottom="4" paddingTop="3" fontWeight="bold"/>
+								<s:Label horizontalCenter="0" paddingBottom="4" text="to" paddingTop="3"/>
+								<s:Label horizontalCenter="0" id="tocurrentDate" paddingBottom="4" paddingTop="3" fontWeight="bold"/>
+							</s:HGroup>
+							<!--<mx:SWFLoader id="swfMessage" source="assets/images/loader.swf" height="0" width="0" visible="false"/>-->
+						</s:VGroup>
+					</s:HGroup>
+				</s:VGroup>
+				<s:VGroup paddingLeft="-12">
+					<mx:List id="stationlist" labelField="label" rowCount="4" width="191" textIndent="5"
+							 itemRollOut="mouseOutSelection(event)" rollOverColor="0xDBEBEB" itemRollOver="highlightOb(event)" itemClick="compareresult(event)" >
+						<mx:dataProvider>
+							<fx:Array>
+								<fx:Object label="Al Mamzar ADCP" oid="95" lat="25.328861" lon="55.3512"/>
+								<!--<fx:Object label="Al Mamzar Tide Gauge" oid="138" lat="25.327878" lon="55.352856" />-->
+								<fx:Object label="DUBAL ADCP" oid="74" lat="25.042983" lon="55.090167" />
+								<fx:Object label="Jebel Ali Offshore Buoy" oid="70" lat="25.066944" lon="54.800322" />
+								<!--<fx:Object label="Jebel Ali Tide Gauge" oid="149" lat="24.911186" lon="54.8968" />-->
+								<fx:Object label="Jumeirah Open Beach ADCP" oid="6285" lat="25.230283" lon="55.255497" />
+								<fx:Object label="Jumeirah Beach Hotel ADCP" oid="44" lat="25.146561" lon="55.187019" />
+								<fx:Object label="Palm Deira Offshore Buoy" oid="55" lat="25.417" lon="55.102967" />
+							</fx:Array>
+						</mx:dataProvider>
+					</mx:List>
+				</s:VGroup>
+			</s:HGroup>
+			<s:VGroup id="graphArea" horizontalAlign="center" verticalAlign="middle" paddingTop="1" paddingLeft="3" paddingRight="0"  width="100%" height="100%">
+				<s:Label color="0xE40701" paddingTop="5" id="graphAreaText"/>
+				<mx:LineChart id="obsSeries" showDataTips="true" dataTipFunction="addDataTips" width="100%"  height="100%" 
+							  gutterRight="20">
+					<mx:seriesFilters>
+						<fx:Array/>
+					</mx:seriesFilters>
+					<mx:backgroundElements>
+						<mx:GridLines gridDirection="both" visible="true" >
+							<mx:horizontalStroke>
+								<s:SolidColorStroke color="{0x999999}" weight="0.5" />
+							</mx:horizontalStroke>
+							<mx:verticalStroke>
+								<s:SolidColorStroke color="{0x999999}" weight="0.5" />
+							</mx:verticalStroke>
+						</mx:GridLines>
+					</mx:backgroundElements>
+					
+					<mx:verticalAxis>
+						<mx:LinearAxis baseAtZero="true" minimum="0" maximum="1" autoAdjust="true" id="laxis"/>
+					</mx:verticalAxis>
+					
+					<mx:horizontalAxis>
+						<mx:DateTimeAxis id="caxis" labelFunction="formatDateHour" dataUnits="hours" interval="4" parseFunction="dateParser" />
+					</mx:horizontalAxis>
+					
+					<mx:horizontalAxisRenderers>
+						<mx:AxisRenderer axis="{caxis}" placement="bottom" showLabels="true"  color="{getStyle('color')}" fontSize="9" tickPlacement="inside" minorTickPlacement="outside">
+							<mx:axisStroke>
+								<s:SolidColorStroke color="{getStyle('color')}" weight="1" />
+							</mx:axisStroke>
+							<mx:tickStroke>
+								<s:SolidColorStroke color="{getStyle('color')}" weight="1" />
+							</mx:tickStroke>
+						</mx:AxisRenderer>						
+					</mx:horizontalAxisRenderers>
+					
+					<mx:verticalAxisRenderers>
+						<mx:AxisRenderer axis="{laxis}" placement="left" showLabels="true" color="{getStyle('color')}" tickPlacement="inside" minorTickPlacement="none">
+							<mx:axisStroke>
+								<s:SolidColorStroke color="{getStyle('color')}" weight="1" />
+							</mx:axisStroke>
+							<mx:tickStroke>
+								<s:SolidColorStroke color="{getStyle('color')}" weight="1" />
+							</mx:tickStroke>
+						</mx:AxisRenderer>
+					</mx:verticalAxisRenderers>
+					
+					<mx:series>						
+						<mx:LineSeries interpolateValues="true" id="seriesEcop" yField="s0Y" xField="date" >
+							<!--<mx:verticalAxis>
+							<mx:LinearAxis baseAtZero="true" autoAdjust="true" id="raxis"/>
+							</mx:verticalAxis>-->
+							<mx:lineStroke>
+								<mx:SolidColorStroke 
+									color="0x1B9E77" 
+									weight="2" 
+									alpha="1"/>
+							</mx:lineStroke>
+						</mx:LineSeries>
+						
+						<mx:LineSeries interpolateValues="true" id="seriesObs" yField="s0Y" xField="date" >
+							<!--<mx:horizontalAxis>
+								<mx:DateTimeAxis id="caxis2" labelFunction="formatDateHour" dataUnits="hours" interval="3" parseFunction="dateParser" />
+							</mx:horizontalAxis>-->
+							<mx:lineStroke>
+								<mx:SolidColorStroke 
+									color="0x7570B3" 
+									weight="2" 
+									alpha="1"/>
+							</mx:lineStroke>
+						</mx:LineSeries>
+						
+						<mx:LineSeries interpolateValues="true" visible="false" id="seriesEcop2" yField="s0Y" xField="date" >				
+							<!--<mx:horizontalAxis>
+								<mx:DateTimeAxis id="caxis3" labelFunction="formatDate" dataUnits="days" interval="4" parseFunction="dateParser" />
+							</mx:horizontalAxis>-->
+						</mx:LineSeries>
+						
+						<!--<mx:PlotSeries id="currentTimeSeries" xField="date" yField="anchor" displayName="Current Time" itemRenderer="mx.charts.renderers.CircleItemRenderer" >
+							<mx:stroke>
+								<s:SolidColorStroke color="0xFF0000" weight="1" alpha="1" /> 
+							</mx:stroke>
+							<mx:fill>
+								<s:SolidColor color="0xFF0000" alpha="0.5" />
+							</mx:fill>
+						</mx:PlotSeries>-->
+					</mx:series>
+				</mx:LineChart>
+				<s:HGroup horizontalAlign="center">
+					<mx:Legend id="myLegend" direction="horizontal" fontWeight="normal" height="18" verticalGap="0" markerHeight="16" paddingTop="0">
+						<mx:LegendItem label="Forecast" fontWeight="bold">
+							<mx:fill>
+								<mx:SolidColor color="0x1B9E77"/>
+							</mx:fill>
+							<mx:stroke>
+								<mx:Stroke color="0xCCCCCC" weight="2"/>
+							</mx:stroke>
+						</mx:LegendItem>
+						<mx:LegendItem label="Observation" fontWeight="bold">
+							<mx:fill>
+								<mx:SolidColor color="0x7570B3"/>
+							</mx:fill>
+							<mx:stroke>
+								<mx:Stroke color="0xCCCCCC" weight="2"/>
+							</mx:stroke>
+						</mx:LegendItem>
+					</mx:Legend>
+					<s:Button label="Save" id="SaveButt" fontSize="11" width="50" click="save()" chromeColor="0xE5E5E5"/>
+				</s:HGroup>
+
+				<!-- includeInLayout="{active}" visible="{active}" 
+				<controls:ChartDataSlicer visible="true" width="99%" target="{obsSeries}" height="25" id="hslicer" dataField="s0Y" labelField="date"/>-->  
+			</s:VGroup>
+		</s:Group>
+	</viewer:WidgetTemplate>
+</viewer:BaseWidget>

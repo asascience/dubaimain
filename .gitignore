@@ -1,0 +1,4 @@
+bin-release/*
+bin-debug5/*
+.actionScriptProperties
+.flexProperties
