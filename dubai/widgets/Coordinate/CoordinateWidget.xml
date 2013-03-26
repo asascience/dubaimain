@@ -1,9 +1,0 @@
-<?xml version="1.0" ?>
-<configuration>
-    <!-- geo, dms, mercator -->
-    <outputunit>geo</outputunit>
-    <showDLTM>true</showDLTM>
-    <numberformatter precision="3"/>
-    <label template="Lat:{1}   Long:{0}" color="0x000000"/>
-    <label2 template2="North:{1}   East:{0}" color="0x000000"/>
-</configuration>

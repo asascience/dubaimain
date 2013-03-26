@@ -415,7 +415,7 @@
 			}
 			private function showInun():void
 			{
-				if(userArray.toLowerCase() == "guest" || userArray.toLowerCase() == "registered")
+				if(userArray.toLowerCase() == "guest" || userArray.toLowerCase() == "registered" || userArray.toLowerCase() == "police")
 				{
 					//var win:NoPerm = PopUpManager.createPopUp(map, NoPerm, true) as NoPerm;
 					//PopUpManager.centerPopUp(win);

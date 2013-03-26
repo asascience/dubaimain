@@ -1,4 +1,5 @@
-bin-release/*
+dubai/*
+dubai.zip
 bin-debug5/*
 .actionScriptProperties
 .flexProperties

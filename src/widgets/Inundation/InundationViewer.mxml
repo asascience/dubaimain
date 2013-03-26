@@ -201,7 +201,7 @@
 						{
 							var dataArray:Array = [];
 							
-							for(var i:uint = 0; i< windarray.length; i++)
+							for(var i:uint = 0; i< windarray.length-1; i++)
 							{	
 								var dataRecord:Object = {};
 								var indrecordarray:Array = String(windarray[i]).split(",");
