@@ -141,7 +141,7 @@
 				username = flashVars.group;
 				numVisitors = flashVars.visitors;
 				
-				if(username.toLowerCase() == "czwms")
+				if(username.toUpperCase().search("CZWMS")>-1)
 				{
 					dmMenu.visible = true;
 					dmmenusq.visible = true;
@@ -185,8 +185,8 @@
                     txtareaWidth = configXML.about.width || 500;
                     txtareaHeight = configXML.about.height || 500;
 					
-					username = configXML.name
-					userPass = configXML.pass
+					username = configXML.name;
+					userPass = configXML.pass;
 					
 					if(configXML.glow == false)
 					{
@@ -314,7 +314,8 @@
 			}
 			private function showOil():void
 			{
-				if(userArray.toLowerCase() == "guest"|| userArray.toLowerCase() == "registered")
+				//Check for group names to determine if Oilgroup type is passed from the user role or admin
+				if(userArray.toUpperCase().search('OILSPILL') <0 && userArray.toUpperCase().search('CZWMS') <0)
 				{
 					var oilDesc:WidgetDescription = PopUpManager.createPopUp(map, WidgetDescription, true) as WidgetDescription;
 					PopUpManager.centerPopUp(oilDesc);
@@ -323,72 +324,6 @@
 					oilDesc.showAgain.visible = false;
 					oilDesc.okButton.label = "OK";
 					oilDesc.height = 250;
-					//var win:NoPerm = PopUpManager.createPopUp(map, NoPerm, true) as NoPerm;
-					//PopUpManager.centerPopUp(win);
-					//win.title = "Insufficient Privileges";
-					/* var win:Login = PopUpManager.createPopUp(map, Login, true) as Login;
-					PopUpManager.centerPopUp(win);
-					win.title = "Login";
-					
-					win["okButton"].addEventListener("click",processLogin);
-					win["password"].addEventListener(KeyboardEvent.KEY_DOWN, processLogin_E);
-					
-					function removeMe(event:Event):void {
-						PopUpManager.removePopUp(win);
-					}
-					function processLogin(event:Event):void
-					{	
-						if(win.username.text == "" || win.password.text == "")
-						{
-							win.loginError.text = "Username and password are required.";
-						}
-							//else if(usernames.search(win.username.text)>-1 && passwords.search(win.password.text)>-1&& win.username.text.length > 11 &&win.password.text.length > 11)
-						else if(win.username.text == username && win.password.text == userPass)
-						{
-							removeMe(event);
-							ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_RUN, 2));
-							var loginUser:Array=new Array;
-							loginUser[0] = username;
-							var objectLoginUser:Object=
-								{
-									key:"loginuser",
-									data:loginUser
-								};
-							ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DATA_PUBLISH,objectLoginUser));
-						}
-						else
-						{
-							win.loginError.text = "Incorrect name and password.";
-						}
-					}
-					//For keyword enter ::  should be merged above
-					function processLogin_E(event:KeyboardEvent):void
-					{
-						if(event.keyCode == Keyboard.ENTER)
-						{
-							if(win.username.text == "" || win.password.text == "")
-							{
-								win.loginError.text = "Username and password are required.";
-							}
-							else if(win.username.text == username && win.password.text == userPass)
-							{
-								removeMe(event);
-								ViewerContainer.dispatchEvent(new AppEvent(AppEvent.WIDGET_RUN, 2));
-								var loginUser:Array=new Array;
-								loginUser[0] = username;
-								var objectLoginUser:Object=
-									{
-										key:"loginuser",
-										data:loginUser
-									};
-								ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DATA_PUBLISH,objectLoginUser));
-							}
-							else
-							{
-								win.loginError.text = "Incorrect name and password.";
-							}
-						}
-					} */
 				}
 				else{
 					if(showOilDescCookie.data.show ==null)
@@ -415,11 +350,9 @@
 			}
 			private function showInun():void
 			{
-				if(userArray.toLowerCase() == "guest" || userArray.toLowerCase() == "registered" || userArray.toLowerCase() == "police")
+				//Check for group names to determine if Inundation type is passed from the user role or admin
+				if(userArray.toUpperCase().search('INUNDATION') == -1 && userArray.toUpperCase().search('CZWMS') == -1)
 				{
-					//var win:NoPerm = PopUpManager.createPopUp(map, NoPerm, true) as NoPerm;
-					//PopUpManager.centerPopUp(win);
-					//win.title = "Insufficient Privileges";
 					var inundationDesc:WidgetDescription = PopUpManager.createPopUp(map, WidgetDescription, true) as WidgetDescription;
 					PopUpManager.centerPopUp(inundationDesc);
 					inundationDesc.okButton.label = "OK";

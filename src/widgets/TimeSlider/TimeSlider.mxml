@@ -195,12 +195,12 @@
 				{
 					userArray=hashTable.data;
 					
-					if(userArray.toLowerCase() == "czwms" || userArray.toLowerCase() == "emergency")
+					if(userArray.toLowerCase().search("guest")>-1)
 					{
-						settings.visible = true;						
+						settings.visible = false;						
 					}
 					else{
-						settings.visible = false;	
+						settings.visible = true;	
 					}
 				}
 			}

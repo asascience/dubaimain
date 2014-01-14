@@ -9,7 +9,7 @@
 	<ignorebasemaps>false</ignorebasemaps>
 	<waveURL>http://www.dubaicoast.ae/observations/graph_observations.json?api_key=0b474e686f14ec73714b4e726bbd7074f55dbf1&</waveURL>
 	<ASAMapServices>
-		<ecop>http://coastmap.com/ecop/wms.aspx?</ecop>
+		<ecop>http://forecast.dubaicoast.ae/ecop/wms.aspx?</ecop>
 	</ASAMapServices>
 	<labels>
 		<zoom2message>Click to Zoom to Point</zoom2message>

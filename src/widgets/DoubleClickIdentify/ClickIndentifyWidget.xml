@@ -2,7 +2,7 @@
 <configuration>
 	<landMask>assets/dubai_shp/landmask.shp</landMask>
     <ASAMapServices>
-		<ecop>http://coastmap.com/ecop/wms.aspx?</ecop>
+		<ecop>http://forecast.dubaicoast.ae/ecop/wms.aspx?</ecop>
 	</ASAMapServices>
 	<label>Double click mouse to view location values when predicted data layers are visible. Single click the orange point to clear table.</label>
 </configuration>

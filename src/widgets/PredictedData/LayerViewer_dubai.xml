@@ -2,7 +2,7 @@
 <configuration>
 	<landMask>assets/dubai_shp/landmask.shp</landMask>
 	<ASAMapServices>
-		<ecop>http://coastmap.com/ecop/wms.aspx?</ecop>
+		<ecop>http://forecast.dubaicoast.ae/ecop/wms.aspx?</ecop>
 	</ASAMapServices>
 	<areaFile>http://dcproduction.s3.amazonaws.com/warnings/warn/</areaFile>
 	<filelocation>assets/dubai_shp/</filelocation>

@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <configuration>	
-	<location>dubai</location>
-	<clientkey>dubai20110301</clientkey>
+	<location>WEL</location>
+	<clientkey>woodside</clientkey>
 	<oilWarning>assets/dubai_shp/oil_warning_area.shp</oilWarning>
 	<ASAEDS>
 		<eds>http://services.asascience.com/ModelService/GetEDSSources.aspx</eds>
@@ -17,7 +17,7 @@
 	</ASAOilModel>
 		
 	<ASALoadSaveSOURCE>
-		<loadSave>http://services.asascience.com/services/dsOILMAP/ds.asmx?WSDL</loadSave>
+		<loadSave>http://coastmap.com.au/dsOilmap/ds.asmx?WSDL</loadSave>
 	</ASALoadSaveSOURCE>
 	
 	<ASATimeSeries>
