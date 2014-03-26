@@ -475,7 +475,7 @@
 					var longzz:Number =Number(textW);
 					var spillpoint:WebMercatorMapPoint = new WebMercatorMapPoint(longzz,latzz);
 					
-					if(oilspillExtent.contains(spillpoint)==true)
+					if(oilspillExtent.contains(spillpoint)==false)
 					{
 						currentState = "spill";
 						if(graphicsLayer.numGraphics > 0 || _oilMODEL)	
@@ -2147,11 +2147,11 @@
 					var item:XML;
 					for each(item in datasets) {
 						//exclude GFS which periodically is returned
-						if(String(item.@description).search("Global")==-1)
-						{
+						//if(String(item.@description).search("Global")==-1)
+						//{
 							windsDP.addItem({label:item.@description, id:item.@wmslayeridstr, bbox:item.@extentleft + "," + item.@extentbottom + "," + item.@extentright + "," + item.@extenttop, 
 								edsid:item.@id, dateRange:DateTimeUtilities.DBStringDateToStringDate(item.@starttime) + " - " + DateTimeUtilities.DBStringDateToStringDate(item.@endtime)});
-						}
+						//}
 					}
 					
 					windsList_.visible=true;

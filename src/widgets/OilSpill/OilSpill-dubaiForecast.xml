@@ -1,28 +1,27 @@
 <?xml version="1.0"?>
 <configuration>	
-	<location>dubai</location>
-	<clientkey>dubai20110301</clientkey>
+	<location>Shannon</location>
+	<clientkey>oilmap_cp</clientkey>
 	<oilWarning>assets/dubai_shp/oil_warning_area.shp</oilWarning>
 	<ASAEDS>
-		<eds>http://forecast.dubaicoast.ae/ModelService/GetEDSSources.aspx</eds>
+		<eds>http://services.asascience.com/ModelService/GetEDSSources.aspx</eds>
 	</ASAEDS>
 	
 	<ASAOilString>
-		<oilstring>http://forecast.dubaicoast.ae/ModelService/runmodel.aspx</oilstring>
+		<oilstring>http://services.asascience.com/ModelService/runmodel.aspx</oilstring>
 	</ASAOilString>
 	
 	<ASAOilModel>
-		<!--<oilmodel>http://services.asascience.com/ecop/wms.aspx</oilmodel>-->
-		<oilmodel>http://forecast.dubaicoast.ae/ecop/wms.aspx</oilmodel>
-		<ecop>http://forecast.dubaicoast.ae/ecop/wms.aspx?</ecop>
+		<oilmodel>http://services.asascience.com/ecop/wms.aspx</oilmodel>
+		<ecop>http://coastmap.com/ecop/wms.aspx</ecop>
 	</ASAOilModel>
 		
 	<ASALoadSaveSOURCE>
-		<loadSave>http://forecast.dubaicoast.ae/dsOILMAP/ds.asmx?WSDL</loadSave>
+		<loadSave>http://services.asascience.com/Services/dsOilmap/ds.asmx?WSDL</loadSave>
 	</ASALoadSaveSOURCE>
 	
 	<ASATimeSeries>
-		<timeseries>http://forecast.dubaicoast.ae/ModelService/GetTimeSeries.aspx</timeseries>
+		<timeseries>http://services.asascience.com/ModelService/GetTimeSeries.aspx</timeseries>
 	</ASATimeSeries>
 	<windsLayers>EDS,MANUAL,NONE</windsLayers>
 	<windsLayersLabel>Forecast Data,MANUAL,NONE</windsLayersLabel>

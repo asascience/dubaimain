@@ -29,7 +29,7 @@
 	<widget right="2"   bottom="19" config="widgets/DoubleClickIdentify/ClickIndentifyWidget.xml" url="widgets/DoubleClickIdentify/DoubleClickIndentify.swf"/>
 	<widget right="5" top="83" url="widgets/HeaderController/MapProgressBarWidget.swf"/>
 	
-    <map wraparound180="true" level="1" initialextent="6033550 2854025 6201253 2921442" fullextent="6033550 2854025 6201253 2921442" wkid="102100">
+    <map wraparound180="true" level="1" initialextent="-11684000 2009000 -8553000 3959000" fullextent="-11684000 2009000 -8553000 3959000" wkid="102100">
         <basemaps>
             <layer label="Streets" type="osm" visible="true"  alpha="1"/>
             <layer label="Satellite" type="bing" visible="false" alpha="1" style="aerial" />    
