@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <configuration>	
-	<location>Shannon</location>
-	<clientkey>oilmap_cp</clientkey>
+	<location>mariner</location>
+	<clientkey>mariner_demo</clientkey>
 	<oilWarning>assets/dubai_shp/oil_warning_area.shp</oilWarning>
 	<ASAEDS>
 		<eds>http://services.asascience.com/ModelService/GetEDSSources.aspx</eds>
