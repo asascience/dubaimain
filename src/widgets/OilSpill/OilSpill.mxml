@@ -93,20 +93,15 @@
 			import mx.rpc.events.ResultEvent;
 			import mx.rpc.soap.WebService;
 			
-			import org.openscales.proj4as.Proj4as;
-			import org.openscales.proj4as.ProjPoint;
-			import org.openscales.proj4as.ProjProjection;
-			
 			import spark.events.IndexChangeEvent;
 			
 			import widgets.OilSpill.components.util.DegToDMS;
 			import widgets.OilSpill.components.util.SpillEvent;
 			import widgets.OilSpill.components.wms.WMSEDSModel;
 			import widgets.OilSpill.components.wms.WMSModel;
-			import widgets.ShapeFiles.ShpPolygon;
-			import widgets.ShapeFiles.ShpReader;
-			import widgets.TimeSlider.components.util.DateTimeUtilities;
-			//private var _demisMap:WMSMapLayer;
+			import widgets.OilSpill.shp.ShpPolygon;
+			import widgets.OilSpill.shp.ShpReader;
+			import widgets.OilSpill.components.util.DateTimeUtilities;
 			
 		//location for header/state icons
 			private const ICON_URL:String = "widgets/OilSpill/assets/images/";
@@ -133,11 +128,11 @@
 			
 			[Bindable]
 			private var windsDP:ArrayCollection = new ArrayCollection();
-			private var windTitle:String="DUBAIWND_WINDS";
+			private var windTitle:String="GFS_WINDS";
 			
 			[Bindable]
 			private var curDP:ArrayCollection = new ArrayCollection();
-			private var curTitle:String="ARG_DUB_CURRENTS";
+			private var curTitle:String="HYCOM_Global_Navy_currents";
 			
 			private var tempD:Date = new Date;
 			private var dateRange:Object = {rangeStart:new Date(tempD.getTime()-1000 * 60 * 60 * 24 * 1000),rangeEnd:new Date(tempD.getTime()+(1000 * 60 * 60 * 24 * 3))};
@@ -357,9 +352,6 @@
 				textW = null;
 				
 				this.addEventListener(StateChangeEvent.CURRENT_STATE_CHANGE, stateChange);
-				//add event listener dispatched from legendManager wedget
-				//ViewerContainer.addEventListener(AppEvent.WINDS_STYLE_CHANGE,changeWindsStyle);
-				//ViewerContainer.addEventListener(AppEvent.CURRENTS_STYLE_CHANGE,changeCurrentsStyle);
 				ViewerContainer.addEventListener(AppEvent.TIME_ZONE_CHANGED,changeTimeZone);
 				//add event listener dispatched from datamanager
 				refreshHashTable();
@@ -652,18 +644,6 @@
 				refreshMapPoint();
 			}
 			
-			//update and convert changes in DMLT coords to WGS84 for spill
-			private function changeTextDM(event:Event):void
-			{
-				var dubai84g:ProjProjection= new ProjProjection("EPSG:3997");
-				var wgs84g:ProjProjection= new ProjProjection("EPSG:4326");
-				var oldPoint:ProjPoint = new ProjPoint(Number(long4.text),Number(lat4.text));
-				var newPoint:ProjPoint=Proj4as.transform(dubai84g,wgs84g,oldPoint);
-				textN = newPoint.y.toString();
-				textW = newPoint.x.toString();
-				
-				refreshMapPoint();
-			}
 			private function changeTextLat2(event:Event):void
 			{
 				const Lat2:String = DegToDMS.formatDMtoDEG(new Number(lat2.text), new Number(lat2m.text), latDir2.text);
@@ -800,36 +780,22 @@
 						//latDir2.text = Number(y2Dir).toFixed(3);	
 						//longDir2.text = Number(x2Dir).toFixed(3);	
 					}
-					else if (int(latlngChoice.selectedValue) == 3)
-					{
-						var dubai84g:ProjProjection= new ProjProjection("EPSG:3997");
-						var wgs84g:ProjProjection= new ProjProjection("EPSG:4326");
-						var oldPoint:ProjPoint = new ProjPoint(latlong_store.x,latlong_store.y);
-						var newPoint:ProjPoint=Proj4as.transform(wgs84g,dubai84g,oldPoint);
-						
-						lat4.text = newPoint.y.toFixed(3).toString();	
-						long4.text = newPoint.x.toFixed(3).toString();
-					}
 					
 					else if (int(latlngChoice.selectedValue) == 0)
 					{
 						if(Number(latlong_store.y.toFixed(10)) < 0) {
 							latDir1.text = "S";
-							latDir4.text = "S";
 							latDir2.text = "S";
 						} else {
 							latDir1.text = "N";
-							latDir4.text = "N";
 							latDir2.text = "N";
 						}
 						
 						if(Number(latlong_store.x.toFixed(10)) < 0) {
 							longDir1.text = "W";
-							longDir4.text = "W";
 							longDir2.text = "W";
 						} else {
 							longDir1.text = "E";
-							longDir4.text = "E";
 							longDir2.text = "E";
 						}
 						
@@ -883,36 +849,22 @@
 					//latDir2.text = Number(y2Dir).toFixed(3);	
 					//longDir2.text = Number(x2Dir).toFixed(3);	
 				}
-				else if (int(latlngChoice.selectedValue) == 3)
-				{
-					var dubai84g:ProjProjection= new ProjProjection("EPSG:3997");
-					var wgs84g:ProjProjection= new ProjProjection("EPSG:4326");
-					var oldPoint:ProjPoint = new ProjPoint(latlong_store.x,latlong_store.y);
-					var newPoint:ProjPoint=Proj4as.transform(wgs84g,dubai84g,oldPoint);
-					
-					lat4.text = newPoint.y.toFixed(3).toString();	
-					long4.text = newPoint.x.toFixed(3).toString();
-				}
 					
 				else if (int(latlngChoice.selectedValue) == 0)
 				{
 					if(Number(latlong_store.y.toFixed(10)) < 0) {
 						latDir1.text = "S";
-						latDir4.text = "S";
 						latDir2.text = "S";
 					} else {
 						latDir1.text = "N";
-						latDir4.text = "N";
 						latDir2.text = "N";
 					}
 					
 					if(Number(latlong_store.x.toFixed(10)) < 0) {
 						longDir1.text = "W";
-						longDir4.text = "W";
 						longDir2.text = "W";
 					} else {
 						longDir1.text = "E";
-						longDir4.text = "E";
 						longDir2.text = "E";
 					}
 					
@@ -1093,12 +1045,7 @@
 				var latlongStoreX:Number = Number(new String(LoadxmlRslt.child("Lon")));
 				lat1.text = latlongStoreY.toString();
 				long1.text = latlongStoreX.toString();
-				
-				var dubai84g:ProjProjection= new ProjProjection("EPSG:3997");
-				var wgs84g:ProjProjection= new ProjProjection("EPSG:4326");
-				var oldPoint:ProjPoint = new ProjPoint(latlongStoreX,latlongStoreY);
-				var newPoint:ProjPoint=Proj4as.transform(wgs84g,dubai84g,oldPoint);
-				
+								
 				textN = latlongStoreY.toString();
 				textW = latlongStoreX.toString();
 					const x3:String = DegToDMS.formatDEG(latlongStoreX, DegToDMS.LON);
@@ -1127,8 +1074,6 @@
 						long2m.text = x2m;
 						latDir2.text = y3Dir;
 						longDir2.text = x3Dir;
-						lat4.text = newPoint.y.toFixed(3).toString();
-						long4.text = newPoint.x.toFixed(3).toString();
 				
 				currentState="spill"
 				runname.text=new String(LoadxmlRslt.child("CaseName"));
@@ -1765,7 +1710,7 @@
 				spillets.selected = true;
 				swept.selected = true;
 				winds.selected = true;
-				curnts.selected = true;
+				//curnts.selected = true;
 				
 				if(_runCheck == false)
 				{
@@ -2709,7 +2654,7 @@
 				{
 					curnts.selected = true;
 					_oilMODELC.visible = true;
-				}
+				} 
 				/* if(oilWarningLayerCheck)
 				{
 					oilWarningLayerCheck.selected = true;
@@ -3255,14 +3200,14 @@
 	</fx:Script>
 	
 	<fx:Declarations>
-		<s:Animate id="fader"
+		<!--<s:Animate id="fader"
 				   duration="2000"
 				   repeatBehavior="loop"
 				   repeatCount="0"
 				   target="{timesliderL}">
 			<s:SimpleMotionPath property="alpha"
 								valueFrom="1.0" valueTo="0.2" />
-		</s:Animate>
+		</s:Animate>-->
 		<esri:GeometryService id="geometryService" fault="onFault(event)"
 							  url="http://sampleserver3.arcgisonline.com/ArcGIS/rest/services/Geometry/GeometryServer"/>
 		<esri:PictureMarkerSymbol id="pms_by_url" height="24" width="24" source="assets/images/SpillSite.png"/>
@@ -3312,12 +3257,7 @@
 											<mx:HBox verticalAlign="middle" horizontalScrollPolicy="off">
 												<s:Label text="{ResourceManager.getInstance().getString('OilSpill','latitude')}" width="90" />
 												<mx:TextInput borderSkin="mx.skins.halo.HaloBorder"  id="lat1" width="75" textAlign="right" restrict=".0-9" change="changeTextLat(event)">
-													<!--<mx:filters>
-														<mx:GlowFilter blurX='6' blurY='6'
-																		 alpha='1' color='#ff0000'
-															 knockout='false' quality='1'
-															  strength='25' inner='false'/>
-													</mx:filters>-->
+													
 												</mx:TextInput>
 												<s:Label text="°" height="22" verticalAlign="middle" fontSize="20"/>
 												<mx:Text  id="latDir1" width="20" textAlign="center" />
@@ -3339,12 +3279,6 @@
 												<mx:TextInput borderSkin="mx.skins.halo.HaloBorder" id="lat3s" width="40" textAlign="right" restrict=".0-9" maxChars="2" change="changeTextLat3(event)"/>
 												<s:Label text="&quot;" height="22" verticalAlign="middle" fontSize="20"/>
 												<mx:TextInput borderSkin="mx.skins.halo.HaloBorder" id="latDir3" width="20" textAlign="center" restrict="N S" maxChars="1" change="changeTextLat3(event)"/>
-											</mx:HBox>
-											<mx:HBox verticalAlign="middle" horizontalScrollPolicy="off">
-												<s:Label text="Northing:" width="90" />
-												<mx:TextInput borderSkin="mx.skins.halo.HaloBorder" id="lat4" width="96" textAlign="right" restrict=".0-9" maxChars="13" change="changeTextDM(event)"/>
-												<s:Label text="meters" height="22" verticalAlign="middle"/>
-												<mx:TextInput borderSkin="mx.skins.halo.HaloBorder" id="latDir4" width="20" textAlign="center" restrict="N S" maxChars="1" change="changeTextLat(event)" visible="false"/>
 											</mx:HBox>
 										</mx:ViewStack>
 									</s:HGroup>
@@ -3374,12 +3308,6 @@
 												<s:Label text="&quot;" height="22" verticalAlign="middle" fontSize="20"/>
 												<mx:TextInput borderSkin="mx.skins.halo.HaloBorder" id="longDir3" width="22" textAlign="center" restrict="W E" maxChars="1" change="changeTextLong3(event)"/>
 											</mx:HBox>
-											<mx:HBox verticalAlign="middle" horizontalScrollPolicy="off">
-												<s:Label text="Easting" width="90" />
-												<mx:TextInput borderSkin="mx.skins.halo.HaloBorder" id="long4" width="96" textAlign="right" restrict=".0-9" maxChars="13" change="changeTextDM(event)"/>
-												<s:Label text="meters" height="22" verticalAlign="middle" />
-												<mx:TextInput borderSkin="mx.skins.halo.HaloBorder" id="longDir4" visible="false" width="20" textAlign="center" restrict="W E" maxChars="1" change="changeTextLon(event)"/>
-											</mx:HBox>
 										</mx:ViewStack>
 									</s:HGroup>
 								</s:VGroup>
@@ -3387,8 +3315,8 @@
 									<s:VGroup gap="2" fontSize="10"  top="3" bottom="3" right="1" left="1">
 										<s:RadioButton  id="d3" group="{latlngChoice}" label="DD.DD"    fontSize="11" value="0" selected="true" />
 										<s:RadioButton  id="d2" group="{latlngChoice}" label="DD MM.MM" fontSize="11" value="1" />
-										<!--<s:RadioButton  id="d1" group="{latlngChoice}" label="DD MM SS" fontSize="11" value="2" />-->
-										<s:RadioButton  id="d4" group="{latlngChoice}" label="DLTM" fontSize="11" value="3" />
+										<!--<s:RadioButton  id="d1" group="{latlngChoice}" label="DD MM SS" fontSize="11" value="2" />
+										<s:RadioButton  id="d4" group="{latlngChoice}" label="DLTM" fontSize="11" value="3" />-->
 									</s:VGroup>
 								</s:BorderContainer>
 								<mx:Button label="Spill Site" paddingLeft="6" toolTip="Click Spill Site on Map" height="30" icon="@Embed(source='assets/images/SpillSiteIco.png')" click="activateDrawTool()" id="iconMarker" />
@@ -3426,10 +3354,7 @@
 							<mx:DataGridColumn width="180" minWidth="180" headerText="Name" dataField="Name" />
 							<mx:DataGridColumn width="90" minWidth="90" dataField="Date" />
 							<mx:DataGridColumn width="90" minWidth="90" headerText="Simulation Length" dataField="SimLength" />
-							<!--<mx:DataGridColumn dataField="{ResourceManager.getInstance().getString('OilSpill','name')}" />-->
-							<!--<mx:DataGridColumn dataField="{ResourceManager.getInstance().getString('OilSpill','date')}" />-->
-							<!--<mx:DataGridColumn dataField="{ResourceManager.getInstance().getString('OilSpill','simLength')}" />-->
-						</mx:columns> 
+					</mx:columns> 
 					</mx:DataGrid>
 					<mx:HBox>
 						<s:Label text="{ResourceManager.getInstance().getString('OilSpill','clickLoadSce')}" fontStyle="italic"/>	
@@ -3446,9 +3371,6 @@
 							<mx:DataGridColumn width="80" minWidth="90" dataField="Date" />
 							<mx:DataGridColumn width="90" minWidth="90" headerText="Simulation Length" dataField="SimLength" />
 							
-							<!--<mx:DataGridColumn dataField="{ResourceManager.getInstance().getString('OilSpill','name')}" />-->
-							<!--<mx:DataGridColumn dataField="{ResourceManager.getInstance().getString('OilSpill','date')}" />-->
-							<!--<mx:DataGridColumn dataField="{ResourceManager.getInstance().getString('OilSpill','simLength')}" />-->
 						</mx:columns> 
 					</mx:DataGrid>
 					<mx:HBox>
@@ -3478,10 +3400,7 @@
 					<s:Label text="{ResourceManager.getInstance().getString('OilSpill','oilType')}" width="125"/>
 					<s:List id="SpillType" width="172" height="130" selectedIndex="1">
 						<mx:ArrayCollection>
-							<fx:Object label="Dubai Oil - DP Assay" data="Dubai Oil - DP Assay"/>
-							<fx:Object label="Dubai Crude" data="Dubai Crude"/>
 							<fx:Object label="HFO 380" data="HFO 380"/>
-							<fx:Object label="Lower Zakum" data="Lower Zakum"/>
 							<fx:Object label="Bunker C Fuel Oil #6" data="BUNKER C FUEL OIL %236"/>
 							<fx:Object label="Gasoline (leaded)" data="GASOLINE (LEADED)"/>
 							<fx:Object label="Conservative Tracer" data="CONSERVATIVE TRACER"/>
@@ -3500,19 +3419,19 @@
 				</s:HGroup>	
 				<mx:HRule width="100%"/>
 				<s:HGroup width="100%" verticalAlign="middle">
-					<s:Label text="{ResourceManager.getInstance().getString('OilSpill','simulationLength')}" width="130"/>
+					<s:Label text="Simulation Length" width="130"/>
 					<mx:NumericStepper borderSkin="mx.skins.halo.HaloBorder" height="24" minimum="1" maximum="240" id="simlength" 
 									  change="setDates();" stepSize="1"  value="24" width="60"/>
 					<s:Label id="l7"  text="{ResourceManager.getInstance().getString('OilSpill','hour')}" left="201" fontSize="11"  top="78"/>
 					<s:Label id="stepWarning" text="Duration exceeds forecast data availability." visible="{toEarly}" color="0xcd1b21"/>
 				</s:HGroup>
 				<s:HGroup width="100%" paddingBottom="10" verticalAlign="middle">
-					<s:Label text="{ResourceManager.getInstance().getString('OilSpill','releaseDuration')}" width="130"/>
+					<s:Label text="Release Duration" width="130"/>
 					<mx:NumericStepper borderSkin="mx.skins.halo.HaloBorder" id="durSpill" height="24" maxChars="2" stepSize="1"  maximum="72" minimum="0" top="72" textAlign="center"/>
-					<s:Label text="{ResourceManager.getInstance().getString('OilSpill','hour')}" fontSize="11" />
+					<s:Label text="hours" fontSize="11" />
 				</s:HGroup>
 				<s:HGroup verticalAlign="middle">
-					<s:Label text="{ResourceManager.getInstance().getString('OilSpill','modelTimeStep')}" width="130"/>
+					<s:Label text="Model Step Time" width="130"/>
 					<s:DropDownList id="modelTimeStep" width="63" cornerRadius="3" change="checkNumberboundary(event)"
 									selectedIndex="2" lineThrough="false" textDecoration="none" height="24">
 						<mx:ArrayCollection>
@@ -3527,10 +3446,10 @@
 							<fx:Object label="300" data="300"/>
 						</mx:ArrayCollection>
 					</s:DropDownList>
-					<s:Label id="modelTimeStepTip"  text="{ResourceManager.getInstance().getString('OilSpill','modelTimeStepTip')}" fontSize="11"/>
+					<s:Label id="modelTimeStepTip"  text="mins" fontSize="11"/>
 				</s:HGroup>
 				<s:HGroup width="100%" verticalAlign="middle">
-					<s:Label text="{ResourceManager.getInstance().getString('OilSpill','outputTimeInterval')}" width="130"/>
+					<s:Label text="Output Time Interval" width="130"/>
 					<s:DropDownList id="outputTimeInterval" width="63" cornerRadius="3" change="checkNumberboundary(event)"
 									selectedIndex="4" lineThrough="false" textDecoration="none" height="24">
 						<mx:ArrayCollection>
@@ -3545,7 +3464,7 @@
 							<fx:Object label="300" data="300"/>
 						</mx:ArrayCollection>
 					</s:DropDownList>
-					<s:Label id="outputTimeIntervalTip"  text="{ResourceManager.getInstance().getString('OilSpill','outputTimeIntervalTip')}" fontSize="11"/>
+					<s:Label id="outputTimeIntervalTip"  text="(min) not less than the model time step." fontSize="11"/>
 				</s:HGroup>
 			</s:VGroup>
 			<s:HGroup horizontalAlign="center" width="100%" verticalAlign="bottom" >				
@@ -3820,19 +3739,12 @@
 					<s:CheckBox id="mass" 	   label="{ResourceManager.getInstance().getString('OilSpill','mass')}" 	 click="updateMapLayers()" fontWeight="normal" selected="true" />
 					<s:CheckBox id="spillets"  label="{ResourceManager.getInstance().getString('OilSpill','spillets')}"  click="updateMapLayers()" fontWeight="normal" selected="true" />
 					<s:CheckBox id="swept"     label="{ResourceManager.getInstance().getString('OilSpill','swept')}" 	 click="updateMapLayers()" fontWeight="normal" selected="true" />
-					<!--<s:HGroup>
-						<s:CheckBox id="oilWarningLayerCheck" label="Spill Warning Area" click="{oilWarningLayer.visible = oilWarningLayerCheck.selected}" fontWeight="normal" selected="true" />
-						<s:HGroup paddingTop="5">
-							<mx:Image rotation="180" source="assets/legends/grey.jpg"/>
-						</s:HGroup>
-					</s:HGroup>-->
 					<s:CheckBox id="winds"     label="Winds" click="updateMapLayersWin()" fontWeight="normal" visible="false" selected="true" />	
 					<s:CheckBox id="curnts"    label="Currents"  click="updateMapLayersCur()" fontWeight="normal" visible="false" selected="true" />
-					<s:Label width="180" id="timesliderL" creationComplete="fader.play();" color="0xcd1b21" fontSize="14" paddingTop="6" fontWeight="bold" text="Use the TimeSlider to animate oil spill results"/>
+					<!--<s:Label width="180" id="timesliderL" creationComplete="fader.play();" color="0xcd1b21" fontSize="14" paddingTop="6" fontWeight="bold" text="Use the TimeSlider to animate oil spill results"/>-->
 					<s:Button label="Clear Scenario" click="clearScenario()"/>
 				</s:VGroup>
 				<s:VGroup id="ecopLegendOption" gap="-1" paddingTop="-6" paddingLeft="10" horizontalAlign="center" >
-					<!--<s:Label text="Legend" fontWeight="bold" paddingBottom="10" fontSize="14"/>-->
 					<mx:Image id="oilLegendImage" source="assets/legends/oilspill.png"/>
 				</s:VGroup>
 			</s:HGroup>

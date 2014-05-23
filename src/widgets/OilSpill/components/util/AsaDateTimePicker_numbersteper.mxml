@@ -78,7 +78,7 @@
         ]]>
     </mx:Script>
     <!--<mx:DateField id="dateASA" formatString="{resourceManager.getString('timeslider', 'DATEFORMAT')}" selectedDate="{new Date()}" change="handleChange()" />-->
-	<mx:DateField width="105" editable="false" selectableRange="{dateRange}" textInputStyleName="roundedTI" id="dateASA" focusColor="0x64b1cb" formatString="DD/MM/YYYY" selectedDate="{new Date()}" change="handleChange()" />
+	<mx:DateField width="105" editable="false" selectableRange="{dateRange}" textInputStyleName="roundedTI" id="dateASA" focusColor="0x64b1cb" formatString="MM/DD/YYYY" selectedDate="{new Date()}" change="handleChange()" />
 	<mx:Spacer width="5"/>
     <mx:NumericStepper focusColor="0x64b1cb" borderColor="0x666666" borderAlpha="1" enabled="true" id="hours" maxChars="2" width="45" minimum="0" maximum="23" stepSize="1" change="handleChange()" valueCommit="handleChange()" textAlign="center" creationComplete="formatNumber(event)" />
     <!--  Minutes are disabled

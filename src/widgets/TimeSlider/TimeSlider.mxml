@@ -162,13 +162,13 @@
 					_StartDate.setMinutes(_StartDate.getMinutes()+540);
 				} */
 				//force to DM time
-				_StartDate.setHours(_StartDate.getHours()+(_StartDate.timezoneOffset+240)/60);
+				//_StartDate.setHours(_StartDate.getHours()+(_StartDate.timezoneOffset+240)/60);
 				
 				_currentTime = new Date(_StartDate.getTime());
 				
-				//computerTimeZone=-_StartDate.getTimezoneOffset()/60.0;
+				computerTimeZone=-_StartDate.getTimezoneOffset()/60.0;
 				
-				computerTimeZone=4;//fix timezone
+				//computerTimeZone=_currentTime.getTimezoneOffset();//fix timezone
 				_timeZone=computerTimeZone;
 				timeZoneLabel=generateTimeZoneLabel(_timeZone);
 				_lastTimeZone=computerTimeZone;

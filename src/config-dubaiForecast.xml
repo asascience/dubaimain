@@ -88,7 +88,7 @@
         		config="widgets/CompareWaves/IdentifyWidget.xml"
         		url="widgets/CompareWaves/CompareWaves.swf"/>
 		<widget label="Oil Spill" right="200" bottom="100"  preload="closed"
-                config="widgets/OilSpill/OilSpill-dubaiForecast.xml"
+                config="widgets/OilSpill/OilSpillconfig.xml"
                 url="widgets/OilSpill/OilSpill.swf"/>
         <widget label="Print" left="390" top="400"
                 config="widgets/Print/PrintWidget_DubaiForecast.xml"
