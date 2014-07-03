@@ -11,7 +11,7 @@ package widgets.OilSpill.components.wms
 	import com.esri.ags.layers.DynamicMapServiceLayer;
 	import com.esri.ags.tasks.GeometryService;
 	import com.esri.ags.utils.WebMercatorUtil;
-	import mx.controls.Alert;
+	
 	import flash.display.Loader;
 	import flash.net.URLRequest;
 	import flash.net.URLVariables;
@@ -25,13 +25,12 @@ package widgets.OilSpill.components.wms
 		//--------------------------------------------------------------------------
 		
 		
-		public function WMSModel(wmsURL:String, oilID:String, path:String, timeSpill:String, part1:Boolean, part2:Boolean, part3:Boolean, part4:Boolean, part5:Boolean, key:String)
+		public function WMSModel(userID:String,sessionID:String,wmsURL:String,oilID:String,layerName:String,requestLayers:String, scenarioID:String, timeSpill:String,modelType:String,langID:int,trackline:Boolean,contour:Boolean,spillets:Boolean,mass:Boolean,swept:Boolean,boom:Boolean=false)
 		{			
-			var styles1:String;
-			
 			super();  
 			setLoaded(true); // Map will only use loaded layers        
 			this.id=oilID;
+			this.name=layerName;
 			
 			_url = wmsURL;      
 			_params = new URLVariables();
@@ -40,32 +39,33 @@ package widgets.OilSpill.components.wms
 			_params.format = "image/png";
 			_params.version = "1.1.1";
 			_params.styles = "";
-			_params.layers = oilID;
+			_params.layers = requestLayers;
 			_params.service="WMS";
-			//_params.scenario=oilID;
-			//_params.tiled=false;
-			//_params.elevation="";
-			//_params.trackline=part1;
-			//_params.contour=part2;
-			//_params.spillets=part3;
-			//_params.mass=part4;
-			//_params.swept=part5;
-			//_params.location="WORLD";
-			//_params.debug=false;
-			_params.OM_TRACKLINE=part1;
-			_params.OM_CONTOUR=part2;
-			_params.OM_SPILLETS=part3;
-			_params.OM_MASS=part4;
-			_params.OM_SWEPT=part5;
-			_params.OILMAP_MODEL=path;
-			_params.ClientKey=key;
+			_params.lang=langID;
+			_params.DAYNIGHTICON=false;
+			_params.SUMMARYTABLE=false;
+            
+            _params.OM_TRACKLINE = trackline;
+            _params.OM_SPILLETS = spillets;
+            _params.OM_SWEPT = swept;
+            _params.DEPTH = 6;
+            
+			_params.OM_MASS = mass;
+			_params.OM_BOOM = boom;
+			_params.OM_OVERFLIGHT = false;
+                      
+            
+			_params.user_id=userID;
+			_params.session_id=sessionID;
+			_params.scenario_id=scenarioID;
 			//_params.timestamp=new Date().time;
 			
-			var time_array:Array = timeSpill.split(":");
-			var timeFORMAT:String = new String(time_array[0] + time_array[1] + time_array[2]);
+			//var time_array:Array = timeSpill.split(":");
+			//var timeFORMAT:String = new String(time_array[0] + time_array[1] + time_array[2]);
 			_params.time=timeSpill;
+			
 			_urlRequest = new URLRequest(_url);
-			_urlRequest.data = _params;    		
+			_urlRequest.data = _params;
 		}
 		
 		//--------------------------------------------------------------------------
@@ -87,6 +87,13 @@ package widgets.OilSpill.components.wms
 			return _url;
 		}
 		
+		public var _requestLayers:String = new String();  
+		
+		private var paramsString:String="";
+		public function getparamsString():String
+		{
+			return paramsString;
+		}
 		//--------------------------------------------------------------------------
 		//
 		//  Overridden properties
@@ -144,6 +151,7 @@ package widgets.OilSpill.components.wms
 		//
 		//--------------------------------------------------------------------------
 		
+		// to use EPSG:4326 to request the wms , so comment this
 		override protected function loadMapImage(loader:Loader):void
 		{
 			
@@ -160,7 +168,10 @@ package widgets.OilSpill.components.wms
 			
 			_params.width = map.width;
 			_params.height = map.height;
+			_params.layers = _requestLayers;
 			_params.exceptions = "application/vnd.ogc.se_inimage";
+			
+			paramsString=_url+_params.toString();
 			
 			loader.load(_urlRequest);
 		}

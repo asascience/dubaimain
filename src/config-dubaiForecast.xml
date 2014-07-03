@@ -68,6 +68,12 @@
 				icon="assets/images/buoy.png" preload="open"
 				config="widgets/DubaiBuoy/DubaiBuoy.xml"
 				url="widgets/DubaiBuoy/DubaiBuoy.swf"/>
+				<widget label="Print" left="390" top="400"
+                config="widgets/Print/PrintWidget_DubaiForecast.xml"
+                url="widgets/Print/PrintWidget.swf"/>
+       <widget label="Draw/Measure" left="390" bottom="10"
+                config="widgets/Draw/DrawWidget.xml"
+                url="widgets/Draw/DrawWidget.swf"/>
 		-->
     	</lods>
     </map>
@@ -90,12 +96,12 @@
 		<widget label="Oil Spill" right="200" bottom="100"  preload="closed"
                 config="widgets/OilSpill/OilSpillconfig.xml"
                 url="widgets/OilSpill/OilSpill.swf"/>
-        <widget label="Print" left="390" top="400"
-                config="widgets/Print/PrintWidget_DubaiForecast.xml"
-                url="widgets/Print/PrintWidget.swf"/>
-       <widget label="Draw/Measure" left="390" bottom="10"
-                config="widgets/Draw/DrawWidget.xml"
-                url="widgets/Draw/DrawWidget.swf"/>
+        <widget label="Boom" left="390" top="400"
+                config="widgets/Boom/AddBoomWidget.xml"
+                url="widgets/Boom/AddBoomWidget.swf"/>
+       <widget label="Animate" left="290" bottom="10"
+                config="widgets/animation/AnimationWidget.xml"
+                url="widgets/animation/AnimationWidget.swf"/>
        <widget label="Predicted Data"
 				x="200" top="95" left="320"
 				icon=""

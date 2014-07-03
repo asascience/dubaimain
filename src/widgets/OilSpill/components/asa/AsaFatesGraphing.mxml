@@ -185,6 +185,6 @@
 		<s:Button label="Print" id="printButt" fontSize="11" width="50" click="print()" chromeColor="0xE5E5E5"/>	
 		<mx:Legend direction="horizontal" dataProvider="{chart}"/>
 	</mx:HBox>
-	<s:Label text="Copyright 2012. Dubai Municipality" x="286" y="10"/>
+	<s:Label text="Copyright 2014. RPS ASA" x="286" y="10"/>
 	<s:Label text="{scenarioNam}" x="16" y="296"/>
 </mx:Canvas>

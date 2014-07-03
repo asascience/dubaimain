@@ -1,7 +1,7 @@
-package widgets.OilSpill.components.util
+package widgets.TimeSlider.components.util
 {
 	import mx.formatters.DateFormatter;
-	public final class DateTimeUtilities
+	public final class DateTimeUtilitiesold
 	{
 		public static function gmtDateToDBDateString(dateIn:Date):String
 		{
@@ -954,7 +954,7 @@ package widgets.OilSpill.components.util
 			var mon:String = (zd.month+1).toString().length == 1 ? "0" + (zd.month+1).toString() : (zd.month+1).toString();
 			var dat:String = zd.date.toString().length == 1 ? "0" + zd.date.toString() : zd.date.toString();
 			var hrs:String = zd.hours.toString().length == 1 ? "0" + zd.hours.toString() : zd.hours.toString();
-			var qd:String= mon+ "/" + dat + "/" + yea + ", " + hrs + ":00";
+			var qd:String=dat + "/" + mon + "/" + yea + ", " + hrs + ":00:00";
 			return qd;
 		}
 		//for MutilLanguage and UTC

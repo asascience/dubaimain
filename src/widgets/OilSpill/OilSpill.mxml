@@ -85,9 +85,11 @@
 			
 			import mx.collections.ArrayCollection;
 			import mx.controls.Alert;
+			import mx.controls.DateField;
 			import mx.events.CloseEvent;
 			import mx.events.ListEvent;
 			import mx.events.StateChangeEvent;
+			import mx.formatters.DateFormatter;
 			import mx.resources.ResourceManager;
 			import mx.rpc.events.FaultEvent;
 			import mx.rpc.events.ResultEvent;
@@ -95,13 +97,11 @@
 			
 			import spark.events.IndexChangeEvent;
 			
+			import widgets.OilSpill.components.util.DateTimeUtilities;
 			import widgets.OilSpill.components.util.DegToDMS;
 			import widgets.OilSpill.components.util.SpillEvent;
 			import widgets.OilSpill.components.wms.WMSEDSModel;
 			import widgets.OilSpill.components.wms.WMSModel;
-			import widgets.OilSpill.shp.ShpPolygon;
-			import widgets.OilSpill.shp.ShpReader;
-			import widgets.OilSpill.components.util.DateTimeUtilities;
 			
 		//location for header/state icons
 			private const ICON_URL:String = "widgets/OilSpill/assets/images/";
@@ -132,15 +132,15 @@
 			
 			[Bindable]
 			private var curDP:ArrayCollection = new ArrayCollection();
-			private var curTitle:String="HYCOM_Global_Navy_currents";
+			private var curTitle:String="CITGO_CURRENTS";
 			
 			private var tempD:Date = new Date;
 			private var dateRange:Object = {rangeStart:new Date(tempD.getTime()-1000 * 60 * 60 * 24 * 1000),rangeEnd:new Date(tempD.getTime()+(1000 * 60 * 60 * 24 * 3))};
 			
 			[Bindable]
 			private var date:String;
-			private var waterTempC:Number;
-			private var waterTempF:Number;
+			private var waterTempC:Number = 20;
+			private var waterTempF:Number = 68;
 			
 			private var _location:String;
 			private var _loadLocation:String;
@@ -200,10 +200,9 @@
 			private var manualCurrentsRows:ArrayCollection;
 			private var manualWindsString:String;
 			private var manualCurrentsString:String;
-			
-			private var windsLegendIcon:Image = new Image();
-			private var currentsLegendIcon:Image = new Image();
-			
+			[Bindable]
+			private var checkLandWaterWSURL:String;
+						
 		//Review Variables
 			[Bindable]
 			private var response:String = "";
@@ -259,6 +258,15 @@
 			[Bindable]
 			private var reviewDis:Boolean = false;
 			
+			[Bindable]
+			public var scenarioID:int=0;
+			[Bindable]public var sessionID:String="";
+			[Bindable]public var userID:int=0;			
+			[Bindable]public var processURL:String="";	
+			[Bindable]
+			private var xmlProgress:XML = new XML();
+			public var timer:Timer = new Timer(1000);
+			
 			private function init():void
 			{
 				//Prepare Graphics Layers for Click Point
@@ -282,8 +290,8 @@
 				if (configXML)
 				{
 					//labels for states and panels
-					adminText = configXML.admi;
-					passwordText = configXML.pwor;
+					//adminText = configXML.admi;
+					//passwordText = configXML.pwor;
 					scenariosLabel = configXML.labels.scenarioslabel || "Scenarios";
 					propertiesLabel = configXML.labels.propertieslabel || "Properties";
 					spillLabel = configXML.labels.spilllabel || "Spill";
@@ -292,6 +300,11 @@
 					reviewLabel = configXML.labels.reviewlabel || "Review";
 					layersLabel = configXML.labels.layerslabel || "Layers";
 					graphLabel = configXML.labels.graphlabel || "Graphs";
+					processURL = configXML.ASAOilString.process;
+					
+					userID= configXML.userid;
+					sessionID=configXML.sessionid;
+					checkLandWaterWSURL =configXML.ASAOilString.checkLand;
 					
 					//configurable wind and current options in config file
 					var curlays:String = configXML.currentsLayers;
@@ -322,16 +335,11 @@
 
 					_edsSource = configXML.ASAEDS.eds;
 					_OilStringSource = configXML.ASAOilString.oilstring;
-					_OilModelSource = configXML.ASAOilModel.oilmodel;
+					_OilModelSource = configXML.ASAOilString.drawOil;
 					_edsEcopModelSource=configXML.ASAOilModel.ecop;
-					_DataSource = configXML.ASALoadSaveSOURCE.loadSave;
+					_DataSource = configXML.ASAOilString.scenarioManagement;
 					_TimeSeriesSource = configXML.ASATimeSeries.timeseries;
-					_key = configXML.clientkey;
-					
-					var filesource:String = configXML.oilWarning;
-					urlLoader.addEventListener(Event.COMPLETE,layercompleteHandler);
-					
-					urlLoader.load( new URLRequest(filesource));
+					_key = configXML.clientkey;					
 				}				
 				
 				wOilSpill.addTitlebarButton(ICON_URL + "i_scenarios.png", scenariosLabel, showStateScenarios,true,true,"Scenario",66);
@@ -341,10 +349,7 @@
 				wOilSpill.addTitlebarButton(ICON_URL + "i_review.png", reviewLabel, showStateReview,true,true,"Review",57);
 				wOilSpill.addTitlebarButton(ICON_URL + "i_graph.png", "Layers", showLayers,true,true,"Layers",57);
 				wOilSpill.addTitlebarButton(ICON_URL + "i_graph.png", graphLabel, showStateGraph,true,true,"Graph",51);
-				
-				windsLegendIcon.source = "assets/legends/WindLegend.png";
-				currentsLegendIcon.source="assets/legends/CurrentsLegend.png";
-				
+								
 				//Prepares initial screen
 				showStateScenarios();
 				currentState="scenarios";
@@ -369,40 +374,40 @@
 						_timeZone = 4;
 					}
 				}
+				
+				this.timer.addEventListener( TimerEvent.TIMER, updateProgress );
 			}
 			
-			///Shapefile add for Oil Warning layer (no DBF attributes)
-			private function layercompleteHandler(event:Object):void
+			protected function updateProgress( timerEvent:TimerEvent ):void
 			{
-				var shpByteArray:ByteArray = new ByteArray;
-				shpByteArray = urlLoader.data as ByteArray;
-				if (shpByteArray && shpByteArray.length > 0 )
-				{
-					loadShapefile_inun(shpByteArray);
-				}
-				else
-				{
-					Alert.show("Sorry, but there is a problem with the shapefile.");
-				}
+				counter++;
+				var loader:URLLoader = new URLLoader();
+				loader.addEventListener(Event.COMPLETE, progressXmlLoaded);
+				//clear file cache
+				var header:URLRequestHeader = new URLRequestHeader('pragma', 'no-cache');
+				var request:URLRequest = new URLRequest(processURL+scenarioID +".xml?time=" + new Date().getTime());
+				request.requestHeaders.push(header);
+				loader.load(request);
 			}
 			
-			private function loadShapefile_inun(shpByteArray:ByteArray):void
+			private function progressXmlLoaded(event:Event):void
 			{
-				var index:int = 0;
-				var shpReader:ShpReader = new ShpReader(shpByteArray);
-				var shapeType:int = shpReader.readShpType();
-				while (shpReader.hasMore()) {
-					if (shapeType == 5) {
-						var shpPolygon:ShpPolygon = shpReader.readShpPolygon();
-						oilWarningLayer.add(new Graphic(shpPolygon.toPolygon()));
-						oilWarningLayer.symbol = mySymbol;
-						oilWarningLayer.refresh();
-						index++;
-					}
+				xmlProgress = XML(event.currentTarget.data);
+				progress.setProgress(Number(xmlProgress[0].percent),100);
+				progress.label = xmlProgress[0].percent + "% " +xmlProgress[0].stepname;
+				var percentNum:Number=Number(xmlProgress[0].percent);
+				if(isNaN(percentNum)||percentNum>100||percentNum<0)
+				{
+					timer.stop();
+					counter = 0;
+					progress.label = "Error Running Model";
+					//add return in order to avoid running the follow code
+					return;
 				}
-				oilWarningLayer.id = "oilWarningLayer";
-				oilWarningLayer.visible = false;
-				map.addLayer(oilWarningLayer);
+				if(percentNum == 100)
+				{
+					timer.stop();
+				}
 			}
 			
 			//get the hashtable
@@ -459,54 +464,11 @@
 			}			
 			private function showStateSpill():void
 			{
-				if(textN!=""||textW!="")
-				{
-					//check to see if the spill point is in the correct extent
-					var oilspillExtent:WebMercatorExtent = new WebMercatorExtent(54,24.9,55.4,25.8);
-					var latzz:Number = Number(textN);
-					var longzz:Number =Number(textW);
-					var spillpoint:WebMercatorMapPoint = new WebMercatorMapPoint(longzz,latzz);
-					
-					if(oilspillExtent.contains(spillpoint)==false)
-					{
-						currentState = "spill";
-						if(graphicsLayer.numGraphics > 0 || _oilMODEL)	
-						{
-							this.parent.dispatchEvent(new SpillEvent(SpillEvent.TIME_CHANGE, 'oil'));
-							this.parent.dispatchEvent(new SpillEvent(SpillEvent.CASENAME_CHANGE, 'oil'));
-							
-							if(counter == 0)
-							{
-								counter = 1;
-							}
-						}
-						if(counter == 0)
-						{
-							counter = 1;
-						}
-						
-						if(runname.text == "")
-						{
-							runname.text = "OILSPILL_" + Math.round(Math.random() * 100);
-						}
-						waterTempChangeHandler();
-						
-						if((DateTimeUtilities.spillServiceDateWithTimeZone2UTC(_startDate,_timeZone) != "") && (DateTimeUtilities.spillServiceDateWithTimeZone2UTC(_endDate,_timeZone) != "") && (simlength.value > -1))
-						{
-							if(counter == 1)
-							{
-								counter = 2;
-							}
-						}
-					}
-					else{
-						Alert.show("You are outside of the Spill Extent, please limit your spill location to the Arabian Gulf.","Spill Location Error");
-					}
+				if(runname.text != ""){
+					checkSpillSite();
 				}
-				else
-				{
-					wOilSpill.selectedTitlebarButtonIndex = 0;
-					showStateScenarios();
+				else{
+					Alert.show("Please enter Scenario Name under the Scenario Tab");
 				}
 			}
 			
@@ -516,7 +478,10 @@
 				{
 					sourceSelectedIndex = 2;
 				}
-				if(counter > 1)
+				currentState = "winds";
+				sourceChangeWinds();
+				windsSpeedChangeHandler();
+				/*if(counter > 1)
 				{
 					if((SpillType.selectedIndex > -1) && (volume.text > "") && (durSpill.value > -1))
 					{
@@ -528,8 +493,8 @@
 						{
 							counter = 3;
 						}
-					}
-				}
+					} 
+				}*/
 			}
 			private function showStateCurrents():void
 			{
@@ -537,7 +502,10 @@
 				{
 					sourceSelectedIndex = 2;
 				}
-				if(counter > 2)
+				currentState = "currents";
+				sourceChangeCurrents();
+				currentsSpeedChangeHandler();
+				/* if(counter > 2)
 				{
 					if((winds_.selectedIndex > -1))
 					{
@@ -550,7 +518,7 @@
 							counter = 4;
 						}
 					}
-				}
+				} */
 			}
 			private function showStateReview():void
 			{	
@@ -561,7 +529,6 @@
 				else{
 					reviewDis = false;	
 				}
-				//add by Xiaowen
 				//var startDateSave:String = DateTimeUtilities.spillServiceDate2(_startDate);
 				//date=new String(startDateSave.charAt(6) + startDateSave.charAt(7) + "." + startDateSave.charAt(4) + startDateSave.charAt(5) + "." + startDateSave.charAt(0) + startDateSave.charAt(1) + startDateSave.charAt(2) + startDateSave.charAt(3));
 				myDrawTool.deactivate();
@@ -570,18 +537,19 @@
 				spillSelectedDate.hours = startSpill.hours.value;
 				var startDateSave:String=DateTimeUtilities.spillServiceDate3(spillSelectedDate);
 				date=new String(startDateSave);
-				if(counter > 3)
-				{
+				currentState = "review";
+					/* if(counter > 3)
+					{
 					if((currents_.selectedIndex > -1))
 					{
-						currentState = "review";
-						
-						if(counter == 4)
-						{
-							counter = 5;
-						}
+					currentState = "review";
+					
+					if(counter == 4)
+					{
+					counter = 5;
 					}
-				}
+					}
+					} */
 			}
 			private function showStateGraph():void
 			{
@@ -589,13 +557,13 @@
 				{
 				}
 				else{
-					if(counter > 5)
-					{
+					//if(counter > 5)
+					//{
 						if((currents_.selectedIndex > -1))
 						{
 							if(response != ""){
 								this.currentState = "graph";
-								datapanel.processSpill(_TimeSeriesSource, _modelType, response, _loadLocation,_key);
+								datapanel.processSpill(_TimeSeriesSource, scenarioID.toString(), sessionID, userID.toString(),response);
 								
 								if(counter == 6)
 								{
@@ -604,12 +572,12 @@
 							}
 						}
 					}
-				}
+				//}
 			}
 			private function showLayers():void
 			{				
-				if(counter > 4)
-				{
+				//if(counter > 4)
+				//{
 					if((currents_.selectedIndex > -1))
 					{
 						if(response != ""){
@@ -621,7 +589,7 @@
 							}
 						}
 					}
-				}
+				//}
 			}
 			
 		//NEW SCENARIOS - FUNCTIONS			
@@ -809,8 +777,6 @@
 			{		
 				var latlong:MapPoint = new MapPoint(Number(textW),Number(textN));
 				
-				//textN = latlong.y.toFixed(4);
-				//textW = latlong.x.toFixed(4);
 				latlong_store = latlong;
 				
 				if (int(latlngChoice.selectedValue) == 2)
@@ -846,8 +812,6 @@
 					long2.text = Number(x2).toString();	
 					lat2m.text = Number(y2m).toFixed(3);	
 					long2m.text = Number(x2m).toFixed(3);	
-					//latDir2.text = Number(y2Dir).toFixed(3);	
-					//longDir2.text = Number(x2Dir).toFixed(3);	
 				}
 					
 				else if (int(latlngChoice.selectedValue) == 0)
@@ -880,33 +844,35 @@
 				var srvc:WebService = new WebService();
 				srvc.useProxy = false;
 				srvc.wsdl = _DataSource;
-				//srvc.endpointURI = "http://staging.asascience.com/proxy/Proxy.ashx?u=" + _DataSource;
 				
 				ldpRuns = new ArrayCollection();
 				
 				if(srvc.canLoadWSDL())
 				{		
 					srvc.loadWSDL();
-					srvc.GetScenariosByLocation.addEventListener("result", handleServiceResult);
-					srvc.GetScenariosByLocation.addEventListener("fault", handleFaultEvent);
-					srvc.GetScenariosByLocation(_key, _location);
+					srvc.GetScenariosByUser.addEventListener("result", handleServiceResult);
+					srvc.GetScenariosByUser.addEventListener("fault", handleFaultEvent);
+					srvc.GetScenariosByUser(userID, sessionID,9999);
 					
 					function handleServiceResult(evnt:ResultEvent):void
 					{
 						var strRslt:String = evnt.result as String;
 						var xmlRslt:XML = new XML(strRslt);						
-						var lens:XMLList=new XMLList(xmlRslt.Scenario); //just to get the length
-						
+						var lens:XMLList=new XMLList(xmlRslt.Table); //just to get the length
+												
 						for(var i:uint=0; i <lens.length(); i++)
 						{
-							var startDate_data:String = new String((xmlRslt.child("Scenario"))[i].StartDate);
-							var date_data:String = new String(startDate_data.charAt(5) + startDate_data.charAt(6) + "." +startDate_data.charAt(8) + startDate_data.charAt(9) + "." + startDate_data.charAt(0) + startDate_data.charAt(1) + startDate_data.charAt(2) + startDate_data.charAt(3)); 
+							var startDate_data:String = new String((xmlRslt.child("Table"))[i].starttime);
+							var creationDate_data:String = new String((xmlRslt.child("Table"))[i].updatedat);
+							var parsedStDate:Array = startDate_data.split("T");
+							var parsedStDate2:Array = String(parsedStDate[1]).split("-");
+							var parsedCrDate:Array = creationDate_data.split("T");
+							var parsedCrDate2:Array = String(parsedCrDate[1]).split(".");
 							
-							ldpRuns.addItem({ID:(xmlRslt.child("Scenario"))[i].ID,
-							OilInfo_ID:(xmlRslt.child("Scenario"))[i].OilInfo_ID,
-							Name:((xmlRslt.child("Scenario"))[i].CaseName),
-							Date:(date_data),
-							SimLength:(xmlRslt.child("Scenario"))[i].Duration});
+							ldpRuns.addItem({ID:(xmlRslt.child("Table"))[i].scenario_id,
+							Name:((xmlRslt.child("Table"))[i].scenario_alias),
+							StartDate:parsedStDate[0] + " " + parsedStDate2[0],
+							CreationDate:parsedCrDate[0] + " " + parsedCrDate2[0]});
 						}
 						ldpRuns.refresh();
 						wLoader.visible = false;
@@ -920,7 +886,6 @@
 			private function deleteScenario(event:ListEvent):void
 			{	
 				var id:String = new String(event.currentTarget.selectedItem.ID);
-				var oilid:String = new String(event.currentTarget.selectedItem.OilInfo_ID);
 				Alert.show("Are you sure you want to delete?", "Alert",
                 Alert.OK | Alert.CANCEL, this,
                 alertListener, null,  Alert.OK );
@@ -938,7 +903,7 @@
 							srvc.loadWSDL();
 							srvc.addEventListener(FaultEvent.FAULT, handleServiceFaultD);
 							srvc.DeleteScenario.addEventListener("result", handleServiceResultD); 
-							srvc.DeleteScenario(_key, id, oilid);
+							srvc.DeleteScenario(userID, sessionID, id);
 							function handleServiceResultD(event:ResultEvent):void
 							{
 								loadScenXML();
@@ -1006,6 +971,11 @@
 			}
 			private function loadScenario(event:ListEvent):void
 			{	
+				if(_oilMODEL)
+				{
+					map.removeLayer(_oilMODEL);
+				}
+				
 				counter = 5;
 				save = true;
 				
@@ -1019,12 +989,12 @@
 				{		
 					srvc.loadWSDL();
 					srvc.addEventListener("fault", handleServiceFault);
-					srvc.GetScenario.addEventListener("result", handleServiceResult); 
-					srvc.GetScenario(_key, event.currentTarget.selectedItem.ID);
+					srvc.GetScenarioDetail.addEventListener("result", handleServiceResult); 
+					srvc.GetScenarioDetail(userID,sessionID, event.currentTarget.selectedItem.ID);
 
 					function handleServiceResult(evnt:ResultEvent):void
 					{
-						var strRslt:String = evnt.result as String;
+						var strRslt:String = String(evnt.result);
 						LoadxmlRslt = new XML(strRslt);
 						finishLoadScenario();
 					}
@@ -1037,12 +1007,20 @@
 			
 			private function finishLoadScenario():void
 			{
-				response=new String(LoadxmlRslt.child("CaseName"));
+				response=new String(LoadxmlRslt.Table[0].child("scenario_alias"));
 				
 				currentState="scenarios"
 			 	scenariosStack.selectedIndex = 1;
-				var latlongStoreY:Number = Number(new String(LoadxmlRslt.child("Lat")));
-				var latlongStoreX:Number = Number(new String(LoadxmlRslt.child("Lon")));
+				descOil.text = new String(LoadxmlRslt.Table[0].child("short_desc"));
+				
+				scenarioID = Number(new String(LoadxmlRslt.Table[0].child("scenario_id")));
+				//GEOMETRYCOLLECTION(POINT(-93.3121 29.8787))
+				var wktGeom:String = LoadxmlRslt.Table[0].child("spillsite");
+				var spilPoint:Array = wktGeom.split("POINT(");
+				var spilPoint2:Array = (new String(spilPoint[1])).split("))");
+				var splitPoint:Array =  (new String(spilPoint2[0])).split(" ");
+				var latlongStoreY:Number = Number(new String(splitPoint[1]));
+				var latlongStoreX:Number = Number(new String(splitPoint[0]));
 				lat1.text = latlongStoreY.toString();
 				long1.text = latlongStoreX.toString();
 								
@@ -1056,7 +1034,7 @@
 					const y3s:String = DegToDMS.formatSEC(latlongStoreY, DegToDMS.LAT);
 					const x3Dir:String = DegToDMS.formatDIR(latlongStoreX, DegToDMS.LON);
 					const y3Dir:String = DegToDMS.formatDIR(latlongStoreY, DegToDMS.LAT);
-					//added by Xiaowen
+					
 					const x2m:String = DegToDMS.formatMIN_MIN(latlongStoreX, DegToDMS.LON);
 					const y2m:String = DegToDMS.formatMIN_MIN(latlongStoreY, DegToDMS.LAT);
 					
@@ -1076,20 +1054,42 @@
 						longDir2.text = x3Dir;
 				
 				currentState="spill"
-				runname.text=new String(LoadxmlRslt.child("CaseName"));
-				var startDateLoad:String = LoadxmlRslt.child("StartDate");
+				runname.text=new String(LoadxmlRslt.Table[0].child("scenario_alias"));
+				
+				if(Number(LoadxmlRslt.Table[0].child("outintvl")) == 60){
+					modelTimeStep.selectedIndex = 3;
+				}
+				else if(Number(LoadxmlRslt.Table[0].child("outintvl")) == 10){
+					modelTimeStep.selectedIndex = 0;
+				}
+				else if(Number(LoadxmlRslt.Table[0].child("outintvl")) == 20){
+					modelTimeStep.selectedIndex = 1;
+				}
+				else if(Number(LoadxmlRslt.Table[0].child("outintvl")) == 30){
+					modelTimeStep.selectedIndex = 2;
+				}
+				else if(Number(LoadxmlRslt.Table[0].child("outintvl")) == 90){
+					modelTimeStep.selectedIndex = 4;
+				}
+				else if(Number(LoadxmlRslt.Table[0].child("outintvl")) == 120){
+					modelTimeStep.selectedIndex = 5;
+				}
+				else if(Number(LoadxmlRslt.Table[0].child("outintvl")) == 180){
+					modelTimeStep.selectedIndex = 6;
+				}
+				
+				var startDateLoad:String = LoadxmlRslt.Table[0].child("starttime");
 				
 				var dateYear:int = new int(new String(startDateLoad.charAt(0) + startDateLoad.charAt(1) + startDateLoad.charAt(2) + startDateLoad.charAt(3))); 
 				var dateMonth:int = (new int(startDateLoad.charAt(5) + startDateLoad.charAt(6)) - 1);
 				var dateDay:int = new int(new String(startDateLoad.charAt(8) + startDateLoad.charAt(9)));
 				var dateHours:int = new int(new String(startDateLoad.charAt(11) + startDateLoad.charAt(12)));
-				trace(dateHours);
-				//add by Xiaowen,Transfer to local time
+				
 				var scenarioDate:Date=new Date();
 				var timeDifference:Number=_timeZone-(-scenarioDate.getTimezoneOffset()/60);
 				scenarioDate.setUTCFullYear(dateYear,dateMonth,dateDay);
 				scenarioDate.setUTCHours(dateHours,0,0,0);
-				//convert scenario date to customized time zone
+				
 				scenarioDate.hours+=int(timeDifference);
 				scenarioDate.minutes+=((timeDifference%1)*60);
 				
@@ -1099,322 +1099,69 @@
 				
 				setDates();
 								
-				simlength.value=new Number(LoadxmlRslt.child("Duration"));
-				waterTempF = new Number(LoadxmlRslt.child("WaterTemp"));
-				waterTempC = ((waterTempF - 32) / 1.8);
+				simlength.value=new Number(LoadxmlRslt.Table[0].child("simulation_length"));
+				waterTempC = new Number(LoadxmlRslt.Table[0].child("watertemp"));
+				waterTempF = ((waterTempC * 1.8) + 32);
 				waterTemp.value=waterTempC;
 				
-				_loadLocation=LoadxmlRslt.child("Location");
-				_path=LoadxmlRslt.child("Path");
-
-				volume.text = new String((LoadxmlRslt.child("OilInfo")).Amount);
-				var unit_check:String = new String((LoadxmlRslt.child("OilInfo")).AmountUnits);
-				var unit_index:int;
+				volume.text = new String((LoadxmlRslt.Table[0].child("oil_amount")));
+								
+				//default to tonne
+				AmtType.selectedIndex=3;
 				
-				if(unit_check=="Liters")
-				{
-					unit_index=0;
-				}
-				else if(unit_check=="Gallons")
-				{
-					unit_index=1;
-				}
-				else if(unit_check=="Cubic Meters")
-				{
-					unit_index=2;
-				}
-				else if(unit_check=="Tonnes")
-				{
-					unit_index=3;
-				}
-				else if(unit_check=="Barrels")
-				{
-					unit_index=4;
-				}
-				else if(unit_check=="Pounds")
-				{
-					unit_index=5;
-				}
-				else if(unit_check=="Kilograms")
-				{
-					unit_index=6;
-				}
+				var type_check:String = new String((LoadxmlRslt.Table[0].child("oilname")));
+				var type_index:int = 3;
 				
-				AmtType.selectedIndex=unit_index;
-				
-				var type_check:String = new String((LoadxmlRslt.child("OilInfo")).OilType);
-				var type_index:int;
-				
-				if(type_check=="DIESEL")
-				{
-					type_index=0;
-				}
-				else if(type_check=="LIGHT CRUDE OIL")
-				{
-					type_index=1;
-				}
-				else if(type_check=="MEDIUM CRUDE OIL")
-				{
-					type_index=2;
-				}
-				else if(type_check=="HEAVY CRUDE OIL")
+				if(type_check.search("DIESEL")>-1)
 				{
 					type_index=3;
 				}
-				else if(type_check=="PRUDHOE BAY CRUDE")
-				{
-					type_index=4;
-				}
-				else if(type_check=="BUNKER C FUEL OIL %236")
+				else if(type_check=="LIGHT CRUDE OIL")
 				{
 					type_index=5;
 				}
-				else if(type_check=="JP-4(FUEL OIL No. 1)")
+				else if(type_check=="MEDIUM CRUDE OIL")
 				{
 					type_index=6;
 				}
-				else if(type_check=="DIESEL FUEL OIL")
+				else if(type_check=="HEAVY CRUDE OIL")
 				{
 					type_index=7;
 				}
 				else if(type_check=="GASOLINE (LEADED)")
 				{
-					type_index=8;
+					type_index=0;
 				}
 				else if(type_check=="GASOLINE (UNLDEADED)")
 				{
-					type_index=9;
-				}
-				else if(type_check=="JET FUEL A-1")
-				{
-					type_index=10;
+					type_index=2;
 				}
 				else if(type_check=="MARINE DIESEL FUEL")
 				{
-					type_index=11;
+					type_index=4;
 				}
+				
 				SpillType.selectedIndex=type_index;
-				durSpill.value=new int((LoadxmlRslt.child("OilInfo")).ReleaseDuration);
+				durSpill.value=new int((LoadxmlRslt.Table[0].child("releaseduration")));
 				
-				currentState="winds";
-		//**These indexes need to be match the indexes in the dropdown menu 
-				winds_.dataProvider = windlayArrCol;
-				if((LoadxmlRslt.child("Environments")).Environment[0].EnvType[0] == "-999")
-				{
-					winds_.selectedIndex=2;
-					windtype = "None";
-					windID = (LoadxmlRslt.child("Environments")).Environment[0].EnvType[0];
-				}
-				else if((LoadxmlRslt.child("Environments")).Environment[0].EnvType[0] == "-1")
-				{
-					winds_.selectedIndex=1;
-					windID = (LoadxmlRslt.child("Environments")).Environment[0].EnvType[0];
-
-					windsSpeed.text = Math.round(Number((LoadxmlRslt.child("Environments")).Environment[0].Speed[0])).toString();
-					windsSpeedChangeHandler();
-					var windsDir_load:String = (LoadxmlRslt.child("Environments")).Environment[0].Direction[0];
-					var windsDir_ind:int;
-					if(windsDir_load == "N")
-					{
-						windsDir_ind = 0;
-					}
-					else if(windsDir_load == "NNE")
-					{
-						windsDir_ind = 1;
-					}
-					else if(windsDir_load == "NE")
-					{
-						windsDir_ind = 2;
-					}
-					else if(windsDir_load == "NEE")
-					{
-						windsDir_ind = 3;
-					}
-					else if(windsDir_load == "E")
-					{
-						windsDir_ind = 4;
-					}
-					else if(windsDir_load == "SEE")
-					{
-						windsDir_ind = 5;	
-					}
-					else if(windsDir_load == "SE")
-					{
-						windsDir_ind = 6;
-					}
-					else if(windsDir_load == "SSE")
-					{
-						windsDir_ind = 7;
-					}
-					else if(windsDir_load == "S")
-					{
-						windsDir_ind = 8;
-					}
-					else if(windsDir_load == "SSW")
-					{
-						windsDir_ind = 9;	
-					}
-					else if(windsDir_load == "SW")
-					{
-						windsDir_ind = 10;
-					}
-					else if(windsDir_load == "SWW")
-					{
-						windsDir_ind = 11;
-					}
-					else if(windsDir_load == "W")
-					{
-						windsDir_ind = 12;
-					}
-					else if(windsDir_load == "NWW")
-					{
-						windsDir_ind = 13;
-					}
-					else if(windsDir_load == "NW")
-					{
-						windsDir_ind = 14;
-					}
-					else if(windsDir_load == "NNW")
-					{
-						windsDir_ind = 15;
-					}
-					windsDir.selectedIndex = windsDir_ind;
-					sourceChangeWinds();
-					windtype = "Manual";
-				}
-				else if((LoadxmlRslt.child("Environments")).Environment[0].EnvType[0] == "-2")
-				{
-					winds_.selectedIndex=0;
-					windID = (LoadxmlRslt.child("Environments")).Environment[0].EnvType[0];
-					sourceChangeWinds();
-					windtype = "Name: Dubai WRF Winds";
-				} 
-				else {
-					//find EDS
-					winds_.selectedIndex=0;
-					windID = (LoadxmlRslt.child("Environments")).Environment[0].EnvType[0];
-					lastWinds = windID = (LoadxmlRslt.child("Environments")).Environment[0].EnvType[0];	
-					sourceChangeWinds();
-					windtype = "Name: Dubai WRF Winds";
-				}
+				//**
+				//Assuming most runs Models will USE EDS
+				//**
+				currentState = "winds";
+				sourceChangeWinds();
+				winds_.selectedIndex=0;
+				windtype = "Name: Regional Winds";
 				
-				currentState="currents";
-		//*******These indexes need to be match the indexes in the dropdown menu
-				currents_.dataProvider = currlayArrCol;
-				if((LoadxmlRslt.child("Environments")).Environment[1].EnvType == "-999")
-				{
-					currents_.selectedIndex=2;
-					curID = (LoadxmlRslt.child("Environments")).Environment[1].EnvType;
-					curtype = "None";
-				}
-				else if((LoadxmlRslt.child("Environments")).Environment[1].EnvType == "-1")
-				{
-					currents_.selectedIndex=1;
-					curtype = "Manual";
-					currentsSpeedType.selectedIndex=0;
-					
-					curID = (LoadxmlRslt.child("Environments")).Environment[1].EnvType;
-					
-					currentsSpeed.text = Math.round(Number((LoadxmlRslt.child("Environments")).Environment[1].Speed)).toString();
-					currentsSpeedChangeHandler();
-					var currentsDir_load:String = (LoadxmlRslt.child("Environments")).Environment[1].Direction;
-					var currentsDir_ind:int;
-					if(currentsDir_load == "N")
-					{
-						currentsDir_ind = 0;
-					}
-					else if(currentsDir_load == "NNE")
-					{
-						currentsDir_ind = 1;
-					}
-					else if(currentsDir_load == "NE")
-					{
-						currentsDir_ind = 2;
-					}
-					else if(currentsDir_load == "NEE")
-					{
-						currentsDir_ind = 3;
-					}
-					else if(currentsDir_load == "E")
-					{
-						currentsDir_ind = 4;
-					}
-					else if(currentsDir_load == "SEE")
-					{
-						currentsDir_ind = 5;	
-					}
-					else if(currentsDir_load == "SE")
-					{
-						currentsDir_ind = 6;
-					}
-					else if(currentsDir_load == "SSE")
-					{
-						currentsDir_ind = 7;
-					}
-					else if(currentsDir_load == "S")
-					{
-						currentsDir_ind = 8;
-					}
-					else if(currentsDir_load == "SSW")
-					{
-						currentsDir_ind = 9;	
-					}
-					else if(currentsDir_load == "SW")
-					{
-						currentsDir_ind = 10;
-					}
-					else if(currentsDir_load == "SWW")
-					{
-						currentsDir_ind = 11;
-					}
-					else if(currentsDir_load == "W")
-					{
-						currentsDir_ind = 12;
-					}
-					else if(currentsDir_load == "NWW")
-					{
-						currentsDir_ind = 13;
-					}
-					else if(currentsDir_load == "NW")
-					{
-						currentsDir_ind = 14;
-					}
-					else if(currentsDir_load == "NNW")
-					{
-						currentsDir_ind = 15;
-					}
-					currentsDir.selectedIndex = currentsDir_ind;
-					sourceChangeCurrents();
-					currentsSpeedChangeHandler();
-				}
-				else if((LoadxmlRslt.child("Environments")).Environment[1].EnvType == "0")
-				{
-					currents_.selectedIndex=0;
-					curID = (LoadxmlRslt.child("Environments")).Environment[1].EnvType;
-					sourceChangeCurrents();
-					curtype = "Name: Arabian Dubai Currents";
-				} 
-				/* For Local:::
-				else if((LoadxmlRslt.child("Environments")).Environment[1].EnvType == "-2")
-				{
-					currents_.selectedIndex=2;
-					sourceChangeCurrents();
-					curID = (LoadxmlRslt.child("Environments")).Environment[1].EnvType;
-				} */ 
-				else {
-					//find EDS
-					currents_.selectedIndex = 0;
-					curID = (LoadxmlRslt.child("Environments")).Environment[1].EnvType[0];
-					lastCurrents = curID = (LoadxmlRslt.child("Environments")).Environment[1].EnvType[0];
-					sourceChangeCurrents();		
-					curtype = "Name: Arabian Dubai Currents";
-				}
-				
+				currentState = "currents";
+				sourceChangeCurrents();
+				currents_.selectedIndex = 0;
+				curtype = "Name: Regional Currents";
+		
 				currentState = "review";
 								
 				runOilModel();
-				//add the jump code by Xiaowen
-				if(!((getGeoExtent()[0]<latlongStoreY&&latlongStoreY<getGeoExtent()[1])&&(getGeoExtent()[2]<latlongStoreX&&latlongStoreX<getGeoExtent()[3])))
+				var curExtent:Array = getGeoExtent();
+				if(!((curExtent[0]<latlongStoreY&&latlongStoreY<curExtent[1])&&(curExtent[2]<latlongStoreX&&latlongStoreX<curExtent[3])))
 				{
 					Alert.show(ResourceManager.getInstance().getString('OilSpill','zoomTip1')+ResourceManager.getInstance().getString('OilSpill','zoomTip2'),
 						ResourceManager.getInstance().getString('OilSpill','zoomTitle'),
@@ -1423,6 +1170,7 @@
 					{
 						if(event.detail == Alert.YES)
 						{
+							map.zoomIn();
 							var geoRef:SpatialReference=new SpatialReference(4326);
 							var centerGeoPoint:MapPoint=new MapPoint(latlongStoreX,latlongStoreY,geoRef);
 							var centerMercator:MapPoint=WebMercatorUtil.geographicToWebMercator(centerGeoPoint) as MapPoint;
@@ -1430,95 +1178,10 @@
 						}
 					}
 				}
-				/* oilWarningLayer.visible = true;
-				oilWarningLayerCheck.selected = true; */
 				
 				strtDateText.text = scenarioDate.toString();
 			}
-			
-			private function saveScenario():void
-			{				
-				var windSP_save:String = "";
-				var windsDR_save:String = "";
-				
-				if(windID == -1)
-				{
-				    windSP_save = windSP;
-					windsDR_save = windsDir.selectedItem.label;
-				}
-				
-				var curSP_save:String = "";
-				var curDR_save:String = "";
-				
-				if(curID == -1)
-				{
-					curSP_save = curSP;
-					curDR_save = currentsDir.selectedItem.label;
-				}
-				
-				//String to send to database for Save Scenario
-				var SaveString:String = 
-						"<Scenario>" + 
-						"<CaseName>" + response + "</CaseName>" +
-						"<StartDate>" + DateTimeUtilities.spillServiceDateWithTimeZone2UTC(_startDate,_timeZone) + "</StartDate>" +
-						"<Duration>" + simlength.value.toString() + "</Duration>" +
-						"<Lat>" + textN + "</Lat>" +
-						"<Lon>" + textW + "</Lon>" +
-						//"<OilInfo_ID></OilInfo_ID>" +
-						"<ModelStep>" + modelTimeStep.selectedItem.data.toString() + "</ModelStep>" +
-						"<OutputInterval>" + outputTimeInterval.selectedItem.data.toString() + "</OutputInterval>" +
-						"<WaterTemp>" + waterTempF.toString() + "</WaterTemp>" +
-						"<Path>" + _path + "</Path>" +
-						"<Location>" + _location + "</Location>" +
-						"<Environments>" +
-							"<Environment>" +
-								//"<ID></ID>" +
-								"<SourceName>" + winds_.selectedItem.label + "</SourceName>" +
-								"<Type>W</Type>" +
-								"<ScenarioID></ScenarioID>" +
-								"<Speed>" + windSP_save + "</Speed>" +
-								"<Direction>" + windsDR_save + "</Direction>" +
-								"<EnvType>" + windID + "</EnvType>" +
-							"</Environment>" +
-							"<Environment>" +
-								//"<ID></ID>" +
-								"<SourceName>" + currents_.selectedItem.label + "</SourceName>" +
-								"<Type>C</Type>" +
-								"<ScenarioID></ScenarioID>" +
-								"<Speed>" + curSP_save + "</Speed>" +
-								"<Direction>" + curDR_save + "</Direction>" +
-								"<EnvType>" + curID + "</EnvType>" +
-							"</Environment>" +
-						"</Environments>" +
-						"<OilInfo>"+	
-							"<OilType>" + SpillType.selectedItem.data + "</OilType>" +
-							"<Amount>" + volume.text + "</Amount>" +
-							"<ReleaseDuration>" + durSpill.value.toString() + "</ReleaseDuration>" +
-							"<AmountUnits>" + AmtType.selectedItem.label + "</AmountUnits>" +
-						"</OilInfo></Scenario>";
-				
-				var srvc:WebService = new WebService();
-				srvc.useProxy = false;
-				srvc.wsdl = _DataSource;
-				
-				if(srvc.canLoadWSDL())
-				{		
-					srvc.loadWSDL();
-					srvc.addEventListener("fault", handleServiceFault);
-					srvc.CreateScenario.addEventListener("result", handleServiceResult);
-					
-					srvc.CreateScenario(_key, SaveString);
-					function handleServiceResult(event:ResultEvent):void
-					{
-						var strRslt:String = event.result as String;
-						LoadxmlRslt = new XML(strRslt);
-					}
-					function handleServiceFault(evnt:FaultEvent):void
-					{
-						//do nothing
-					}
-				}
-			}						
+								
 			private function setDates():void 
 			{
 				_startDate = startSpill.dateASA.selectedDate;
@@ -1560,33 +1223,80 @@
 					}
 				}
 			}
+			
+			//get scenario ID
+			private function newScenario():void
+			{
+				if(runname.text.length > 0)
+				{
+					var srvc:WebService = new WebService();
+					srvc.useProxy = false;
+					srvc.wsdl = _DataSource;
+					
+					if(srvc.canLoadWSDL())
+					{				
+						//loader.visible=true;
+						srvc.loadWSDL();
+						srvc.AddNewScenario.addEventListener("result", newScenarioResult);
+						srvc.AddNewScenario.addEventListener("fault", newScenarioFault);
+						srvc.AddNewScenario(userID, sessionID, runname.text, 1, 1);
+						
+						function newScenarioResult(event:ResultEvent):void
+						{
+							var resultString:String = event.result as String;
+							if(resultString.indexOf("error")>0)
+							{
+								var resultXML:XML=new XML(resultString);
+								Alert.show(resultXML.error[0].toString(),"Message");
+								//loader.visible=false;
+							}
+							else
+							{
+								scenarioID = new int(event.result);
+								runSpillModel();
+							}
+						}
+						function newScenarioFault(event:FaultEvent):void 
+						{
+							Alert.show(event.fault.toString(), "Error");
+							//loader.visible=false;
+						}
+					}
+				}
+				else
+				{
+					Alert.show(ResourceManager.getInstance().getString('NewScenarioWindow','newSceTip'),"Error");
+				}
+			}
+			
 		//REVIEW PANEL FUNCTIONS
 			private function checkRun():void 
 			{
 				_runCheck = false;
 				if(runname.text == "") 
 				{
-					Alert.show("Please enter a casename");
+					Alert.show("Please enter a Scenario Name");
 				} else {
-					runSpillModel();
+					newScenario();
 				}
 			}
 			private function runSpillModel() : void 
 			{	
-				loader.visible=true;
+				//loader.visible=true;
+				this.timer.start();
 				//will remove preious oil model if there is a model already loaded
 				if(_oilMODEL)
 				{
-					this.map.removeLayer(_oilMODEL);
-					_oilMODEL.visible = false;
+					map.removeLayer(_oilMODEL);
+					//_oilMODEL.visible = false;
 				}
 				if(_oilMODELW)
 				{
-					this.map.removeLayer(_oilMODELW);
+					map.removeLayer(_oilMODELW);
 				}
 				if(_oilMODELC)
 				{
-					this.map.removeLayer(_oilMODELC);
+					map.removeLayer(_oilMODELC);
 				}
 				//generate booms and overflights XML string
 				refreshHashTable();
@@ -1597,25 +1307,19 @@
 				}
 				
 				setDates();
-				
-				var casename:String = runname.text;
-				casename += "_" + Math.floor((Math.random()*10)).toString();
-				runname.text = casename;
-				
+								
 				var urlRUN:String = _OilStringSource + "?";
-				urlRUN += "CaseName="+casename+"&";
-				urlRUN += "ClientKey="+_key+"&";
+				
+				urlRUN += "SCENARIO_ID="+scenarioID+"&";
 				urlRUN += "ModelType="+_modelType+"&";
 				urlRUN += "StartDate="+DateTimeUtilities.spillServiceDateWithTimeZone2UTC(_startDate,_timeZone)+"&";
 				urlRUN += "EndDate="+DateTimeUtilities.spillServiceDateWithTimeZone2UTC(_endDate,_timeZone)+"&";
 				urlRUN += "simLength="+simlength.value+"&";
 				urlRUN += "WaterTemp="+new String(waterTempF)+"F&";
-				urlRUN += "IncLat="+textN+"&";
-				urlRUN += "IncLon="+textW+"&";
-				urlRUN += "Winds="+windID+"&";
-				
-		//Added to fix new webservice
-				urlRUN += "AddToDatabase=false&";
+				//urlRUN += "IncLat="+textN+"&";
+				//urlRUN += "IncLon="+textW+"&";
+				urlRUN += "Inclatlon=POINT("+textW+" " +textN+")";
+				urlRUN += "&Winds="+windID+"&";
 				
 				urlRUN += "Currents="+curID+"&";
 				//Only uses these variables on Manual Winds Selection
@@ -1633,16 +1337,20 @@
 					urlRUN += "CurrDir="+ curDR +"&";
 				}
 				urlRUN += "ChemId=NONE&";
-				urlRUN += "FullPath=true&";
+				urlRUN += "FullPath=true&AddToDB=false&";
 				urlRUN += "River="+"false&";
-				urlRUN += "OilType="+SpillType.selectedItem.data+"&";
+				urlRUN += "OilType="+SpillType.selectedItem.dataID+"&";
 				urlRUN += "OilUnits="+(AmtType.selectedIndex+1).toString()+"&";
 				urlRUN += "Duration="+durSpill.value+"&";
-				urlRUN += "Location="+_location + "&";
+				//urlRUN += "Location="+_location + "&";
 				urlRUN += "Volume="+volume.text + "&";
 				urlRUN += "ModelStep="+modelTimeStep.selectedItem.data.toString()+"&";
-				urlRUN += "OutputInterval="+outputTimeInterval.selectedItem.data.toString();
-
+				urlRUN += "OutputInterval="+outputTimeInterval.selectedItem.data.toString()+"&";
+				urlRUN += "Dispersionvalue=3&WindFactor=3&";
+				urlRUN += "user_id="+userID+"&";
+				urlRUN += "session_id="+sessionID+"&";
+				urlRUN += "NumSpillet=100&desc=empty&userEDS=false,false";
+				
 				var serviceLoader:URLLoader = new URLLoader(new URLRequest(urlRUN));
 				serviceLoader.addEventListener(Event.COMPLETE, serviceResponse);
 				serviceLoader.addEventListener(IOErrorEvent.IO_ERROR, serviceError);
@@ -1652,19 +1360,19 @@
 				this.map.dispatchEvent(new SpillEvent(SpillEvent.MODEL_COMPLETE, "oil"));
 				
 				_path = e.currentTarget.data;				
-				response = e.currentTarget.data;
+				response = runname.text;
 				
 				if (response.substr(0,100).search("ERROR") != -1) {
 					if (response.substr(0,100).search("Error: 11") != -1) {
 						var s0:String = new String(e.currentTarget.data);
-						response = s0.substring(s0.search("Outdata")+String("Outdata").length+1,s0.search(".INP"));
+						//response = s0.substring(s0.search("Outdata")+String("Outdata").length+1,s0.search(".INP"));
 						runSpillModel();
 					} else {
 						Alert.show(response.split("ERROR:")[1]);
 					}
 				} else {
 					var s:String = new String(e.currentTarget.data);
-					response = s.substring(s.search("Outdata")+String("Outdata").length+1,s.search(".INP"));
+					//response = s.substring(s.search("Outdata")+String("Outdata").length+1,s.search(".INP"));
 					save=false;
 					//spillTitle.text = response;
 					if(response.search("land")>5)
@@ -1678,7 +1386,7 @@
 						spillTitle.setStyle("color","0x58595b");
 					}
 				}
-				loader.visible = false;
+				//loader.visible = false;
 			}
 			
 			private function runOilModel():void
@@ -1689,16 +1397,6 @@
 					map.removeLayer(_oilMODEL);
 					_oilMODEL.visible = false;
 				}
-				if(_oilMODELW)
-				{
-					map.removeLayer(_oilMODELW);
-					_oilMODELW.visible = false;
-				}
-				if(_oilMODELC)
-				{
-					map.removeLayer(_oilMODELC);
-					_oilMODELC.visible = false;
-				}
 				
 				setDates();
 				
@@ -1707,23 +1405,17 @@
 				trackline.selected = true;
 				contour.selected = true;
 				mass.selected = true;
-				spillets.selected = true;
-				swept.selected = true;
+				spillets.selected = false;
+				swept.selected = false;
 				winds.selected = true;
-				//curnts.selected = true;
+				curnts.selected = true;
 				
-				if(_runCheck == false)
-				{
-					_oilMODEL = new WMSModel(_OilModelSource, "OILMAP_ALL", _path, DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(_startDate,_timeZone), trackline.selected, contour.selected, spillets.selected, mass.selected, swept.selected, _key);
-					_oilMODEL.name="OilModel";
-					_oilMODEL.id="OilModel";
-					_oilMODEL.visible=true;
-					map.addLayer(_oilMODEL); 
-				}
-				
-				updateMapLayersWin();
-				updateMapLayersCur();
-								
+				_oilMODEL = new WMSModel(userID.toString(),sessionID,_OilModelSource, "OilModel","OilModel", "model,wind,current", scenarioID.toString(),DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(_startDate,_timeZone), "oilmodel",0,trackline.selected, contour.selected, spillets.selected, mass.selected, swept.selected,false);
+				_oilMODEL._requestLayers = "model,wind,current";
+				_oilMODEL.id = "OilModel";
+				map.addLayer(_oilMODEL); 
+				_oilMODEL.visible=true;
+																
 				var oilData:Array = new Array;
 				oilData.push(_path);
 				oilData.push(response);
@@ -1751,25 +1443,16 @@
 				_runCheck = true;
 				
 				graphicsLayer.clear();
-				map.reorderLayer("OilModel",12);
 				
-				//SAW saves scenario
-				if(save == false)
-				{
-					loader.visible=false;
-					saveScenario();
-				}
-				/* oilWarningLayer.visible = true;
-				oilWarningLayerCheck.selected = true; */
+				//map.reorderLayer("OilModel",12);
 			}
 			private function serviceError(e:IOErrorEvent) : void 
 			{
 				this.map.dispatchEvent(new SpillEvent(SpillEvent.MODEL_ERROR, "oil"));
 				Alert.show(e.text.toString());
-				loader.visible = false;
+				//loader.visible = false;
 			}
 			
-			//PROPERTIES FUNCTIONS,update by Xiaowen
 			public function updateMapTime(event:AppEvent):void
 			{	
 				_currentTime = event.data as Date;
@@ -1777,129 +1460,9 @@
 				if(_oilMODEL)
 				{
 					updateMapLayers();
-					updateMapLayersWin();
-					updateMapLayersCur();
 				}
 			}
 			
-			//
-			//Longwinded but these two functions check to make sure Winds/Current files are being loaded and view with timeslider
-			//Should be re-written
-			public  function updateMapLayersWin():void
-			{
-				winds_.dataProvider = windlayArrCol;
-				if(winds_.selectedItem.label == "NOWCASTING" || winds_.selectedItem.label == "EDS"|| winds_.selectedItem.label == "Forecast Data")
-				{	
-					if(winds.visible == false)
-					{
-						ecopLegendOption.addElement(windsLegendIcon);
-					}
-					winds.visible = true;
-					//if(_runCheck == true)
-					if(_oilMODELW)
-					{
-						if(_oilMODELW.visible && winds.selected == true)
-						{	
-							_oilMODELW.params.time = DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(_currentTime,_timeZone);
-							_oilMODELW.visible = true;
-							_oilMODELW.refresh();
-						} 
-						else if(winds.selected == false)
-						{
-							_oilMODELW.visible = false;
-							_oilMODELW.refresh();	
-						} 
-						else{
-							_oilMODELW = new WMSEDSModel(_edsEcopModelSource, windTitle, DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(_startDate,_timeZone));
-							
-							//_oilMODELW.name="OilModelCurrents";
-							_oilMODELW.name="wmsLayer";
-							_oilMODELW.id = windTitle;
-							
-							_oilMODELW.visible=true;
-							this.map.addLayer(_oilMODELW); 
-						}
-					}
-					else{
-						_oilMODELW = new WMSEDSModel(_edsEcopModelSource, windTitle, DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(_startDate,_timeZone));
-						
-						//_oilMODELW.name="OilModelCurrents";
-						_oilMODELW.name="wmsLayer";
-						_oilMODELW.id = windTitle;
-						
-						_oilMODELW.visible=true;
-						this.map.addLayer(_oilMODELW); 
-					}
-				}
-				else
-				{
-					for (var i:int = 0; i < ecopLegendOption.numElements; i++)
-					{
-						if (ecopLegendOption.getElementAt(i) == windsLegendIcon)
-						{
-							ecopLegendOption.removeElement(windsLegendIcon);
-						}
-					}
-					winds.visible = false;
-				}
-			}
-			public  function updateMapLayersCur():void
-			{
-				currents_.dataProvider = currlayArrCol;
-				if(currents_.selectedItem.label == "EDS"|| currents_.selectedItem.label == "Forecast Data")
-				{
-					if(curnts.visible == false)
-					{
-						ecopLegendOption.addElement(currentsLegendIcon);
-					}
-					
-					curnts.visible = true;
-					//if(_runCheck == true)
-					if(_oilMODELC)
-					{
-						if(_oilMODELC.visible && curnts.selected == true)
-						{	
-							_oilMODELC._params.time = DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(_currentTime,_timeZone);
-							_oilMODELC.visible = true;
-							_oilMODELC.refresh();
-						} 
-						else if(curnts.selected == false)
-						{
-							_oilMODELC.visible = false;
-							_oilMODELC.refresh();
-						}
-						else{
-							_oilMODELC = new WMSEDSModel(_edsEcopModelSource, curTitle, DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(_startDate,_timeZone));
-							
-							//_oilMODELC.name="OilModelCurrents";
-							_oilMODELC.name="wmsLayer";
-							_oilMODELC.id = curTitle;
-							_oilMODELC.visible=true;
-							this.map.addLayer(_oilMODELC); 
-						}
-					}
-					else{
-						_oilMODELC = new WMSEDSModel(_edsEcopModelSource, curTitle, DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(_startDate,_timeZone));
-						
-						//_oilMODELC.name="OilModelCurrents";
-						_oilMODELC.name="wmsLayer";
-						_oilMODELC.id = curTitle;
-						_oilMODELC.visible=true;
-						this.map.addLayer(_oilMODELC);
-					}
-				}
-				else
-				{
-					for (var i:int = 0; i < ecopLegendOption.numElements; i++)
-					{
-						if (ecopLegendOption.getElementAt(i) == currentsLegendIcon)
-						{
-							ecopLegendOption.removeElement(currentsLegendIcon);
-						}
-					}
-					curnts.visible = false;
-				}
-			}
 			public function updateMapLayers():void
 			{	
 				if(_runCheck == true)
@@ -1916,58 +1479,27 @@
 						_oilMODEL.refresh();
 	
 					} else {
-						_oilMODEL = new WMSModel(_OilModelSource, "OILMAP_ALL", _path, DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(_startDate,_timeZone), trackline.selected, contour.selected, spillets.selected, mass.selected, swept.selected, _key);
-						_oilMODEL.name="OilModel";
-						_oilMODEL.id="OilModel";
+						/* _oilMODEL = new WMSModel(userID.toString(),sessionID,_OilModelSource, "OilModel","OilModel", "model,wind,current", scenarioID.toString(),DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(_startDate,_timeZone), "oilmodel",0,trackline.selected, contour.selected, spillets.selected, mass.selected, swept.selected,false);
+						_oilMODEL.id = "OilModel";
 						_oilMODEL.visible=true;
 						map.addLayer(_oilMODEL);
+						_oilMODEL._requestLayers = "model,wind,current"; */
 					}
 				}
-			}
-			//update currents layer
-			/* public function changeCurrentsStyle(event:AppEvent):void
-			{
-				if(_currentsNcomMODEL.visible==true)
-				{
-					_currentsNcomMODEL._params.styles=event.data.toString();
-					updateEDSCurrentsLayer();
+				if(curnts.selected == true && winds.selected ==true){
+					_oilMODEL._requestLayers = "model,wind,current";
 				}
-			}
-			public function updateEDSCurrentsLayer():void
-			{	
-				if(_currentsNcomMODEL.visible==true)
-				{
-					_currentsNcomMODEL._params.time = DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(_currentTime,_timeZone);
-					
-					_currentsNcomMODEL.refresh();
-				}  
-			}
-			//update winds layer
-			public function changeWindsStyle(event:AppEvent):void
-			{
-				if(_windsMODEL.visible==true)
-				{
-					_windsMODEL._params.styles=event.data.toString();
-					updateEDSWindsLayer();
+				else if(curnts.selected == true && winds.selected ==false){
+					_oilMODEL._requestLayers = "model,current";
 				}
-				else
-				{
-				    //do nothing
+				else if(curnts.selected == false && winds.selected ==true){
+					_oilMODEL._requestLayers = "model,wind";					
 				}
-				
+				else{
+					_oilMODEL._requestLayers = "model";
+				}
+				_oilMODEL.refresh();
 			}
-			public function updateEDSWindsLayer():void
-			{	
-				if(_windsMODEL.visible==true)
-				{
-					trace("existing");
-					trace(_currentTime);
-					trace(DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(_currentTime,_timeZone));
-					
-					_windsMODEL._params.time = DateTimeUtilities.spillHyphenServiceDateWithTimeZone2UTC(_currentTime,_timeZone);
-					_windsMODEL.refresh();
-				} 
-			} */
 			
 			protected function waterTempChangeHandler():void
 			{
@@ -2005,7 +1537,7 @@
 					windID = -999;
 					windSP = "";
 					windsDR = "";
-					//add by Xiaowen
+					
 					_windsType="NONE";
 					
 					windtype = winds_.selectedItem.label;
@@ -2017,7 +1549,7 @@
 					windsDR = new String(windsDir.selectedItem.label);
 					forecastUsed = false;
 					windtype = winds_.selectedItem.label;
-					//add by Xiaowen
+					
 					_windsType="MANUAL";
 					if(windsmanual == false)
 					{
@@ -2103,7 +1635,6 @@
 					for(var j:int = 0; j < windsDP.length; j++) {
 						
 						if(lastWinds == windsDP.getItemAt(j).edsid) {
-							trace("match");
 							
 							windsList_.selectedIndex = j;
 							//windTitle = windsList_.selectedItem.id;
@@ -2126,41 +1657,6 @@
 					currentsLoader.visible=false;
 					Alert.show("Error fetching Data sources.");
 				}
-				//windsLoader.visible=false;
-				/*var srvc:WebService = new WebService();
-				srvc.useProxy=false;
-				srvc.wsdl=_edsSource;
-				
-				if(srvc.canLoadWSDL())
-				{		
-					srvc.loadWSDL();
-					srvc.GetCatalogBB.addEventListener("result", handleEDSResult);   
-					srvc.GetCatalogBB("31585","winds",getGeoExtent()[2],getGeoExtent()[3],getGeoExtent()[1],getGeoExtent()[0]);
-					
-					function handleEDSResult(event:ResultEvent):void
-					{
-						var sxml:XML = new XML(event.result.toString());
-						var datasets:XMLList=new XMLList(sxml.dataset); 
-						var count:uint=datasets.length();
-						windsDP = new ArrayCollection();
-						for(var i:int=0; i < count; i++)
-						{
-							var rec:XML = datasets[i];
-							windsDP.addItem({label:rec.@description, id:rec.@wmslayeridstr, bbox:rec.@extentleft + "," + rec.@extentbottom + "," + rec.@extentright + "," + rec.@extenttop, 
-								edsid:rec.@id, dateRange:DateTimeUtilities.DBStringDateToStringDate(rec.@starttime) + " - " + DateTimeUtilities.DBStringDateToStringDate(rec.@endtime)});
-						}
-						
-						for(var j:int=0; j < windsDP.length;j++) {
-							
-							if(lastWinds == windsDP.getItemAt(j).edsid) {
-								trace("match");
-								
-								windsList_.selectedIndex = j;
-								windsList_.dispatchEvent(new IndexChangeEvent(IndexChangeEvent.CHANGE,false,false,-1,j));
-							}
-						}
-					}
-				}*/
 			}
 			private function handleListChangeWinds(event:IndexChangeEvent):void
 			{
@@ -2178,13 +1674,13 @@
 					windID = event.target.selectedItem.edsid;
 					//check manually to see what layer has been selected
 					//apparently the ID from GetEDS sources has been taken out
-					/* if(windsList_.selectedItem.label.search("Global")>-1){
+					if(windsList_.selectedItem.label.search("Global")>-1){
 						windTitle = "GFS_WINDS";
 					}
 					else{
-						windTitle = "DUBAIWND_WINDS";
-					} */
-					windTitle = "DUBAIWND_WINDS";
+						windTitle = "NAM_winds";
+					} 
+					//windTitle = "GFS_WINDS";
 					//windTitle = windsList_.selectedItem.id;
 					//windsList_.selectedIndex = 0;
 					
@@ -2209,12 +1705,12 @@
 						Alert.show(ResourceManager.getInstance().getString('OilSpill','selectDSList'));
 						return;
 					}
-					selectedSourceWinds.text=ResourceManager.getInstance().getString('OilSpill','selectedWinds') + windTitle;
+					//selectedSourceWinds.text=ResourceManager.getInstance().getString('OilSpill','selectedWinds') + windTitle;
 				}
 				else
 				{
 					Alert.show(ResourceManager.getInstance().getString('OilSpill','dataSource'));
-					selectedSourceWinds.text=ResourceManager.getInstance().getString('OilSpill','selectedWindsNone');
+					//selectedSourceWinds.text=ResourceManager.getInstance().getString('OilSpill','selectedWindsNone');
 				}
 			}
 			private function windsSpeedChangeHandler():void
@@ -2318,7 +1814,7 @@
 							timeUTCString=timeUTCString+(computerManualCurrentsDate.hoursUTC.toString().length==1?"0"+computerManualCurrentsDate.hoursUTC.toString():computerManualCurrentsDate.hoursUTC.toString());
 							timeUTCString+="00";
 							manualCurrentsRows.addItem({Time:timeString,TimeUTC:timeUTCString,Rate:"0",Direction:"0"});
-							//每循环一次日期的小时增加1小时
+							
 							manualCurrentsDate.hours+=1;
 							computerManualCurrentsDate.hours+=1;
 						}
@@ -2401,7 +1897,6 @@
 					for(var j:int = 0; j < curDP.length; j++) {
 						
 						if(lastCurrents == curDP.getItemAt(j).edsid) {
-							trace("match");
 							
 							currentsList.selectedIndex = j;
 							currentsList.dispatchEvent(new IndexChangeEvent(IndexChangeEvent.CHANGE,false,false,-1,j));
@@ -2415,7 +1910,6 @@
 					metaBBOXC.text = ResourceManager.getInstance().getString('OilSpill','bBox') + currentsList.selectedItem.bbox;
 					metaDateC.text = ResourceManager.getInstance().getString('OilSpill','availability') + currentsList.selectedItem.dateRange;
 					
-					//curTitle =currentsList.selectedItem.id;
 					lastCurrents = currentsList.selectedItem.edsid;
 					curID = currentsList.selectedItem.edsid;
 					
@@ -2426,42 +1920,6 @@
 					currentsLoader.visible=false;
 					Alert.show("Error fetching Data sources.");
 				}
-				//currentsLoader.visible=false;
-				/*var srvc:WebService = new WebService();
-				srvc.useProxy=false;
-				srvc.wsdl=_edsSource;
-				
-				if(srvc.canLoadWSDL())
-				{		
-					srvc.loadWSDL();
-					srvc.GetCatalogBB.addEventListener("result", handleEDSResult);   
-					srvc.GetCatalogBB("31585","currents",getGeoExtent()[2],getGeoExtent()[3],getGeoExtent()[1],getGeoExtent()[0]);
-					
-					function handleEDSResult(event:ResultEvent):void
-					{
-						var sxml:XML = new XML(event.result.toString());
-						var datasets:XMLList=new XMLList(sxml.dataset); 
-						var count:uint=datasets.length();
-						curDP = new ArrayCollection();
-						for(var i:int=0; i < count; i++)
-						{
-							var rec:XML = datasets[i];
-							curDP.addItem({label:rec.@description, id:rec.@wmslayeridstr, bbox:rec.@extentleft + "," + rec.@extentbottom + "," + rec.@extentright + "," + rec.@extenttop, 
-								edsid:rec.@id, dateRange:DateTimeUtilities.DBStringDateToStringDate(rec.@starttime) + " - " + DateTimeUtilities.DBStringDateToStringDate(rec.@endtime)});
-						}
-						for(var j:int=0; j < curDP.length;j++) {
-							
-							if(lastCurrents == curDP.getItemAt(j).edsid) {
-								trace("match");
-								
-								currentsList.selectedIndex = j;
-								currentsList.dispatchEvent(new IndexChangeEvent(IndexChangeEvent.CHANGE,false,false,-1,j));
-							}
-							
-							
-						}
-					}
-				}*/
 			}
 			private function handleListChangeCurrents(event:IndexChangeEvent):void
 			{	
@@ -2476,26 +1934,17 @@
 					metaDateC.text = ResourceManager.getInstance().getString('OilSpill','availability') + event.target.selectedItem.dateRange;
 					
 					ViewerContainer.dispatchEvent(new AppEvent(AppEvent.CURRENTS_NAME_CHANGE, event.target.selectedItem.label));
-					//curTitle = event.target.selectedItem.id;
 					lastCurrents = event.target.selectedItem.edsid;
 					curID = event.target.selectedItem.edsid;
-					//curTitle = event.target.selectedItem.id;
+							
 					
-					/* may not be needed, but may want to set to false, don't use int
-					if(_runCheck == 1)
-					{
-						_runCheck = 2;	
+					if(currents_.selectedItem.label.search("HYCOM")>-1){
+						curTitle = "HYCOM_GLOBAL_NAVY_CURRENTS";
 					}
-					*/
-					
-					if(currents_.selectedItem.data == "EDS"||currents_.selectedItem.data == "Forecast Data") {
-						curID = event.target.selectedItem.edsid;
-						//curTitle = event.target.selectedItem.id;
-						checkSelectionCurrents();
-					}
+					else{
+						curTitle = "CITGO_CURRENTS";
+					} 
 				}
-				//curTitle = event.target.selectedItem.id;
-				//add by Xiaowen
 				_currentsType =event.target.selectedItem.id;
 
 			}
@@ -2507,11 +1956,11 @@
 						Alert.show(ResourceManager.getInstance().getString('OilSpill','selectDSList'));
 						return;
 					}
-					selectedSource_currents.text=ResourceManager.getInstance().getString('OilSpill','selectedCurrents') + curTitle;
+					//selectedSource_currents.text=ResourceManager.getInstance().getString('OilSpill','selectedCurrents') + curTitle;
 				}
 				else
 				{
-					selectedSource_currents.text=ResourceManager.getInstance().getString('OilSpill','selectedCurrentsNone');
+					//selectedSource_currents.text=ResourceManager.getInstance().getString('OilSpill','selectedCurrentsNone');
 				}
 			}
 			private function currentsSpeedChangeHandler():void
@@ -2582,21 +2031,6 @@
 				{
 					map.removeLayer(_oilMODEL);
 				}
-				if(_oilMODELW)
-				{
-					winds.selected = false;
-					map.removeLayer(_oilMODELW);
-				}
-				if(_oilMODELC)
-				{
-					curnts.selected = false;
-					map.removeLayer(_oilMODELC);
-				}
-				/* if(oilWarningLayerCheck)
-				{
-					oilWarningLayerCheck.selected = false;
-					oilWarningLayer.visible = false;
-				} */
 				trackline.selected = false;
 				contour.selected = false;
 				mass.selected = false;
@@ -2613,28 +2047,14 @@
 			{
 				if(_oilMODEL)
 				{
-					_oilMODEL.visible = false;;
+					_oilMODEL.visible = false;
 				}
-				if(_oilMODELW)
-				{
-					winds.selected = false;
-					_oilMODELW.visible = false;
-				}
-				if(_oilMODELC)
-				{
-					curnts.selected = false;
-					_oilMODELC.visible = false;
-				}
+				
 				graphicsLayer.clear();
 				if(myDrawTool)
 				{
 					myDrawTool.deactivate();
 				}
-				/* if(oilWarningLayerCheck)
-				{
-					oilWarningLayerCheck.selected = false;
-				}
-				oilWarningLayer.visible = false; */
 			}
 			
 			private function widgetOpen():void 
@@ -2655,28 +2075,7 @@
 					curnts.selected = true;
 					_oilMODELC.visible = true;
 				} 
-				/* if(oilWarningLayerCheck)
-				{
-					oilWarningLayerCheck.selected = true;
-					oilWarningLayer.visible = true;
-				} */
-			}
-
-			
-			//
-			/*protected function basewidget1_creationCompleteHandler(event:FlexEvent):void
-			{
-				
-			}
-			private function setEcopDates(event:AppEvent):void
-			{
-				_startDate = new Date(event.data);
-				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.START_DATE_CHANGED, new String(_startDate)));
-				//initial the time range is one day
-				_endDate.setTime(_startDate.getTime() + (24 * (60*60*1000)));
-				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.END_DATE_CHANGED, new String(_endDate)));
-			}*/
-			
+			}			
 			
 			//get booms and overflights from hashtable
 			private function getFeaturesFromHashTable():void
@@ -3194,20 +2593,69 @@
 					outputTimeInterval.selectedIndex = modelTimeStep.selectedIndex;
 				}
 				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.TIMESLIDER_INTERVAL_CHANGE, outputTimeInterval.selectedItem.data));
-			}			
+			}	
+			
+			private function checkSpillSite():void
+			{
+				var spillSiteString:String = "POINT("+textW+ " "+ textN+")";
+//				if(int(spillSiteType.selectedValue)==0)
+//				{
+//					spillSiteString=spillSitePoint.GetCoordinates();
+//				}
+				
+				if(spillSiteString!="")
+				{
+					var tempStartDate:Date = startSpill.dateASA.selectedDate;
+					tempStartDate.hours = startSpill.hours.value;
+					
+					tempStartDate.minutes = 0;
+					tempStartDate.seconds = 0;
+					tempStartDate.milliseconds = 0;
+					var spillTimeString:String=DateTimeUtilities.spillServiceDateWithTimeZone2UTC(tempStartDate,_timeZone)
+					var srvc:WebService=new WebService();
+					srvc.useProxy = false;
+					srvc.wsdl = checkLandWaterWSURL;
+					if(srvc.canLoadWSDL())
+					{		
+						srvc.loadWSDL();
+						srvc.CheckSpillSiteByIDString.addEventListener("result", handleServiceResult);
+						srvc.CheckSpillSiteByIDString.addEventListener("fault", handleFaultEvent);
+						srvc.CheckSpillSiteByIDString(userID.toString(),sessionID,spillSiteString,0,spillTimeString);
+					}
+					function handleServiceResult(event:ResultEvent):void
+					{
+						var checkSpillSiteResult:String =event.result.toString();
+						
+						if(checkSpillSiteResult.indexOf("LAND")>-1)
+						{
+							//spillSiteRight=false;
+							currentState="scenarios";
+							Alert.show(ResourceManager.getInstance().getString('OilSpill','notInWaterTip'),ResourceManager.getInstance().getString('OilSpill','notInWaterTitle'));
+						}
+						else if(checkSpillSiteResult.indexOf("WATER")<0)
+						{
+							//spillSiteRight=false;
+							currentState="scenarios";
+							Alert.show(checkSpillSiteResult,ResourceManager.getInstance().getString('ViewerStrings','msg'));
+						}
+						else
+						{
+							wOilSpill.selectedTitlebarButtonIndex = 1;
+							currentState="spill";
+							//spillSiteRight=true;
+						}
+					}
+					function handleFaultEvent(event:FaultEvent):void
+					{
+						Alert.show(event.fault.toString(),ResourceManager.getInstance().getString('ViewerStrings','msg'));
+					}
+				}
+			}
 
 		]]>
 	</fx:Script>
 	
 	<fx:Declarations>
-		<!--<s:Animate id="fader"
-				   duration="2000"
-				   repeatBehavior="loop"
-				   repeatCount="0"
-				   target="{timesliderL}">
-			<s:SimpleMotionPath property="alpha"
-								valueFrom="1.0" valueTo="0.2" />
-		</s:Animate>-->
 		<esri:GeometryService id="geometryService" fault="onFault(event)"
 							  url="http://sampleserver3.arcgisonline.com/ArcGIS/rest/services/Geometry/GeometryServer"/>
 		<esri:PictureMarkerSymbol id="pms_by_url" height="24" width="24" source="assets/images/SpillSite.png"/>
@@ -3351,9 +2799,9 @@
 					<mx:DataGrid width="100%" height="100%"
 								 contentBackgroundAlpha="0.3" dataProvider="{ldpRuns}" doubleClickEnabled="false" itemDoubleClick="noload(event)" itemClick="loadScenario(event)">
 						<mx:columns>
-							<mx:DataGridColumn width="180" minWidth="180" headerText="Name" dataField="Name" />
-							<mx:DataGridColumn width="90" minWidth="90" dataField="Date" />
-							<mx:DataGridColumn width="90" minWidth="90" headerText="Simulation Length" dataField="SimLength" />
+							<mx:DataGridColumn width="165" minWidth="180" headerText="Name" dataField="Name" />
+							<mx:DataGridColumn width="100" minWidth="90" headerText="Start Date" dataField="StartDate" />
+							<mx:DataGridColumn width="100" minWidth="90" headerText="Creation Date" dataField="CreationDate" />
 					</mx:columns> 
 					</mx:DataGrid>
 					<mx:HBox>
@@ -3367,9 +2815,9 @@
 					<mx:DataGrid width="100%" height="100%" 
 								 contentBackgroundAlpha="0.3" dataProvider="{ldpRuns}" itemDoubleClick="noload(event)" doubleClickEnabled="false" itemClick="deleteScenario(event)">
 						<mx:columns>
-							<mx:DataGridColumn width="180" minWidth="180" headerText="Name" dataField="Name" />
-							<mx:DataGridColumn width="80" minWidth="90" dataField="Date" />
-							<mx:DataGridColumn width="90" minWidth="90" headerText="Simulation Length" dataField="SimLength" />
+							<mx:DataGridColumn width="165" minWidth="180" headerText="Name" dataField="Name" />
+							<mx:DataGridColumn width="100" minWidth="90" headerText="Start Date" dataField="StartDate" />
+							<mx:DataGridColumn width="100" minWidth="90" headerText="Creation Date" dataField="CreationDate" />
 							
 						</mx:columns> 
 					</mx:DataGrid>
@@ -3398,22 +2846,16 @@
 				</s:HGroup>
 				<s:HGroup width="100%" verticalAlign="middle">
 					<s:Label text="{ResourceManager.getInstance().getString('OilSpill','oilType')}" width="125"/>
-					<s:List id="SpillType" width="172" height="130" selectedIndex="1">
+					<s:List id="SpillType" width="172" height="130" selectedIndex="4">
 						<mx:ArrayCollection>
-							<fx:Object label="HFO 380" data="HFO 380"/>
-							<fx:Object label="Bunker C Fuel Oil #6" data="BUNKER C FUEL OIL %236"/>
-							<fx:Object label="Gasoline (leaded)" data="GASOLINE (LEADED)"/>
-							<fx:Object label="Conservative Tracer" data="CONSERVATIVE TRACER"/>
-							<fx:Object label="Gasoline (unleaded)" data="GASOLINE (UNLEADED)"/>
-							<fx:Object label="Diesel" data="DIESEL"/>
-							<fx:Object label="Diesel Fuel" data="DIESEL FUEL OIL"/>
-							<fx:Object label="Marine Diesel Fuel" data="MARINE DIESEL FUEL "/>
-							<fx:Object label="Light Crude" data="LIGHT CRUDE OIL"/>
-							<fx:Object label="Medium Crude" data="MEDIUM CRUDE OIL"/>
-							<fx:Object label="Heavy Crude Oil " data="HEAVY CRUDE OIL "/>
-							<fx:Object label="Prudhoe Bay Crude" data="PRUDHOE BAY CRUDE"/>
-							<fx:Object label="JP-4(Fuel Oil No. 1)" data="JP-4(FUEL OIL No. 1)"/>
-							<fx:Object label="Jet Fuel A-1" data="JET FUEL A-1"/>
+							<fx:Object label="Gasoline (leaded)" dataID="18" data="GASOLINE (LEADED)"/>
+							<fx:Object label="Light Benzine" dataID="7" data="Light Benzine"/>
+							<fx:Object label="Gasoline (unleaded)" dataID="19" data="GASOLINE (UNLEADED)"/>
+							<fx:Object label="Diesel Fuel" dataID="14" data="DIESEL FUEL OIL"/>
+							<fx:Object label="Marine Diesel Fuel" dataID="23" data="MARINE DIESEL FUEL "/>
+							<fx:Object label="Light Crude" dataID="25" data="LIGHT CRUDE OIL"/>
+							<fx:Object label="Medium Crude" dataID="26" data="MEDIUM CRUDE OIL"/>
+							<fx:Object label="Heavy Crude Oil" dataID="2" data="HEAVY CRUDE OIL "/>
 						</mx:ArrayCollection>
 					</s:List>
 				</s:HGroup>	
@@ -3435,7 +2877,6 @@
 					<s:DropDownList id="modelTimeStep" width="63" cornerRadius="3" change="checkNumberboundary(event)"
 									selectedIndex="2" lineThrough="false" textDecoration="none" height="24">
 						<mx:ArrayCollection>
-							<fx:Object label="5" data="5"/>
 							<fx:Object label="10" data="10"/>
 							<fx:Object label="20" data="20"/>
 							<fx:Object label="30" data="30"/>
@@ -3443,7 +2884,6 @@
 							<fx:Object label="90" data="90"/>
 							<fx:Object label="120" data="120"/>
 							<fx:Object label="180" data="180"/>
-							<fx:Object label="300" data="300"/>
 						</mx:ArrayCollection>
 					</s:DropDownList>
 					<s:Label id="modelTimeStepTip"  text="mins" fontSize="11"/>
@@ -3584,19 +3024,14 @@
 			<s:HGroup width="100%" verticalAlign="middle" horizontalAlign="center">
 				<s:Label text="{ResourceManager.getInstance().getString('OilSpill','currentsDataSource')}"/>
 				<s:DropDownList id="currents_" change="{sourceChangeCurrents()}" cornerRadius="3" height="24" width="135" selectedIndex="{sourceSelectedIndex}">
-					<!--<mx:ArrayCollection>
-						<fx:Object label="{ResourceManager.getInstance().getString('OilSpill','none2')}" data="NONE"/>
-						<fx:Object label="{ResourceManager.getInstance().getString('OilSpill','manual2')}" data="MANUAL"/>
-						<fx:Object label="Nowcasting" data="NOWCAST"/>
-						<fx:Object label="EDS" data="EDS"/>
-					</mx:ArrayCollection>-->
+					
 				</s:DropDownList>
 			</s:HGroup>
 			<mx:ViewStack id="currentStack" selectedIndex="{currents_.selectedIndex}" creationPolicy="all" width="100%" height="100%">				
 				<!--EDS-->
 				<mx:VBox width="100%" height="100%">
 					<s:List id="currentsList" selectedIndex="{sourceSelectedIndex}" width="100%" height="100%" dataProvider="{curDP}" change="{handleListChangeCurrents(event)}"/>
-					<s:Label id="selectedSource_currents" text=" " verticalAlign="middle"/>
+					<s:Label id="selectedSource_currents" text=" " visible="false" verticalAlign="middle"/>
 					<s:BorderContainer width="100%" height="75" backgroundAlpha="0.15" borderVisible="false">
 						<s:VGroup id="metaBoxC" height="95" width="100%" gap="3" rowHeight="20" variableRowHeight="false" >
 							<mx:Label id="metaNameC" fontSize="13" height="13"/>
@@ -3719,7 +3154,10 @@
 				<s:Label id="revCUR" text="{curtype}" styleName="reviewHighlight"/>
 			</s:HGroup>
 			<s:Label id="timeDisclaimer" visible="{reviewDis}" top="218" paddingLeft="12" width="495" color="0xcd1b21" fontSize="12" fontWeight="bold" text="The selected Start Date is beyond the normal data availability range.  Please note that using this Start Date could result in no forecasted data (winds or currents) being used in the Oil Spill Model."/>
-			<mx:SWFLoader id="loader" source="assets/images/loader.swf" horizontalCenter="0" bottom="41" visible="false" width="40" height="40"/>			
+			<mx:ProgressBar id="progress" horizontalCenter="0" bottom="41" mode="manual" maximum="100" minimum="0"
+							label="0%" labelPlacement="center" barSkin="widgets.OilSpill.skins.ProgressBarSkin"  trackHeight="25">
+			</mx:ProgressBar>
+			<!--<mx:swfloader id="loader" source="assets/images/loader.swf" horizontalcenter="0" bottom="41" visible="false" width="40" height="40"/>-->			
 			<s:Button fontSize="12" fontWeight="bold"   cornerRadius="5" horizontalCenter="50" bottom="0"   label="{ResourceManager.getInstance().getString('OilSpill','run')}" width="70" click="checkRun()" />
 			<s:Button fontSize="12" fontWeight="bold"   cornerRadius="5" horizontalCenter="-50" bottom="0"  label="{ResourceManager.getInstance().getString('OilSpill','previous')}" click="showStateCurrents()" />
 		</s:Group>
@@ -3737,15 +3175,16 @@
 					<s:CheckBox id="trackline" label="{ResourceManager.getInstance().getString('OilSpill','trackline')}" click="updateMapLayers()" fontWeight="normal" selected="true" />
 					<s:CheckBox id="contour"   label="{ResourceManager.getInstance().getString('OilSpill','contour')}"   click="updateMapLayers()" fontWeight="normal" selected="true" />
 					<s:CheckBox id="mass" 	   label="{ResourceManager.getInstance().getString('OilSpill','mass')}" 	 click="updateMapLayers()" fontWeight="normal" selected="true" />
-					<s:CheckBox id="spillets"  label="{ResourceManager.getInstance().getString('OilSpill','spillets')}"  click="updateMapLayers()" fontWeight="normal" selected="true" />
-					<s:CheckBox id="swept"     label="{ResourceManager.getInstance().getString('OilSpill','swept')}" 	 click="updateMapLayers()" fontWeight="normal" selected="true" />
-					<s:CheckBox id="winds"     label="Winds" click="updateMapLayersWin()" fontWeight="normal" visible="false" selected="true" />	
-					<s:CheckBox id="curnts"    label="Currents"  click="updateMapLayersCur()" fontWeight="normal" visible="false" selected="true" />
-					<!--<s:Label width="180" id="timesliderL" creationComplete="fader.play();" color="0xcd1b21" fontSize="14" paddingTop="6" fontWeight="bold" text="Use the TimeSlider to animate oil spill results"/>-->
+					<s:CheckBox id="spillets"  label="{ResourceManager.getInstance().getString('OilSpill','spillets')}"  click="updateMapLayers()" fontWeight="normal" selected="false" />
+					<s:CheckBox id="swept"     label="{ResourceManager.getInstance().getString('OilSpill','swept')}" 	 click="updateMapLayers()" fontWeight="normal" selected="false" />
+					<s:CheckBox id="winds"     label="Winds" click="updateMapLayers()" fontWeight="normal" visible="true" selected="false" />	
+					<s:CheckBox id="curnts"    label="Currents"  click="updateMapLayers()" fontWeight="normal" visible="true" selected="false" />
 					<s:Button label="Clear Scenario" click="clearScenario()"/>
 				</s:VGroup>
 				<s:VGroup id="ecopLegendOption" gap="-1" paddingTop="-6" paddingLeft="10" horizontalAlign="center" >
 					<mx:Image id="oilLegendImage" source="assets/legends/oilspill.png"/>
+					<mx:Image id="currentsLegendImage" source="assets/legends/CurrentsLegend.png"/>
+					<mx:Image id="windsLegendImage" source="assets/legends/WindLegend.png"/>
 				</s:VGroup>
 			</s:HGroup>
 		</s:VGroup>

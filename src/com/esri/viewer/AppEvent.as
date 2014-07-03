@@ -271,6 +271,9 @@ public class AppEvent extends Event
 	//ASA CURRENTS NAME CHANGE
 	public static const CURRENTS_NAME_CHANGE:String = 'currentsNameChange';
 	
+	//ASA rerun model
+	public static const RERUN_MODEL_COMPLETE:String = 'rerunmodelChange';
+	
 	//Called when Oil Map Service is run
 	public static const OIL_RUN:String = 'oilRun';
 	

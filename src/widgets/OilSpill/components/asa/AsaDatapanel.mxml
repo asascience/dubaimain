@@ -217,14 +217,13 @@
 				return qd;
 			}
 
-			public function processSpill(dataurl:String, modeltype:String, casename:String, location:String, clientKey:String):void
+			public function processSpill(dataurl:String, casename:String, location:String, clientKey:String,ScenarioNAME:String):void
 			{
 				this.linedata=[];
 				var url:String = dataurl + "?";
-				url+="ClientName=" + clientKey + "&";
-				url+="ModelType=" + modeltype + "&";
-				url+="CaseName=" + casename + "&";
-				url+="Location=" + location  + "&";
+				url+="user_id=" + clientKey + "&";
+				url+="session_id=" + location + "&";
+				url+="scenario_id=" + casename + "&";
 				
 				//** may need to allow proxy
 				//var finalRequest:String = "http://staging.asascience.com/proxy/Proxy.ashx?u=" + encodeURIComponent(url);
@@ -234,7 +233,7 @@
 
 				function dataReady(ev:Event):void
 				{
-					loadSpillData(ev, casename);
+					loadSpillData(ev, ScenarioNAME);
 				}
 			}
 

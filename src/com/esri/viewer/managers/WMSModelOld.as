@@ -16,7 +16,7 @@ import flash.display.Loader;
 import flash.net.URLRequest;
 import flash.net.URLVariables;
 
-	public class WMSModel extends DynamicMapServiceLayer
+	public class WMSModelOld extends DynamicMapServiceLayer
 	{
 		//--------------------------------------------------------------------------
 		//
@@ -25,7 +25,7 @@ import flash.net.URLVariables;
 		//--------------------------------------------------------------------------
 		
 		
-		public function WMSModel(wmsURL:String, oilID:String, path:String, timeSpill:String, part1:Boolean, part2:Boolean, part3:Boolean, part4:Boolean, part5:Boolean)
+		public function WMSModelOld(wmsURL:String, oilID:String, path:String, timeSpill:String, part1:Boolean, part2:Boolean, part3:Boolean, part4:Boolean, part5:Boolean)
 		{			
 			super();  
 			setLoaded(true); // Map will only use loaded layers        

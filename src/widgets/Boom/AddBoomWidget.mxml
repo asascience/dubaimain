@@ -1,0 +1,578 @@
+<?xml version="1.0" encoding="utf-8"?>
+<viewer:BaseWidget xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				   xmlns:s="library://ns.adobe.com/flex/spark" 
+				   xmlns:mx="library://ns.adobe.com/flex/mx"
+				   xmlns:util="widgets.OilSpill.components.util.*" 
+				   xmlns:viewer="com.esri.viewer.*" layout="absolute"
+				   initialize="basewidget1_initializeHandler(event)"
+				   widgetConfigLoaded="ModelFeatures_widgetConfigLoadedHandler(event)"
+				   creationComplete="basewidget1_creationCompleteHandler(event)"
+				   add="basewidget1_addHandler(event)"
+				   remove="basewidget1_removeHandler(event)">
+	
+	<fx:Metadata>
+		[ResourceBundle("ModelFeatures")]
+	</fx:Metadata>
+	<fx:Script>
+		<![CDATA[
+			import com.asa.components.ASAScenario;
+			import com.asa.components.DataUtilities;
+			import com.esri.ags.Graphic;
+			import com.esri.ags.SpatialReference;
+			import com.esri.ags.events.DrawEvent;
+			import com.esri.ags.geometry.Geometry;
+			import com.esri.ags.geometry.MapPoint;
+			import com.esri.ags.geometry.Polyline;
+			import com.esri.ags.layers.GraphicsLayer;
+			import com.esri.ags.symbols.SimpleLineSymbol;
+			import com.esri.ags.symbols.Symbol;
+			import com.esri.ags.tools.DrawTool;
+			import com.esri.ags.tools.NavigationTool;
+			import com.esri.ags.utils.WebMercatorUtil;
+			import com.esri.viewer.AppEvent;
+			import com.esri.viewer.ViewerContainer;
+			import com.esri.viewer.utils.Hashtable;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.events.CloseEvent;
+			import mx.events.FlexEvent;
+			import mx.resources.ResourceManager;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.rpc.soap.WebService;
+			
+			import widgets.OilSpill.components.util.AsaDateTimePicker;
+			import widgets.TimeSlider.components.util.DateTimeUtilities;
+			
+			private const ICON_URL:String = "widgets/ModelFeatures/assets/images/";
+			//for the boom and overflight
+			//if booms or overflight number is 0,no boom or overflight
+			private var boomsNumber:int=0;
+			private var boomsLayer:GraphicsLayer;
+			private var boomGraphic:Graphic;
+			[Bindable]
+			private var boomsCol:ArrayCollection;
+			private var boomsXMLString:String;
+			private var hashTable:Hashtable;
+			private var loginUser:Array=new Array();
+			[Bindable]
+			private var rerunEnableStatus:Boolean;
+			[Bindable]
+			private var curSceName:String;
+			private var currentScenario:ASAScenario;
+			private var _timeZone:Number;
+			private var addResponseURL:String;
+			//event sequence: initialize--add--creationcomplete--remove
+			protected function basewidget1_initializeHandler(event:FlexEvent):void
+			{
+				//
+				ViewerContainer.addEventListener(AppEvent.TIME_ZONE_CHANGED, timeZoneChanged);
+				ViewerContainer.addEventListener(AppEvent.LOGIN_USER_CHANGED,loginUserChanged);
+				ViewerContainer.addEventListener(AppEvent.CURRENT_SCENARIO_CHANGED, currentScenarioChanged);
+				
+				ViewerContainer.addEventListener(AppEvent.DATA_SENT, receivedData);
+				fetchSharedData();
+				//init boomslayer and overflightslayer
+				boomsLayer=new GraphicsLayer();
+				boomsLayer.id="booms_1";
+				boomsLayer.name="Boom Layer";
+				map.addLayer(boomsLayer);
+			}
+			private function receivedData(event:AppEvent):void
+			{
+				hashTable=event.data as Hashtable;
+			}
+			private function loginUserChanged(event:AppEvent):void
+			{
+				if(hashTable.containsKey("loginuser"))
+				{
+					loginUser=hashTable.find("loginuser") as Array;
+				}
+			}
+			private function timeZoneChanged(event:AppEvent):void
+			{
+				//change time zone
+				if(hashTable.containsKey("timezone"))
+				{
+					_timeZone=hashTable.find("timezone") as Number;
+				}
+			}
+			private function currentScenarioChanged(event:AppEvent):void
+			{
+				//change current scenario
+				if(hashTable.containsKey("scenario"))
+				{
+					boomsLayer.clear();
+					currentScenario=hashTable.find("scenario") as ASAScenario;
+					curSceName=currentScenario.nameAlias;
+					if(currentScenario.hadRun)
+					{
+						if(currentScenario.startTime.length>0)
+						{
+							var _boomStartDate:Date=new Date();
+							//use scenario spill time here
+							_boomStartDate=DataUtilities.StringToDate_UTC2TimeZone(currentScenario.startTime,_timeZone,1);
+							//get BoomEndtime
+							var _boomEndDate:Date=DataUtilities.DeepCopy(_boomStartDate) as Date;
+							_boomEndDate.hours+=Number(currentScenario.simLength);
+							//
+							boomStartTime.dateASA.selectedDate=_boomStartDate;
+							boomStartTime.hours.value = _boomStartDate.hours;
+							boomStartTime.minutes.value=_boomStartDate.minutes;
+							//
+							boomEndTime.dateASA.selectedDate=_boomEndDate;
+							boomEndTime.hours.value = _boomEndDate.hours;
+							boomEndTime.minutes.value=_boomEndDate.minutes;
+							currentThreshold.text="2.0";
+							waveThreshold.text="2.0";
+						}
+						getBooms();
+					}
+				}
+			}
+			protected function basewidget1_creationCompleteHandler(event:FlexEvent):void
+			{
+				startDrawBoom();
+			}
+			
+			protected function basewidget1_removeHandler(event:FlexEvent):void
+			{
+				boomsLayer.visible=false;
+				setMapNavigation(NavigationTool.PAN, "pan");
+			}
+			
+			protected function basewidget1_addHandler(event:FlexEvent):void
+			{
+				boomsLayer.visible=true;
+			}
+			protected function ModelFeatures_widgetConfigLoadedHandler(event:Event):void
+			{
+				if (configXML)
+				{
+//					addResponseURL=DataUtilities.CheckWSURL(configXML.addResponseURL.toString(),configData.serverURL);
+					//addResponseURL=DataUtilities.CheckWSURL(configData.managementservices.AddResponseWSURL,configData.serverURL);
+					addResponseURL = configXML.boomURL;
+				}
+				if(hashTable.containsKey("timezone"))
+				{
+					_timeZone=hashTable.find("timezone") as Number;
+				}
+				else
+				{
+					//use computer's time zone
+					//var tempDate:Date=new Date();
+					//_timeZone=-tempDate.getTimezoneOffset()/60.0;
+					//use utc
+					_timeZone=0;
+				}
+				//init loginuser array
+				if(hashTable.containsKey("loginuser"))
+				{
+					loginUser=hashTable.find("loginuser") as Array;
+					if(int(loginUser[3])>0&&int(loginUser[3])<6)
+					{
+						rerunEnableStatus=true;
+					}
+					else
+					{
+						rerunEnableStatus=false;
+					}
+				}
+				if(hashTable.containsKey("scenario"))
+				{
+					boomsLayer.clear();
+					currentScenario=hashTable.find("scenario") as ASAScenario;
+					curSceName=currentScenario.nameAlias;
+					if(currentScenario.startTime.length>0)
+					{
+						var _boomStartDate:Date=new Date();
+						//use current time here
+						//_boomStartDate=DataUtilities.StringToDate_UTC2TimeZone(currentScenario.startTime,_timeZone,1);
+						if(hashTable.containsKey("currenttime"))
+						{
+							_boomStartDate=hashTable.find("currenttime") as Date;
+						}
+						//get BoomEndtime
+						var _boomEndDate:Date=DataUtilities.DeepCopy(_boomStartDate) as Date;
+						_boomEndDate.hours+=Number(currentScenario.simLength);
+						//
+						boomStartTime.dateASA.selectedDate=_boomStartDate;
+						boomStartTime.hours.value = _boomStartDate.hours;
+						boomStartTime.minutes.value=_boomStartDate.minutes;
+						//
+						boomEndTime.dateASA.selectedDate=_boomEndDate;
+						boomEndTime.hours.value = _boomEndDate.hours;
+						boomEndTime.minutes.value=_boomEndDate.minutes;
+						currentThreshold.text="2.0";
+						waveThreshold.text="2.0";
+					}
+					if(currentScenario.hadRun)
+					{
+						getBooms();
+					}
+					else
+					{
+						Alert.show("The scenario is a new one!");
+					}
+				}
+				else
+				{
+					curSceName=ResourceManager.getInstance().getString('ModelFeatures','noScenario');
+				}
+			}
+			//start draw boom or overflight
+			private function startDrawBoom():void
+			{
+				var featureSymbol:Symbol;
+				var currentStatus:String;
+				currentStatus=ResourceManager.getInstance().getString('ModelFeatures','lineLabel');
+				featureSymbol = new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID, boomColor.selectedColor, 1, boomSize.value);
+				setMapAction(DrawTool.POLYLINE, currentStatus, featureSymbol, endDrawBoom);
+			}
+			private function endDrawBoom(event:DrawEvent):void
+			{
+				boomGraphic=new Graphic();
+				boomGraphic= event.graphic;
+				//add to the boomslayer
+				if(map.getLayer("booms_1")==null)
+				{
+					map.addLayer(boomsLayer);
+				}
+				boomsLayer.clear();
+				boomsLayer.add(boomGraphic);
+				setMapNavigation(NavigationTool.PAN,ResourceManager.getInstance().getString('ModelFeatures','panMapLabel'));
+				
+			}
+			private function clearBoom():void
+			{
+				if(boomsLayer!=null)
+				{
+					boomGraphic=null;
+					boomsLayer.clear();
+				}
+			}
+			private function deleteBoom():void
+			{
+				if(hashTable.containsKey("scenario"))
+				{
+					if(currentScenario&&currentScenario.hadRun)
+					{
+						loader.visible=true;
+						//clear interface
+						boomGraphic=null;
+						boomsLayer.clear();
+						//clear server side
+						var deleteBoomsWS:WebService=new WebService();
+						deleteBoomsWS.useProxy = false;
+						deleteBoomsWS.wsdl = addResponseURL;
+						if(deleteBoomsWS.canLoadWSDL())
+						{		
+							deleteBoomsWS.loadWSDL();
+							deleteBoomsWS.DeleteResponseObjectbyScenario.addEventListener("result", deleteBoomsWS_resultHandler);
+							deleteBoomsWS.DeleteResponseObjectbyScenario.addEventListener("fault", deleteBoomsWS_faultHandler);
+							//at this stage, will not rerun model
+							deleteBoomsWS.DeleteResponseObjectbyScenario(0,currentScenario.sceID,int(loginUser[0]),loginUser[1].toString());
+                            //**TOM need to update TOC to remove booms here
+						}
+					}
+				}
+				else
+				{
+					Alert.show(ResourceManager.getInstance().getString('ModelFeatures','noScenario'));
+				}
+			}
+			private function deleteBoomsWS_resultHandler(event:ResultEvent):void
+			{
+				var data:Object = {type:"Boom",setting:false};
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.RERUN_MODEL_COMPLETE, data));
+				loader.visible=false;
+				Alert.show(ResourceManager.getInstance().getString('ModelFeatures','deleteBoomSuccess'));
+				map.getLayer("OILMAP_ALL_" + currentScenario.sceID).refresh();
+			}
+			private function deleteBoomsWS_faultHandler(event:FaultEvent):void
+			{
+				loader.visible=false;
+				Alert.show(event.toString());
+				map.getLayer("OILMAP_ALL_" + currentScenario.sceID).refresh();
+			}
+			private function reRunModelFunction():void
+			{
+				if(currentScenario&&currentScenario.hadRun)
+				{
+					Alert.show(ResourceManager.getInstance().getString('ModelFeatures','rerunTipContent'),
+						ResourceManager.getInstance().getString('ModelFeatures','rerunTipTitle'),
+						Alert.YES|Alert.NO,this,rerunTipHandler);
+					function rerunTipHandler(event:CloseEvent):void
+					{
+						if(event.detail == Alert.YES)
+						{
+							//start rerun model with booms and after saved the booms will continue to save overflights, then rerun model;
+							loader.visible=true;
+							generateBoomsXML();
+						}
+						
+					}
+				}
+				else
+				{
+					Alert.show("The current scenario is a new one. Please run model first.");
+				}
+			}
+			private function generateBoomsXML():void
+			{
+				//booms XML
+				if(boomGraphic!=null)
+				{
+					//store the number of Multipoints/Polylines in the graphicProvider
+					
+					var _polyline:Polyline=Polyline(WebMercatorUtil.webMercatorToGeographic(boomGraphic.geometry));
+					//get the string of start and end date
+					//convert to computer time zone
+					var _boomStartTime:Date=new Date(boomStartTime.dateASA.selectedDate.fullYear,boomStartTime.dateASA.selectedDate.month,boomStartTime.dateASA.selectedDate.date,boomStartTime.hours.value,boomStartTime.minutes.value);
+					var _boomEndTime:Date=new Date(boomEndTime.dateASA.selectedDate.fullYear,boomEndTime.dateASA.selectedDate.month,boomEndTime.dateASA.selectedDate.date,boomEndTime.hours.value,boomEndTime.minutes.value);
+					if(_boomStartTime>=_boomEndTime)
+					{
+						loader.visible=false;
+						Alert.show(ResourceManager.getInstance().getString('ModelFeatures','timeErrorTip'),ResourceManager.getInstance().getString('ModelFeatures','timeErrorTitle'));
+						return;
+					}
+					var _boomStartUTC:String=DateTimeUtilities.DateToString_TimeZone2UTC(_boomStartTime,_timeZone);
+					var _boomEndUTC:String=DateTimeUtilities.DateToString_TimeZone2UTC(_boomEndTime,_timeZone);
+					
+					var boomGeom:String=_polyline.getPoint(0,0).x.toString();
+					boomGeom+=",";
+					boomGeom+=_polyline.getPoint(0,0).y.toString();
+					for(var j:int=1;j<_polyline.paths[0].length;j++)
+					{
+						boomGeom+=";";
+						boomGeom+=_polyline.getPoint(0,j).x.toString();
+						boomGeom+=",";
+						boomGeom+=_polyline.getPoint(0,j).y.toString();
+					}
+					var boomString:String="EPSG:4326"+"~"+boomName.text;
+					boomString+="~"+_boomStartUTC;
+					boomString+="~"+_boomEndUTC;
+					boomString+="~"+currentThreshold.text;
+					boomString+="~"+waveThreshold.text;
+					boomString+="~"+boomGeom;
+					//save to server side
+					var addBoomsWS:WebService=new WebService();
+					addBoomsWS.useProxy = false;
+					addBoomsWS.wsdl = addResponseURL;
+					if(addBoomsWS.canLoadWSDL())
+					{		
+						addBoomsWS.loadWSDL();
+						addBoomsWS.AddResponseObject.addEventListener("result", addBoomsWS_resultHandler);
+						addBoomsWS.AddResponseObject.addEventListener("fault", addBoomsWS_faultHandler);
+						//at this stage, will not rerun model
+						addBoomsWS.AddResponseObject(boomString,0,true,currentScenario.sceID,int(loginUser[0]),loginUser[1].toString());
+					}
+				}
+				else
+				{
+					loader.visible=false;
+					Alert.show(ResourceManager.getInstance().getString('ModelFeatures','noFeatureTip'));
+				}
+			}
+			private function addBoomsWS_resultHandler(event:ResultEvent):void
+			{
+				loader.visible=false;
+				var data:Object = {type:"Boom",setting:true};
+				ViewerContainer.dispatchEvent(new AppEvent(AppEvent.RERUN_MODEL_COMPLETE, data));
+                
+				map.getLayer("OILMAP_ALL_" + currentScenario.sceID).refresh();
+//				}
+			}
+			private function addBoomsWS_faultHandler(event:FaultEvent):void
+			{
+				loader.visible=false;
+				map.getLayer("OILMAP_ALL_" + currentScenario.sceID).refresh();
+				Alert.show(event.toString(),ResourceManager.getInstance().getString('ViewerStrings','error'));
+			}
+			
+			//will get overflgiths after get the booms automatically
+			private function getBooms():void
+			{
+				//booms
+				var getBoomsWS:WebService=new WebService();
+				getBoomsWS.useProxy = false;
+				getBoomsWS.wsdl = addResponseURL;
+				if(getBoomsWS.canLoadWSDL())
+				{		
+					getBoomsWS.loadWSDL();
+					getBoomsWS.GetResponseObjectbyScenario.addEventListener("result", getBoomsWS_resultHandler);
+					getBoomsWS.GetResponseObjectbyScenario.addEventListener("fault", getBoomsWS_faultHandler);
+					//at this stage, will not rerun model
+					getBoomsWS.GetResponseObjectbyScenario(0,currentScenario.sceID,int(loginUser[0]),loginUser[1].toString());
+				}
+			}
+			
+			private function getBoomsWS_resultHandler(event:ResultEvent):void
+			{
+				//still no spatialreference
+				var resultString:String=event.result.toString();
+				if(resultString.indexOf("No boom found") < 0)
+				{
+					//result sample
+					/*"><NewDataSet> <Table> <responseobj>&lt;booms&gt;&lt;spatialreference&gt;EPSG:4326&lt;/spatialreference&gt;&lt;polylines&gt;&lt;polyline&gt;&lt;name&gt;boom_1&lt;/name&gt;&lt;start_utc&gt;20110324T1600&lt;
+					/start_utc&gt;&lt;end_utc&gt;20110325T1600&lt;/end_utc&gt;&lt;currentthreshold&gt;0.000&lt;/currentthreshold&gt;&lt;wavethreshold&gt;0.000&lt;/wavethreshold&gt;&lt;
+					point&gt;122.41945311348536,39.1084212226824;123.42964598457887,39.29571898642239;123.6933178595788,38.749467547335016;122.62764403145408,38.5778993583534;122.61665770332908,
+					38.5778993583534;121.97945067207925,38.706614040966045;121.96846434395424,38.706614040966045;122.16566893379796,39.33014435660281&lt;/point&gt;&lt;/polyline&gt;&lt;/polylines&gt;&lt;/booms&gt;</responseobj> </Table> </NewDataSet>*/
+					resultString=resultString.split("&lt;").join("<");
+					resultString=resultString.split("&gt;").join(">");
+					var getBoomsXML:XML=new XML(resultString);
+					var polylinesXMLList:XMLList=getBoomsXML.Table.responseobj.booms.polylines.polyline as XMLList;
+					//
+					var _spatialReference:SpatialReference= new SpatialReference(4326);
+					for each(var polylineXML:XML in polylinesXMLList)
+					{
+						//generate features
+						var pointsString:String = new String(polylineXML.point);
+						var pointsArray:Array=pointsString.split(";");
+						var mappointArray:Array=new Array();
+						for each (var pointString:String in pointsArray)
+						{
+							var pointArray:Array=pointString.split(",");
+							var newMappoint:MapPoint=new MapPoint(pointArray[0],pointArray[1],_spatialReference);
+							mappointArray.push(newMappoint);
+						}
+						var getBoomsPolylineG:Polyline=new Polyline([mappointArray],_spatialReference);
+						var getBoomsPolylineM:Geometry=WebMercatorUtil.geographicToWebMercator(Geometry(getBoomsPolylineG));
+						//var newGeometry:Geometry=getBoomsPolyline as Geometry;
+						var newFeatureSymbol:SimpleLineSymbol = new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID, boomColor.selectedColor, 1, boomSize.value);
+						boomGraphic=new Graphic(getBoomsPolylineM,newFeatureSymbol);
+						boomsLayer.clear();
+						boomsLayer.add(boomGraphic);
+						//get the other parameters
+						boomName.text=polylineXML.name.toString();
+						var _boomStartDate:Date=new Date();
+						_boomStartDate=DateTimeUtilities.StringToDate_UTC2TimeZone(polylineXML.start_utc.toString(),_timeZone);
+						var _boomEndDate:Date=new Date();
+						_boomEndDate=DateTimeUtilities.StringToDate_UTC2TimeZone(polylineXML.end_utc.toString(),_timeZone);
+						//
+						boomStartTime.dateASA.selectedDate=_boomStartDate;
+						boomStartTime.hours.value = _boomStartDate.hours;
+						boomStartTime.minutes.value=_boomStartDate.minutes;
+						//end time
+						boomEndTime.dateASA.selectedDate=_boomEndDate;
+						boomEndTime.hours.value = _boomEndDate.hours;
+						boomEndTime.minutes.value=_boomEndDate.minutes;
+						
+						currentThreshold.text=polylineXML.currentthreshold.toString();
+						waveThreshold.text=polylineXML.wavethreshold.toString();
+                        
+					}
+                    
+                    //if there was a boom the checkbox is ticked, otherwise not
+                    //reusing this event type to check the checkbox in the TOC
+					var data:Object = {type:"Boom",setting:true};
+                    ViewerContainer.dispatchEvent(new AppEvent(AppEvent.RERUN_MODEL_COMPLETE, data));
+				}
+				else
+				{
+					//should disable the checkbox until there is a boom in the wms
+				}
+			}
+			private function getBoomsWS_faultHandler(event:FaultEvent):void
+			{
+				Alert.show(event.toString(),ResourceManager.getInstance().getString('ViewerStrings','error'));
+			}
+			private function onTimeTypeChanged():void
+			{
+				var _boomStartDate:Date=new Date();
+				if(timeTypeChoice.selectedValue==0)
+				{
+					if(hashTable.containsKey("currenttime"))
+					{
+						_boomStartDate=hashTable.find("currenttime") as Date;
+					}
+				}
+				else if(timeTypeChoice.selectedValue==1)
+				{
+					if(currentScenario&&currentScenario.hadRun)
+					{
+						_boomStartDate=DataUtilities.StringToDate_UTC2TimeZone(currentScenario.startTime,_timeZone,1);
+					}
+				}
+				boomStartTime.dateASA.selectedDate=_boomStartDate;
+				boomStartTime.hours.value = _boomStartDate.hours;
+				boomStartTime.minutes.value=_boomStartDate.minutes;
+			}
+		]]>
+	</fx:Script>
+	
+	<fx:Declarations>
+		<s:RadioButtonGroup id="timeTypeChoice" change="onTimeTypeChanged()"/>
+	</fx:Declarations>
+	<viewer:WidgetTemplate id="addBoomWT" width="410" height="415" enableMinimizeButton="false" enableIcon="false">
+		<mx:VBox width="100%" height="100%" paddingLeft="20" paddingTop="10">
+			<mx:HBox width="100%" fontSize="14" fontWeight="bold">
+				<s:Label text="{ResourceManager.getInstance().getString('ModelFeatures','currentScenario')}"/>
+				<s:Label color="0x009900" text="{curSceName}"/>
+			</mx:HBox>
+			<s:VGroup width="100%" paddingTop="5" height="100%" horizontalAlign="center">
+				<!--<s:HGroup width="100%" verticalAlign="bottom" fontWeight="bold">
+					<s:Label text="{ResourceManager.getInstance().getString('ModelFeatures','boomSegments')}" fontSize="13" width="180" verticalAlign="bottom"/>
+				</s:HGroup>-->
+				<!--
+				<s:HGroup width="100%" verticalAlign="middle">
+				<mx:DataGrid id="DGBooms" dataProvider="{boomsCol}" itemClick="DGBooms_itemClickHandler(event)">
+				<mx:columns>
+				<mx:DataGridColumn dataField="scenarioname" headerText="{ResourceManager.getInstance().getString('OilSpill','name')}"/>
+				</mx:DataGrid>
+				</s:HGroup>
+				-->
+				<s:HGroup width="100%" verticalAlign="middle">
+					<s:Label text="{ResourceManager.getInstance().getString('ModelFeatures','featureName')}" width="110"/>
+					<s:TextInput id="boomName" text="Boom"/>
+				</s:HGroup>
+				<s:HGroup width="100%" verticalAlign="middle">
+					<s:Label text="{ResourceManager.getInstance().getString('ModelFeatures','featureType')}" width="110" />
+					<mx:Image id="polylineFeature" width="40" height="40" buttonMode="true"
+							  source="widgets/Boom/assets/images/line.png" click="{startDrawBoom()}"
+							  toolTip="{ResourceManager.getInstance().getString('ModelFeatures','lineLabel')}"/>
+					<!--<s:Label text="{ResourceManager.getInstance().getString('ModelFeatures','press2draw')}" />-->
+					<s:Button id="btnClearBooms" width="100" cornerRadius="5" label="{ResourceManager.getInstance().getString('ModelFeatures','btnClearBooms')}" click="{clearBoom()}"/>
+				</s:HGroup>
+				<s:HGroup width="100%" verticalAlign="middle">
+					<s:Label text="{ResourceManager.getInstance().getString('ModelFeatures','featureColor')}" width="110"/>
+					<mx:ColorPicker id="boomColor" selectedColor="0xAAAAAA"/>
+					<s:Label text="{ResourceManager.getInstance().getString('ModelFeatures','featureSize')}" width="40" textAlign="right"/>
+					<s:NumericStepper id="boomSize" maximum="10" minimum="1" value="2"/>
+				</s:HGroup>
+				<s:HGroup width="100%" verticalAlign="middle">
+					<s:Label text="{ResourceManager.getInstance().getString('ModelFeatures','boomStartTime')}" width="110" />
+					<util:AsaDateTimePicker id="boomStartTime"/>
+				</s:HGroup>
+				<s:HGroup width="100%" verticalAlign="middle">
+					<mx:Spacer width="110"/>
+					<s:RadioButton group="{timeTypeChoice}" label="{ResourceManager.getInstance().getString('ModelFeatures','currentTime')}" value="0" selected="true"/>
+					<s:RadioButton group="{timeTypeChoice}" label="{ResourceManager.getInstance().getString('ModelFeatures','spillTime')}" value="1"/>
+				</s:HGroup>
+				<s:HGroup width="100%"  verticalAlign="middle">
+					<s:Label text="{ResourceManager.getInstance().getString('ModelFeatures','boomEndTime')}" width="110" />
+					<util:AsaDateTimePicker id="boomEndTime"/>
+				</s:HGroup>
+				<s:HGroup width="100%"  verticalAlign="middle">
+					<s:Label text="{ResourceManager.getInstance().getString('ModelFeatures','currentThreshold')}" width="110"/>
+					<s:TextInput id="currentThreshold" text="0.000" width="90"/>
+					<s:Label id="currentThresholdTip"  text="{ResourceManager.getInstance().getString('ModelFeatures','knot')}"/>
+				</s:HGroup>
+				<s:HGroup width="100%"  verticalAlign="middle">
+					<s:Label text="{ResourceManager.getInstance().getString('ModelFeatures','waveThreshold')}" width="110" />
+					<s:TextInput id="waveThreshold" text="0.000" width="90"/>
+					<s:Label id="waveThresholdTip"  text="{ResourceManager.getInstance().getString('ModelFeatures','feet')}"/>
+				</s:HGroup>
+				<s:VGroup width="100%" height="100%" horizontalAlign="center">
+					<mx:SWFLoader id="loader" source="assets/images/loader.swf" horizontalCenter="0" bottom="21" visible="false" width="37" height="37"/>
+				</s:VGroup>
+			</s:VGroup>			
+			<s:HGroup width="100%" horizontalAlign="center" paddingTop="12" enabled="{rerunEnableStatus}" paddingBottom="10">
+				<!--<s:Button id="btnAddBooms" width="150" cornerRadius="5" label="{ResourceManager.getInstance().getString('ModelFeatures','btnAddBoomsGraphic')}" click="{startDrawBoom()}"/>-->
+				<s:Button id="btnDeleteBooms" width="120" cornerRadius="5" label="{ResourceManager.getInstance().getString('ModelFeatures','btnDeleteBooms')}" click="{deleteBoom()}"/>
+				<s:Button id="reRunModel" width="120" cornerRadius="5" label="{ResourceManager.getInstance().getString('ModelFeatures','reRunModel')}" click="reRunModelFunction()"/>
+			</s:HGroup>
+		</mx:VBox>
+	</viewer:WidgetTemplate>
+</viewer:BaseWidget>

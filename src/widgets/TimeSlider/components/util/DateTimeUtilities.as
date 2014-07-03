@@ -40,277 +40,19 @@ package widgets.TimeSlider.components.util
              //trace(rtnString);
              return rtnString;   
 		}
-		public static function getFeatureDateToDBDateString(dateIn:Date):String
+		public static function convertDateEuronoTime(d:Date):String
 		{
-			//Mon Jan 18 11:59:00 GMT-0500 2010 to "01-18-2010 12:00:00"
-			//trace(dateIn.toString());
-			var monthNames:Array = new Array(
-				"JAN",
-				"FEB",
-				"MAR",
-				"APR",
-				"MAY",
-				"JUN",
-				"JUL",
-				"AUG",
-				"SEP",
-				"OCT",
-				"NOV",
-				"DEC");
-			var monthStr:String = (dateIn.getMonth()+1).toString();
-			if(monthStr.length==1)
-			{monthStr="0" + monthStr;}
-			var dayStr:String = dateIn.getDate().toString();
-			if(dayStr.length==1)
-			{dayStr="0" + dayStr;}
-			var yearStr:String = dateIn.getFullYear().toString();
-			//var hoursStr:String = (dateIn.getHours() + 4).toString();
-			var hoursStr:String = dateIn.getHours().toString();
-			if(hoursStr.length==1)
-			{hoursStr="0" + hoursStr;}
-			var minsStr:String = dateIn.getMinutes().toString();
-			if(minsStr.length==1)
-			{minsStr="0" + minsStr;}
-			var secsStr:String = dateIn.getSeconds().toString();
-			if(secsStr.length==1)
-			{secsStr="0" + secsStr;}
-			var spaceStr:String = " ";
-			var dashStr:String = "-";
-			if(Number(minsStr)>29)
-			{
-				if(hoursStr=="00")
-				{
-					hoursStr="01";
-				}
-				else if(hoursStr=="01")
-				{
-				hoursStr="02";
-				}
-				else if(hoursStr=="02")
-				{
-				hoursStr="03";
-				}
-				else if(hoursStr=="04")
-				{
-				hoursStr="05";
-				}
-				else if(hoursStr=="05")
-				{
-				hoursStr="06";
-				}
-				else if(hoursStr=="07")
-				{
-				hoursStr="08";
-				}
-				else if(hoursStr=="08")
-				{
-				hoursStr="09";
-				}
-				else if(hoursStr=="09")
-				{
-				hoursStr="10";
-				}
-				else if(hoursStr=="10")
-				{
-				hoursStr="11";
-				}
-				else if(hoursStr=="11")
-				{
-				hoursStr="12";
-				}
-				else if(hoursStr=="13")
-				{
-				hoursStr="14";
-				}
-				else if(hoursStr=="14")
-				{
-				hoursStr="15";
-				}
-				else if(hoursStr=="15")
-				{
-					hoursStr="16";
-				}
-				else if(hoursStr=="16")
-				{
-				hoursStr="17";
-				}
-				else if(hoursStr=="17")
-				{
-				hoursStr="18";
-				}
-				else if(hoursStr=="18")
-				{
-					hoursStr="19";
-				}
-				else if(hoursStr=="19")
-				{
-				hoursStr="20";
-				}
-				else if(hoursStr=="20")
-				{
-				hoursStr="21";
-				}
-				else if(hoursStr=="21")
-				{
-					hoursStr="22";
-				}
-				else if(hoursStr=="22")
-				{
-				hoursStr="23";
-				}
-				else if(hoursStr=="23")
-				{
-					hoursStr="00";
-					dayStr = (Number(dayStr)+1).toString();
-					if(dayStr.length==1)
-					{
-						{dayStr="0" + dayStr;};
-					}
-				}
-			}
-			
-			var rtnString:String = monthStr + dashStr + dayStr + dashStr + yearStr + spaceStr + hoursStr + ":00:00";
-			//trace(rtnString);
-			return rtnString;   
+			var zd:Date = d;
+			var df:DateFormatter = new DateFormatter();
+			df.formatString = "DD MMM YYYY";
+			var qd:String = df.format(zd.toDateString());
+			var hrs:String = zd.hours.toString().length == 1 ? "0" + zd.hours.toString() : zd.hours.toString();
+			var min:String = zd.minutes.toString().length == 1 ? "0" + zd.minutes.toString() : zd.minutes.toString();
+			//var sec:String = zd.seconds.toString().length == 1 ? "0" + zd.seconds.toString() : zd.seconds.toString();
+			//qd = qd;
+			return qd;
 		}
 		
-		//For finding closest date for 6 hour intervals
-		public static function getFeatureDateWarningToDBDateString(dateIn:Date):String
-		{
-			//Mon Jan 18 11:59:00 GMT-0500 2010 to "01-JAN-2010 12:00"
-			//trace(dateIn.toString());
-			var monthNames:Array = new Array(
-				"JAN",
-				"FEB",
-				"MAR",
-				"APR",
-				"MAY",
-				"JUN",
-				"JUL",
-				"AUG",
-				"SEP",
-				"OCT",
-				"NOV",
-				"DEC");
-			var monthStr:String = monthNames[dateIn.getMonth()];
-			var dayStr:String = dateIn.getDate().toString();
-			if(dayStr.length==1)
-			{dayStr="0" + dayStr;}
-			var yearStr:String = dateIn.getFullYear().toString();
-			//var hoursStr:String = (dateIn.getHours() + 4).toString();
-			var hoursStr:String = dateIn.getHours().toString();
-			if(hoursStr.length==1)
-			{hoursStr="0" + hoursStr;}
-			var minsStr:String = dateIn.getMinutes().toString();
-			if(minsStr.length==1)
-			{minsStr="0" + minsStr;}
-			var secsStr:String = dateIn.getSeconds().toString();
-			if(secsStr.length==1)
-			{secsStr="0" + secsStr;}
-			var spaceStr:String = " ";
-			var dashStr:String = "-";
-			
-			if(hoursStr=="00")
-			{
-				hoursStr="00";
-			}
-			else if(hoursStr=="01")
-			{
-				hoursStr="00";
-			}
-			else if(hoursStr=="02")
-			{
-				hoursStr="00";
-			}
-			else if(hoursStr=="03")
-			{
-				hoursStr="00";
-			}
-			else if(hoursStr=="04")
-			{
-				hoursStr="06";
-			}
-			else if(hoursStr=="05")
-			{
-				hoursStr="06";
-			}
-			else if(hoursStr=="07")
-			{
-				hoursStr="06";
-			}
-			else if(hoursStr=="08")
-			{
-				hoursStr="06";
-			}
-			else if(hoursStr=="09")
-			{
-				hoursStr="12";
-			}
-			else if(hoursStr=="10")
-			{
-				hoursStr="12";
-			}
-			else if(hoursStr=="11")
-			{
-				hoursStr="12";
-			}
-			else if(hoursStr=="13")
-			{
-				hoursStr="12";
-			}
-			else if(hoursStr=="14")
-			{
-				hoursStr="12";
-			}
-			else if(hoursStr=="15")
-			{
-				hoursStr="12";
-			}
-			else if(hoursStr=="16")
-			{
-				hoursStr="18";
-			}
-			else if(hoursStr=="17")
-			{
-				hoursStr="18";
-			}
-			else if(hoursStr=="18")
-			{
-				hoursStr="18";
-			}
-			else if(hoursStr=="19")
-			{
-				hoursStr="18";
-			}
-			else if(hoursStr=="20")
-			{
-				hoursStr="18";
-			}
-			else if(hoursStr=="21")
-			{
-				hoursStr="18";
-			}
-			else
-			{
-				hoursStr="00";
-				dayStr = (Number(dayStr)+1).toString();
-				if(dayStr.length==1)
-				{
-					{dayStr="0" + dayStr;};
-				}
-				if(new Date(dateIn.setTime()*1000*60*60*3).month>dateIn.month)
-				{
-					dayStr = "00";
-					monthStr = monthNames[dateIn.getMonth()+1]
-				}
-			}
-			
-			var rtnString:String = dayStr + dashStr + monthStr + dashStr + yearStr + spaceStr + hoursStr + ":00";
-			//trace(rtnString);
-			return rtnString;   
-		}
-		
-		//For finding closest date for 6 hour intervals
 		public static function getDateWarningToDBDateStringRound(dateIn:Date):Object
 		{
 			//Mon Jan 18 11:59:00 GMT-0500 2010 to "01-JAN-2010 12:00"
@@ -481,6 +223,167 @@ package widgets.TimeSlider.components.util
 			return objectReturn;   
 		}
 		
+		public static function numbertoMonth(mon:String):Number
+		{
+			var monthNames:Array = new Array("JAN",
+				"FEB",
+				"MAR",
+				"APR",
+				"MAY",
+				"JUN",
+				"JUL",
+				"AUG",
+				"SEP",
+				"OCT",
+				"NOV",
+				"DEC");
+			
+			var num:Number;
+			
+			for(var i:uint=0; i <monthNames.length; i++)
+			{
+				if(mon == monthNames[i])
+				{
+					num = i;
+				}
+			}
+			
+			return num;
+		}
+		
+		public static function getFeatureDateToDBDateString(dateIn:Date):String
+		{
+			//Mon Jan 18 11:59:00 GMT-0500 2010 to "01-18-2010 12:00:00"
+			//trace(dateIn.toString());
+			var monthNames:Array = new Array(
+				"JAN",
+				"FEB",
+				"MAR",
+				"APR",
+				"MAY",
+				"JUN",
+				"JUL",
+				"AUG",
+				"SEP",
+				"OCT",
+				"NOV",
+				"DEC");
+			var monthStr:String = (dateIn.getMonth()+1).toString();
+			if(monthStr.length==1)
+			{monthStr="0" + monthStr;}
+			var dayStr:String = dateIn.getDate().toString();
+			if(dayStr.length==1)
+			{dayStr="0" + dayStr;}
+			var yearStr:String = dateIn.getFullYear().toString();
+			//var hoursStr:String = (dateIn.getHours() + 4).toString();
+			var hoursStr:String = dateIn.getHours().toString();
+			if(hoursStr.length==1)
+			{hoursStr="0" + hoursStr;}
+			var minsStr:String = dateIn.getMinutes().toString();
+			if(minsStr.length==1)
+			{minsStr="0" + minsStr;}
+			var secsStr:String = dateIn.getSeconds().toString();
+			if(secsStr.length==1)
+			{secsStr="0" + secsStr;}
+			var spaceStr:String = " ";
+			var dashStr:String = "-";
+			if(Number(minsStr)>29)
+			{
+				if(hoursStr=="00")
+				{
+					hoursStr="01";
+				}
+				else if(hoursStr=="01")
+				{
+					hoursStr="02";
+				}
+				else if(hoursStr=="02")
+				{
+					hoursStr="03";
+				}
+				else if(hoursStr=="04")
+				{
+					hoursStr="05";
+				}
+				else if(hoursStr=="05")
+				{
+					hoursStr="06";
+				}
+				else if(hoursStr=="07")
+				{
+					hoursStr="08";
+				}
+				else if(hoursStr=="08")
+				{
+					hoursStr="09";
+				}
+				else if(hoursStr=="09")
+				{
+					hoursStr="10";
+				}
+				else if(hoursStr=="10")
+				{
+					hoursStr="11";
+				}
+				else if(hoursStr=="11")
+				{
+					hoursStr="12";
+				}
+				else if(hoursStr=="13")
+				{
+					hoursStr="14";
+				}
+				else if(hoursStr=="14")
+				{
+					hoursStr="15";
+				}
+				else if(hoursStr=="15")
+				{
+					hoursStr="16";
+				}
+				else if(hoursStr=="16")
+				{
+					hoursStr="17";
+				}
+				else if(hoursStr=="17")
+				{
+					hoursStr="18";
+				}
+				else if(hoursStr=="18")
+				{
+					hoursStr="19";
+				}
+				else if(hoursStr=="19")
+				{
+					hoursStr="20";
+				}
+				else if(hoursStr=="20")
+				{
+					hoursStr="21";
+				}
+				else if(hoursStr=="21")
+				{
+					hoursStr="22";
+				}
+				else if(hoursStr=="22")
+				{
+					hoursStr="23";
+				}
+				else if(hoursStr=="23")
+				{
+					hoursStr="00";
+					dayStr = (Number(dayStr)+1).toString();
+					if(dayStr.length==1)
+					{
+						{dayStr="0" + dayStr;};
+					}
+				}
+			}
+			
+			var rtnString:String = monthStr + dashStr + dayStr + dashStr + yearStr + spaceStr + hoursStr + ":00:00";
+			//trace(rtnString);
+			return rtnString;   
+		}
 		
 		//For finding closest date for 6 hour intervals
 		public static function getFeatureDateWarningToDBDate(dateIn:Date):Date
@@ -574,7 +477,7 @@ package widgets.TimeSlider.components.util
 				newDate.setDate(newDate.date+1);
 				/*if(new Date(dateIn.setTime()*1000*60*60*3).month>dateIn.month)
 				{
-					newDate.setMonth(newDate.month+1);
+				newDate.setMonth(newDate.month+1);
 				}
 				else{
 				}*/
@@ -583,134 +486,28 @@ package widgets.TimeSlider.components.util
 			return newDate;   
 		}
 		
-		//For finding closest date for three hour intervals
-		public static function getFeatureDateGFSToDBDateString(dateIn:Date):String
+		//for customized time zone to UTC  WITHOUT TIME
+		public static function spillHyphenServiceDateWithTimeZone2UTCnotime(d:Date,_timeZone:Number):String
 		{
-			//Mon Jan 18 11:59:00 GMT-0500 2010 to "01-18-2010 12:00:00"
-			//trace(dateIn.toString());
-			var monthNames:Array = new Array(
-				"JAN",
-				"FEB",
-				"MAR",
-				"APR",
-				"MAY",
-				"JUN",
-				"JUL",
-				"AUG",
-				"SEP",
-				"OCT",
-				"NOV",
-				"DEC");
-			var monthStr:String = (dateIn.getMonth()+1).toString();
-			if(monthStr.length==1)
-			{monthStr="0" + monthStr;}
-			var dayStr:String = dateIn.getDate().toString();
-			if(dayStr.length==1)
-			{dayStr="0" + dayStr;}
-			var yearStr:String = dateIn.getFullYear().toString();
-			//var hoursStr:String = (dateIn.getHours() + 4).toString();
-			var hoursStr:String = dateIn.getHours().toString();
-			if(hoursStr.length==1)
-			{hoursStr="0" + hoursStr;}
-			var minsStr:String = dateIn.getMinutes().toString();
-			if(minsStr.length==1)
-			{minsStr="0" + minsStr;}
-			var secsStr:String = dateIn.getSeconds().toString();
-			if(secsStr.length==1)
-			{secsStr="0" + secsStr;}
-			var spaceStr:String = " ";
-			var dashStr:String = "-";
-			
-			if(hoursStr=="00")
-			{
-				hoursStr="00";
-			}
-			else if(hoursStr=="01")
-			{
-				hoursStr="00";
-			}
-			else if(hoursStr=="02")
-			{
-				hoursStr="03";
-			}
-			else if(hoursStr=="04")
-			{
-				hoursStr="03";
-			}
-			else if(hoursStr=="05")
-			{
-				hoursStr="06";
-			}
-			else if(hoursStr=="07")
-			{
-				hoursStr="06";
-			}
-			else if(hoursStr=="08")
-			{
-				hoursStr="09";
-			}
-			else if(hoursStr=="09")
-			{
-				hoursStr="09";
-			}
-			else if(hoursStr=="10")
-			{
-				hoursStr="12";
-			}
-			else if(hoursStr=="11")
-			{
-				hoursStr="12";
-			}
-			else if(hoursStr=="13")
-			{
-				hoursStr="12";
-			}
-			else if(hoursStr=="14")
-			{
-				hoursStr="15";
-			}
-			else if(hoursStr=="15")
-			{
-				hoursStr="15";
-			}
-			else if(hoursStr=="16")
-			{
-				hoursStr="15";
-			}
-			else if(hoursStr=="17")
-			{
-				hoursStr="18";
-			}
-			else if(hoursStr=="18")
-			{
-				hoursStr="18";
-			}
-			else if(hoursStr=="19")
-			{
-				hoursStr="21";
-			}
-			else if(hoursStr=="20")
-			{
-				hoursStr="21";
-			}
-			else if(hoursStr=="21")
-			{
-				hoursStr="21";
-			}
-			else
-			{
-				hoursStr="00";
-				dayStr = (Number(dayStr)+1).toString();
-				if(dayStr.length==1)
-				{
-					{dayStr="0" + dayStr;};
-				}
-			}
-			
-			var rtnString:String = monthStr + dashStr + dayStr + dashStr + yearStr + spaceStr + hoursStr + ":00:00";
-			//trace(rtnString);
-			return rtnString;   
+			var zd:Date=new Date();
+			var dateYear:int=d.fullYear;
+			var dateMonth:int=d.month;
+			var dateDate:int=d.date;
+			var dateHours:int=d.hours;
+			zd.setUTCFullYear(dateYear,dateMonth,dateDate);
+			zd.setUTCHours(dateHours,0,0,0);
+			zd.hours-=int(_timeZone);
+			zd.minutes-=((_timeZone%1)*60);
+			var yea:String = zd.fullYearUTC.toString();
+			var mon:String = (zd.monthUTC+1).toString().length == 1 ? "0" + (zd.monthUTC+1).toString() : (zd.monthUTC+1).toString();
+			var dat:String = zd.dateUTC.toString().length == 1 ? "0" + zd.dateUTC.toString() : zd.dateUTC.toString();
+			var hrs:String = zd.hoursUTC.toString().length == 1 ? "0" + zd.hoursUTC.toString() : zd.hoursUTC.toString();
+			var min:String = zd.minutesUTC.toString().length == 1 ? "0" + zd.minutesUTC.toString() : zd.minutesUTC.toString();
+			var sec:String = zd.secondsUTC.toString().length == 1 ? "0" + zd.secondsUTC.toString() : zd.secondsUTC.toString();
+			var qd:String=yea + "-" + mon + "-" + dat;
+			return qd;
 		}
+		
 		
 		public static function ZuluToDateTime(zulu:String):Date
 		{
@@ -862,34 +659,6 @@ package widgets.TimeSlider.components.util
 			return rtnString;
 		}
 		
-		public static function numbertoMonth(mon:String):Number
-		{
-			var monthNames:Array = new Array("JAN",
-				"FEB",
-				"MAR",
-				"APR",
-				"MAY",
-				"JUN",
-				"JUL",
-				"AUG",
-				"SEP",
-				"OCT",
-				"NOV",
-				"DEC");
-			
-			var num:Number;
-				
-			for(var i:uint=0; i <monthNames.length; i++)
-			{
-				if(mon == monthNames[i])
-				{
-					num = i;
-				}
-			}
-			
-			return num;
-		}		
-		
 		//calculates the difference in hours between two dates
 		public static function DateDiffHours(startDate:Date, endDate:Date):Number
 		{
@@ -948,13 +717,26 @@ package widgets.TimeSlider.components.util
 		
 		public static function spillServiceDate3(d:Date) : String
 		{
-			//return yyyy.mm.dd, hh:00:00
+			//return yyyy-mm-ddThh:mm:00
 			var zd:Date = d;
 			var yea:String = zd.fullYear.toString();
 			var mon:String = (zd.month+1).toString().length == 1 ? "0" + (zd.month+1).toString() : (zd.month+1).toString();
 			var dat:String = zd.date.toString().length == 1 ? "0" + zd.date.toString() : zd.date.toString();
 			var hrs:String = zd.hours.toString().length == 1 ? "0" + zd.hours.toString() : zd.hours.toString();
-			var qd:String=dat + "/" + mon + "/" + yea + ", " + hrs + ":00:00";
+			var mis:String = zd.minutes.toString().length == 1 ? "0" + zd.minutes.toString() : zd.minutes.toString();
+			var qd:String=yea + "-" + mon + "-" + dat + "T" + hrs + ":" + mis +":00";
+			return qd;
+		}
+		public static function spillServiceDate4(d:Date):String
+		{
+			//return yyyymmddThhmm
+			var zd:Date = d;
+			var yea:String = zd.fullYear.toString();
+			var mon:String = (zd.month+1).toString().length == 1 ? "0" + (zd.month+1).toString() : (zd.month+1).toString();
+			var dat:String = zd.date.toString().length == 1 ? "0" + zd.date.toString() : zd.date.toString();
+			var hrs:String = zd.hours.toString().length == 1 ? "0" + zd.hours.toString() : zd.hours.toString();
+			var mis:String = zd.minutes.toString().length == 1 ? "0" + zd.minutes.toString() : zd.minutes.toString();
+			var qd:String=yea +  mon +  dat + "T" + hrs +  mis;
 			return qd;
 		}
 		//for MutilLanguage and UTC
@@ -979,8 +761,9 @@ package widgets.TimeSlider.components.util
 			var dateMonth:int=d.month;
 			var dateDate:int=d.date;
 			var dateHours:int=d.hours;
+			var dateMinutes:int=d.minutes;
 			zd.setUTCFullYear(dateYear,dateMonth,dateDate);
-			zd.setUTCHours(dateHours,0,0,0);
+			zd.setUTCHours(dateHours,dateMinutes,0,0);
 			zd.hours-=int(_timeZone);
 			zd.minutes-=((_timeZone%1)*60);
 			var yea:String = zd.fullYearUTC.toString();
@@ -1038,8 +821,9 @@ package widgets.TimeSlider.components.util
 			var dateMonth:int=d.month;
 			var dateDate:int=d.date;
 			var dateHours:int=d.hours;
+			var dateMinutes:int=d.minutes;
 			zd.setUTCFullYear(dateYear,dateMonth,dateDate);
-			zd.setUTCHours(dateHours,0,0,0);
+			zd.setUTCHours(dateHours,dateMinutes,0,0);
 			zd.hours-=int(_timeZone);
 			zd.minutes-=((_timeZone%1)*60);
 			var yea:String = zd.fullYearUTC.toString();
@@ -1051,29 +835,6 @@ package widgets.TimeSlider.components.util
 			var qd:String=yea + "-" + mon + "-" + dat + "T" + hrs + ":" + min + ":" + sec;
 			return qd;
 		}
-		
-		//for customized time zone to UTC  WITHOUT TIME
-		public static function spillHyphenServiceDateWithTimeZone2UTCnotime(d:Date,_timeZone:Number):String
-		{
-			var zd:Date=new Date();
-			var dateYear:int=d.fullYear;
-			var dateMonth:int=d.month;
-			var dateDate:int=d.date;
-			var dateHours:int=d.hours;
-			zd.setUTCFullYear(dateYear,dateMonth,dateDate);
-			zd.setUTCHours(dateHours,0,0,0);
-			zd.hours-=int(_timeZone);
-			zd.minutes-=((_timeZone%1)*60);
-			var yea:String = zd.fullYearUTC.toString();
-			var mon:String = (zd.monthUTC+1).toString().length == 1 ? "0" + (zd.monthUTC+1).toString() : (zd.monthUTC+1).toString();
-			var dat:String = zd.dateUTC.toString().length == 1 ? "0" + zd.dateUTC.toString() : zd.dateUTC.toString();
-			var hrs:String = zd.hoursUTC.toString().length == 1 ? "0" + zd.hoursUTC.toString() : zd.hoursUTC.toString();
-			var min:String = zd.minutesUTC.toString().length == 1 ? "0" + zd.minutesUTC.toString() : zd.minutesUTC.toString();
-			var sec:String = zd.secondsUTC.toString().length == 1 ? "0" + zd.secondsUTC.toString() : zd.secondsUTC.toString();
-			var qd:String=yea + "-" + mon + "-" + dat;
-			return qd;
-		}
-		
 		public static function convertDateEuro(d:Date):String
 		{
 			var zd:Date = d;
@@ -1084,18 +845,6 @@ package widgets.TimeSlider.components.util
 			var min:String = zd.minutes.toString().length == 1 ? "0" + zd.minutes.toString() : zd.minutes.toString();
 			//var sec:String = zd.seconds.toString().length == 1 ? "0" + zd.seconds.toString() : zd.seconds.toString();
 			qd = qd + " " + hrs + ":" + min + ":" + "00";
-			return qd;
-		}
-		public static function convertDateEuronoTime(d:Date):String
-		{
-			var zd:Date = d;
-			var df:DateFormatter = new DateFormatter();
-			df.formatString = "DD MMM YYYY";
-			var qd:String = df.format(zd.toDateString());
-			var hrs:String = zd.hours.toString().length == 1 ? "0" + zd.hours.toString() : zd.hours.toString();
-			var min:String = zd.minutes.toString().length == 1 ? "0" + zd.minutes.toString() : zd.minutes.toString();
-			//var sec:String = zd.seconds.toString().length == 1 ? "0" + zd.seconds.toString() : zd.seconds.toString();
-			//qd = qd;
 			return qd;
 		}
 		public static function convertDate(d:Date) : String 
@@ -1146,6 +895,128 @@ package widgets.TimeSlider.components.util
 			zd.hours-=int(timeDifference);
 			zd.minutes-=((timeDifference%1)*60);
 			return zd.hoursUTC;
+		}
+		//Time zone date string to UTC date string
+		//string format:yyyymmddThhmm
+		public static function StringConvert_TimeZone2UTC(timeZoneString:String,_timeZone:Number):String
+		{
+			//get the  time zone time;
+			var dateYear:int = new int(new String(timeZoneString.charAt(0) + timeZoneString.charAt(1) + timeZoneString.charAt(2) + timeZoneString.charAt(3))); 
+			var dateMonth:int = (new int(timeZoneString.charAt(4) + timeZoneString.charAt(5)) - 1);
+			var dateDate:int = new int(new String(timeZoneString.charAt(6) + timeZoneString.charAt(7)));
+			var dateHours:int = new int(new String(timeZoneString.charAt(9) + timeZoneString.charAt(10)));
+			var dateMinutes:int = new int(new String(timeZoneString.charAt(11) + timeZoneString.charAt(12)));
+			var zd:Date=new Date(dateYear,dateMonth,dateDate,dateHours,dateMinutes,0,0);
+			//get the machine time;
+			var computerTimeZone:Number=-zd.getTimezoneOffset()/60;
+			var timeDifference:Number=_timeZone-computerTimeZone;
+			zd.hours-=int(timeDifference);
+			zd.minutes-=((timeDifference%1)*60);
+			/*另一种方法
+			zd.setUTCFullYear(dateYear,dateMonth,dateDate);
+			zd.setUTCHours(dateHours,dateMinutes,0,0);
+			zd.hours-=int(_timeZone);
+			zd.minutes-=((_timeZone%1)*60);*/
+			//generate UTC time string
+			var yea:String = zd.fullYearUTC.toString();
+			var mon:String = (zd.monthUTC+1).toString().length == 1 ? "0" + (zd.monthUTC+1).toString() : (zd.monthUTC+1).toString();
+			var dat:String = zd.dateUTC.toString().length == 1 ? "0" + zd.dateUTC.toString() : zd.dateUTC.toString();
+			var hrs:String = zd.hoursUTC.toString().length == 1 ? "0" + zd.hoursUTC.toString() : zd.hoursUTC.toString();
+			var min:String = zd.minutesUTC.toString().length == 1 ? "0" + zd.minutesUTC.toString() : zd.minutesUTC.toString();
+			var sec:String = zd.secondsUTC.toString().length == 1 ? "0" + zd.secondsUTC.toString() : zd.secondsUTC.toString();
+			var qd:String=yea +  mon +  dat + "T" + hrs +  min ;
+			return qd;
+		}
+		public static function StringConvert_UTC2TimeZone(utcString:String,_timeZone:Number):String
+		{
+			//get the utc time
+			var dateYear:int = new int(new String(utcString.charAt(0) + utcString.charAt(1) + utcString.charAt(2) + utcString.charAt(3))); 
+			var dateMonth:int = (new int(utcString.charAt(4) + utcString.charAt(5)) - 1);
+			var dateDate:int = new int(new String(utcString.charAt(6) + utcString.charAt(7)));
+			var dateHours:int = new int(new String(utcString.charAt(9) + utcString.charAt(10)));
+			var dateMinutes:int = new int(new String(utcString.charAt(11) + utcString.charAt(12)));
+			var zd:Date=new Date();
+			zd.setUTCFullYear(dateYear,dateMonth,dateDate);
+			zd.setUTCHours(dateHours,dateMinutes,0,0);
+			//get the time zone time
+			var computerTimeZone:Number=-zd.getTimezoneOffset()/60;
+			var timeDifference:Number=_timeZone-computerTimeZone;
+			zd.hours+=int(timeDifference);
+			zd.minutes+=((timeDifference%1)*60);
+			//generate the time zone time string
+			var yea:String = zd.fullYear.toString();
+			var mon:String = (zd.month+1).toString().length == 1 ? "0" + (zd.month+1).toString() : (zd.month+1).toString();
+			var dat:String = zd.date.toString().length == 1 ? "0" + zd.date.toString() : zd.date.toString();
+			var hrs:String = zd.hours.toString().length == 1 ? "0" + zd.hours.toString() : zd.hours.toString();
+			var min:String = zd.minutes.toString().length == 1 ? "0" + zd.minutes.toString() : zd.minutes.toString();
+			var sec:String = zd.seconds.toString().length == 1 ? "0" + zd.seconds.toString() : zd.seconds.toString();
+			var qd:String=yea + mon + dat + "T" + hrs + min;
+			return qd;
+		}
+		//format:yyyymmddThhmm
+		public static function DateToString_TimeZone2UTC(d:Date,_timeZone:Number,formatType:int=0):String
+		{
+			var zd:Date=new Date();
+			var dateYear:int=d.fullYear;
+			var dateMonth:int=d.month;
+			var dateDate:int=d.date;
+			var dateHours:int=d.hours;
+			var dateMinutes:int=d.minutes;
+			zd.setUTCFullYear(dateYear,dateMonth,dateDate);
+			zd.setUTCHours(dateHours,dateMinutes,0,0);
+			zd.hours-=int(_timeZone);
+			zd.minutes-=((_timeZone%1)*60);
+			var yea:String = zd.fullYearUTC.toString();
+			var mon:String = (zd.monthUTC+1).toString().length == 1 ? "0" + (zd.monthUTC+1).toString() : (zd.monthUTC+1).toString();
+			var dat:String = zd.dateUTC.toString().length == 1 ? "0" + zd.dateUTC.toString() : zd.dateUTC.toString();
+			var hrs:String = zd.hoursUTC.toString().length == 1 ? "0" + zd.hoursUTC.toString() : zd.hoursUTC.toString();
+			var min:String = zd.minutesUTC.toString().length == 1 ? "0" + zd.minutesUTC.toString() : zd.minutesUTC.toString();
+			var sec:String = zd.secondsUTC.toString().length == 1 ? "0" + zd.secondsUTC.toString() : zd.secondsUTC.toString();
+			var qd:String;
+			switch(formatType)
+			{
+				case 0:
+					//format:yyyymmddThhmm
+					qd=yea + mon + dat + "T" + hrs + min;
+					break;
+				case 1:
+					qd=yea +"-"+ mon+"-" + dat + "T" + hrs +":"+ min+":"+sec;
+					break;
+			}
+			return qd;
+		}
+		//get string format: yyyymmddThhmm
+		public static function StringToDate_UTC2TimeZone(utcString:String,_timeZone:Number,formatID:int=0):Date
+		{
+			var dateYear:int; 
+			var dateMonth:int;
+			var dateDate:int;
+			var dateHours:int;
+			var dateMinutes:int;
+			switch(formatID)
+			{
+				case 0:
+					dateYear = new int(new String(utcString.charAt(0) + utcString.charAt(1) + utcString.charAt(2) + utcString.charAt(3))); 
+					dateMonth = (new int(utcString.charAt(4) + utcString.charAt(5)) - 1);
+					dateDate= new int(new String(utcString.charAt(6) + utcString.charAt(7)));
+					dateHours = new int(new String(utcString.charAt(9) + utcString.charAt(10)));
+					dateMinutes = new int(new String(utcString.charAt(11) + utcString.charAt(12)));
+					break;
+				case 1:
+					dateYear = new int(new String(utcString.charAt(0) + utcString.charAt(1) + utcString.charAt(2) + utcString.charAt(3))); 
+					dateMonth = (new int(utcString.charAt(5) + utcString.charAt(6)) - 1);
+					dateDate = new int(new String(utcString.charAt(8) + utcString.charAt(9)));
+					dateHours= new int(new String(utcString.charAt(11) + utcString.charAt(12)));
+					dateMinutes = new int(new String(utcString.charAt(14) + utcString.charAt(15)));
+			}
+			var zd:Date=new Date();
+			var timeDifference:Number=_timeZone-(-zd.getTimezoneOffset()/60);
+			zd.setUTCFullYear(dateYear,dateMonth,dateDate);
+			zd.setUTCHours(dateHours,dateMinutes,0,0);
+			//convert scenario date to customized time zone
+			zd.hours+=int(timeDifference);
+			zd.minutes+=((timeDifference%1)*60);
+			return zd;
 		}
 	}
 }

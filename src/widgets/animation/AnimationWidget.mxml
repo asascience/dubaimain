@@ -1,0 +1,835 @@
+<?xml version="1.0" encoding="utf-8"?>
+<viewer:BaseWidget xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				   xmlns:s="library://ns.adobe.com/flex/spark" 
+				   xmlns:mx="library://ns.adobe.com/flex/mx" 
+				   xmlns:viewer="com.esri.viewer.*" 
+				   xmlns:asaCompoments="com.asa.components.*"
+				   xmlns:util="widgets.OilSpill.components.util.*"
+				   initialize="basewidget_initializeHandler(event)"
+				   widgetConfigLoaded="basewidget_widgetConfigLoadedHandler(event)">
+	<fx:Metadata>
+		[ResourceBundle("TimeSlider")]
+		[ResourceBundle("ModelFeatures")]
+		[ResourceBundle("IdentifyMetOcean")]
+		[ResourceBundle("OilSpill")]
+		[ResourceBundle("Response")]
+		[ResourceBundle("ViewerStrings")]
+	</fx:Metadata>
+	<fx:Script>
+		<![CDATA[
+			import com.asa.components.ASAScenario;
+			import com.asa.components.DataUtilities;
+			import com.esri.viewer.AppEvent;
+			import com.esri.viewer.ViewerContainer;
+			import com.esri.viewer.utils.Hashtable;
+			
+			import mx.controls.Alert;
+			import mx.events.CloseEvent;
+			import mx.events.FlexEvent;
+			import mx.graphics.ImageSnapshot;
+			import mx.graphics.codec.JPEGEncoder;
+			import mx.managers.CursorManager;
+			import mx.resources.ResourceManager;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.rpc.soap.WebService;
+			import mx.utils.ObjectUtil;
+			import widgets.OilSpill.components.wms.WMSModel;
+			import widgets.OilSpill.components.wms.WMSUserEDS;
+			import widgets.OilSpill.components.wms.WMSEDSModel;
+			
+			import widgets.animation.TreeCheckBoxRenderer;
+			import widgets.TimeSlider.components.util.DateTimeUtilities;
+			
+			[Event(name="treeLayerSelectedChanged", type="flash.events.Event")]
+			
+			private var hashTable:Hashtable;
+			private var getAnimationWSURL:String;
+			private var currentScenario:ASAScenario;
+			private var loginUser:Array=new Array();
+			
+			public var drawstrURL:String="";
+			
+			[Bindable]
+			private var curSceName:String;
+			private var _timeZone:Number;
+			[Bindable]
+			private var timeIntervalArrayC:ArrayCollection=new ArrayCollection();
+			[Bindable]
+			private var catalogIDListArray:ArrayCollection=new ArrayCollection();
+			private var catalogType:int;
+			
+			private var activeLayerObject:Object;
+			
+			protected function basewidget_initializeHandler(event:FlexEvent):void
+			{
+				ViewerContainer.addEventListener(AppEvent.DATA_SENT, receivedData);
+				fetchSharedData();
+			}
+			protected function basewidget_widgetConfigLoadedHandler(event:Event):void
+			{
+				lblResult.text="";
+				focusManager.setFocus(animationTitleTextInput);
+				
+				if(configXML)
+				{
+					//getAnimationWSURL=DataUtilities.CheckWSURL(configData.managementservices.ScenarioManagementWSDL,configData.serverURL);
+					getAnimationWSURL = configXML.animationURL;
+				}
+				//init loginuser array
+				if(hashTable.containsKey("loginuser"))
+				{
+					loginUser=hashTable.find("loginuser") as Array;
+				}
+				if(hashTable.containsKey("scenario"))
+				{
+					currentScenario=hashTable.find("scenario") as ASAScenario;
+					this.resetScenario();
+				}
+				if(hashTable.containsKey("timezone"))
+				{
+					_timeZone=hashTable.find("timezone") as Number;
+				}
+				
+				getAllTocXMLList(null);
+				//ViewerContainer.addEventListener(AppEvent.TOC_UPDATED,getAllTocXMLList);
+				
+				ViewerContainer.addEventListener(AppEvent.CURRENT_SCENARIO_CHANGED,currentScenarioChanged);
+				ViewerContainer.addEventListener(AppEvent.MODEL_LOAD_COMPLETE,modelLoadComplete);
+				
+				//ViewerContainer.addEventListener(AppEvent.DOWNANIMATIONGIFFILE,downAnimationGifFile);
+				//ViewerContainer.addEventListener(AppEvent.GETTIMEFROMTIMESLIDER,getTimeFromTimeslider);
+				
+				ViewerContainer.addEventListener(AppEvent.TIMESLIDER_SETTING_CHANGED, settingChanged);
+				ViewerContainer.addEventListener(AppEvent.SPILL_TIME_CHANGED, spillTimeChanged);
+				//ViewerContainer.addEventListener(AppEvent.GETTIMESLIDEOK, getTimeSlideOK);
+				//ViewerContainer.dispatchEvent(new AppEvent(AppEvent.GETTIMESLIDE,null));
+				
+				metOceanlayer_Tree.addEventListener("treeLayerSelectedChanged",toggleLayer);
+			}
+			private function settingChanged(event:AppEvent):void
+			{
+				var resultArray:Array=event.data as Array;
+				var _StartDate:Date = new Date(resultArray[0].toString());
+				var _EndDate:Date = new Date(resultArray[1].toString());
+				
+				startMapDate.dateASA.selectedDate=new Date(_StartDate);
+				startMapDate.hours.value=_StartDate.hours;
+				startMapDate.minutes.value=0;
+				endMapDate.dateASA.selectedDate=new Date(_EndDate);
+				endMapDate.hours.value=_EndDate.hours;
+				endMapDate.minutes.value=0;
+			}
+			private function spillTimeChanged(event:AppEvent):void
+			{
+				var resultArray:Array=event.data as Array;
+				var _StartDate:Date=new Date(resultArray[0].toString());
+				var _EndDate:Date=new Date(resultArray[1].toString());
+				
+				startMapDate.dateASA.selectedDate=new Date(_StartDate);
+				startMapDate.hours.value=_StartDate.hours;
+				startMapDate.minutes.value=0;
+				endMapDate.dateASA.selectedDate=new Date(_EndDate);
+				endMapDate.hours.value=_EndDate.hours;
+				endMapDate.minutes.value=0;
+			}
+			private function getTimeSlideOK(event:AppEvent):void
+			{
+				var _StartDate:Date=event.data.sDate;
+				var _CurentDate:Date=event.data.currentDate;
+				var _EndDate:Date=event.data.eDate;
+				
+				startMapDate.dateASA.selectedDate=new Date(_CurentDate);
+				startMapDate.hours.value=_CurentDate.hours;
+				startMapDate.minutes.value=0;
+				endMapDate.dateASA.selectedDate=new Date(_EndDate);
+				endMapDate.hours.value=_EndDate.hours;
+				endMapDate.minutes.value=0;
+			}
+			private function getAllTocXMLList(event:AppEvent):void
+			{	
+				//ViewerContainer.addEventListener(AppEvent.PUBLISH_ALL_TOC,refreshUserEDList);
+				//ViewerContainer.dispatchEvent(new AppEvent(AppEvent.REQUEST_ALL_TOC,null));
+			}
+			private function refreshUserEDList(event:AppEvent):void
+			{
+				//ViewerContainer.removeEventListener(AppEvent.PUBLISH_ALL_TOC,refreshUserEDList);
+				
+				var allTocLayersXML:XML=event.data as XML;
+				catalogIDListArray.removeAll();
+				//OilSpillLayers
+				for each(var scenaroiLayerXML:XML in allTocLayersXML.Scenarios.OilSpillLayers)
+				{
+					if(Number(scenaroiLayerXML.@checked)==1)
+						catalogIDListArray.addItem({Type:"Scenario",mapLayerID:scenaroiLayerXML.@sceID.toString(),label:scenaroiLayerXML.@pName.toString(),selected:false});
+				}
+				//ForecastLayers
+				for each(var forecastLayerXML:XML in allTocLayersXML.ForecastLayers.Layer)
+				{
+					if(Number(forecastLayerXML.@checked)==1)
+						catalogIDListArray.addItem({Type:"ForecastLayer",mapLayerID:forecastLayerXML.@mapLayerID.toString(),label:forecastLayerXML.@pName.toString(),selected:false});
+				}
+				//UserEDLayers
+				for each(var userEDLayerXML:XML in allTocLayersXML.UserEDLayers.Layer)
+				{
+					if(Number(userEDLayerXML.@checked)==1)
+						catalogIDListArray.addItem({Type:"UserEDLayer",mapLayerID:userEDLayerXML.@mapLayerID.toString(),label:userEDLayerXML.@pName.toString(),selected:false});
+				}
+			}
+			private function receivedData(event:AppEvent):void
+			{
+				hashTable=event.data as Hashtable;
+			}
+			private function currentScenarioChanged(event:AppEvent):void
+			{
+				if(hashTable.containsKey("scenario"))
+				{
+					if((hashTable.find("scenario") as ASAScenario).hadRun)
+					{
+						currentScenario=hashTable.find("scenario") as ASAScenario;
+						this.resetScenario();	
+					}
+				}
+				lblResult.text="";
+			}
+			private function modelLoadComplete(event:AppEvent):void
+			{
+				if(hashTable.containsKey("scenario"))
+				{
+					currentScenario=hashTable.find("scenario") as ASAScenario;
+					this.resetScenario();
+				}
+				lblResult.text="";
+			}
+			private function resetScenario():void
+			{
+				if(catalogIDListArray.length>0)
+				{
+//					for(var i:int;i<catalogIDListArray.length-1;i++)
+//					{
+//						if(currentScenario.sceID==Number(catalogIDListArray.getItemAt(i).mapLayerID))
+//						{
+//							catalogIDList.selectedIndex=i;
+//							break;
+//						}
+//					}
+					this.catalogType=1;
+				}
+
+				if(currentScenario.modelStep)
+				{
+					var modelStep:int=currentScenario.modelStep;
+					this.setuptimeIntervalList(modelStep);
+					timeIntervalList.selectedIndex=0;
+				}
+				
+				if(currentScenario.startTime)
+				{
+					var ScenariostartDate:Date=DateTimeUtilities.StringToDate_UTC2TimeZone(currentScenario.startTime,_timeZone,1);
+					startMapDate.dateASA.selectedDate=new Date(ScenariostartDate);
+					startMapDate.hours.value=ScenariostartDate.hours;
+					startMapDate.minutes.value=0;
+					
+					var milliseconds_Length:int=currentScenario.simLength*3600*1000;
+					var ScenarioendDate:Date=new Date(ScenariostartDate.getTime()+milliseconds_Length);
+					endMapDate.dateASA.selectedDate=new Date(ScenarioendDate);
+					endMapDate.hours.value=ScenarioendDate.hours;
+					endMapDate.minutes.value=0;
+					
+//					startMapDate.validateNow();
+//					endMapDate.validateNow();
+				}	
+			}
+			private function setuptimeIntervalList(modelStep:int):void
+			{
+				timeIntervalArrayC.removeAll();
+				var value:int=modelStep;
+				while(value<=currentScenario.simLength*60)
+				{
+					timeIntervalArrayC.addItem({label:String(value),data:value});
+					value=value*2;
+				}
+			}
+			private function catalogIDList_change():void
+			{
+				if(String(activeLayerObject.Type).localeCompare("Scenario")==0)
+				{
+					this.loadScenario();
+					this.resetScenario();
+				}
+				else if(String(activeLayerObject.Type).localeCompare("ForecastLayer")==0)
+				{
+					catalogType=2;
+					timeIntervalArrayC.removeAll();
+					timeIntervalArrayC.addItem({label:String(60),data:60});
+					timeIntervalArrayC.addItem({label:String(120),data:120});
+					timeIntervalArrayC.addItem({label:String(180),data:180});
+					timeIntervalArrayC.addItem({label:String(360),data:360});
+					timeIntervalArrayC.addItem({label:String(720),data:720});
+					timeIntervalArrayC.addItem({label:String(1440),data:1440});
+					timeIntervalList.selectedIndex=0;
+					
+				}
+				else if(String(activeLayerObject.Type).localeCompare("UserEDLayer")==0)
+				{
+					catalogType=5;
+					timeIntervalArrayC.removeAll();
+					timeIntervalArrayC.addItem({label:String(60),data:60});
+					timeIntervalArrayC.addItem({label:String(120),data:120});
+					timeIntervalArrayC.addItem({label:String(180),data:180});
+					timeIntervalArrayC.addItem({label:String(360),data:360});
+					timeIntervalArrayC.addItem({label:String(720),data:720});
+					timeIntervalArrayC.addItem({label:String(1440),data:1440});
+					timeIntervalList.selectedIndex=0;
+				}
+			}
+			private function getTimeFromTimeslider(event:AppEvent):void
+			{
+				var ScenariostartDate:Date=event.data.startDate as Date;
+				startMapDate.dateASA.selectedDate=new Date(ScenariostartDate);
+				startMapDate.hours.value=ScenariostartDate.hours;
+				startMapDate.minutes.value=0;
+				
+				var ScenarioendDate:Date=event.data.endDate as Date;
+				endMapDate.dateASA.selectedDate=new Date(ScenarioendDate);
+				endMapDate.hours.value=ScenarioendDate.hours;
+				endMapDate.minutes.value=0;
+			}
+			private function loadScenario():void
+			{
+				var id:String =activeLayerObject.mapLayerID;
+				var srvc:WebService = new WebService();
+				srvc.useProxy = false;
+				srvc.wsdl = getAnimationWSURL;
+				
+				if(srvc.canLoadWSDL())
+				{		
+					srvc.loadWSDL();
+					srvc.addEventListener("fault", handleServiceFault);
+					srvc.GetScenarioDetail.addEventListener("result", handleServiceResult); 
+					srvc.GetScenarioDetail(loginUser[0].toString(),loginUser[1].toString(),id);
+					
+					function handleServiceResult(event:ResultEvent):void
+					{
+						var strRslt:String = event.result as String;
+						var loadedSceXML:XML = new XML(strRslt);
+						currentScenario.sceID=Number(id);
+						currentScenario.startTime=loadedSceXML.Table.starttime.toString().substr(0,19);
+						currentScenario.modelStep=new int(loadedSceXML.Table.child("ideltat"));
+						currentScenario.simLength=new Number(loadedSceXML.Table.simulation_length);
+					}
+					function handleServiceFault(event:FaultEvent):void
+					{
+						Alert.show(event.fault.toString());
+					}
+				}
+			}
+			private function setupAnimation():void
+			{
+				if(activeLayerObject==null)
+				{
+					Alert.show(ResourceManager.getInstance().getString('TimeSlider','errorcatalogIDList'),ResourceManager.getInstance().getString('TimeSlider','errorTitle'));
+					return;
+				}
+				var startDate:Date = getDate(startMapDate);
+				var endDate:Date = getDate(endMapDate);
+				if(ObjectUtil.dateCompare(startDate,endDate)>=0)
+				{
+					Alert.show(ResourceManager.getInstance().getString('IdentifyMetOcean','errorTimeContent'),ResourceManager.getInstance().getString('IdentifyMetOcean','errorTimeTitle'));
+					return;
+				}
+				
+				if(this.catalogType==1)
+				{
+					if(currentScenario&&currentScenario.hadRun)
+					{
+					}
+					else
+					{
+						Alert.show(ResourceManager.getInstance().getString('TimeSlider','currentScenarioError'));
+						return;
+					}
+				}
+				//-------start------//
+				lblResult.text=ResourceManager.getInstance().getString('TimeSlider','startcreateAnimation');
+				//loader.visible=true;
+				btnsetupAnimation.enabled=false;
+				//loader.validateNow();
+				
+				//var sceID:String=String(currentScenario.sceID);
+				var resource_id_layers:String="";
+				for(var i:int;i<catalogIDListArray.length;i++)
+				{
+					if(catalogIDListArray.getItemAt(i).selected)
+					{
+						resource_id_layers=resource_id_layers + catalogIDListArray.getItemAt(i).mapLayerID + ",";
+					}
+				}
+				resource_id_layers=resource_id_layers.substr(0,resource_id_layers.length-1);
+				
+				var imageSize_Str:String=String(imageSize.value);
+				var timeInterval:String=String(timeIntervalList.selectedItem.data);
+				var displayRate:String=String(rateList.value);
+				var startD:Date = this.getDate(startMapDate);
+				var startDateString:String = DataUtilities.DateToString_TimeZone2UTC(startD,_timeZone,1);
+				var endD:Date = this.getDate(endMapDate);
+				var endDateString:String = DataUtilities.DateToString_TimeZone2UTC(endD,_timeZone,1);
+				var repeatPlay:int=repeatePlay_Checkbox.selected?0:-1;
+				var generatingAnimationType:String=String(generatingAnimationTypeList.selectedItem.data);
+				var animationTitle:String=animationTitleTextInput.text;
+				var showLegend:int=timeStamp_Checkbox.selected?1:0;
+				var timeStamp:int=timeStamp_Checkbox.selected?1:0;
+				//Default is 1 which is for spill scenario, if 2, it’s for ASA EDS, and if 5, it’s for user EDS.
+				//if 2, you don’t  need to do that, and interval is 60, 120, 240, 360. At this moment, user EDS use the same interval
+				var o:Object=
+					{
+						getAnimationWSURL:getAnimationWSURL,
+						catalogType:String(this.catalogType),
+						mapLayerID:activeLayerObject.mapLayerID,//catalogIDList.selectedItem.mapLayerID,
+						resource_id_layers:resource_id_layers,
+						imageSize_Str:imageSize_Str,
+						timeInterval:timeInterval,
+						displayRate:displayRate,
+						startDateString:startDateString,
+						endDateString:endDateString,
+						repeatPlay:repeatPlay,
+						generatingAnimationType:generatingAnimationType,
+						animationTitle:animationTitle,
+						showLegend:showLegend,
+						timeStamp:timeStamp,
+						thisO:this
+					};
+				setupAnimationFile(o);
+			}
+			
+			public function setupAnimationFile(o:Object):void
+			{
+				var inVisibleLayers:Array=new Array();
+				
+				for each(var layerID:Object in map.layerIds)
+				{
+					if(String(layerID).indexOf("OILMAP_ALL")>=0 || String(layerID).indexOf("userEDLayer")>=0 || String(layerID).indexOf("ecop")>=0)
+					{
+						if(map.getLayer(String(layerID)).visible)
+						{
+							map.getLayer(String(layerID)).visible=false;
+							inVisibleLayers.push(layerID);
+						}
+					}
+				}
+				
+				Alert.show(ResourceManager.getInstance().getString('Response','CreateAnimationTipContent'),
+					ResourceManager.getInstance().getString('ViewerStrings','msg'),Alert.YES|Alert.NO|Alert.NONMODAL,o.thisO,alertHandler2);
+				function alertHandler2(evt:CloseEvent):void
+				{
+					if(evt.detail == Alert.YES)
+					{
+						CursorManager.setBusyCursor();
+						
+						var srvc:WebService = new WebService();
+						srvc.useProxy = false;
+						srvc.wsdl = o.getAnimationWSURL;
+						var layOn:Boolean = true;
+						if(srvc.canLoadWSDL())
+						{
+							////----snap picture----////
+							if(Number(o.catalogType)==1)
+							{
+								var layer1:WMSModel=map.getLayer("OILMAP_ALL_" + o.mapLayerID) as WMSModel;
+								layer1.visible=true;
+								layer1.refresh();
+								layer1.visible=false;
+								drawstrURL=layer1.getparamsString();
+							}
+							else if(Number(o.catalogType)==2)
+							{
+								if(map.getLayer(String(o.mapLayerID)))
+								{
+									//should check to see if layer is active
+									var layer2:WMSEDSModel=map.getLayer(String(o.mapLayerID)) as WMSEDSModel;
+									layer2.visible=true;
+									layer2.refresh();
+									layer2.visible=false;
+									drawstrURL=layer2.getparamsString();
+									
+									o.mapLayerID="-1";
+								}
+								else{
+									layOn = false;
+								}
+							}
+							else if(Number(o.catalogType)==5)
+							{
+								if(map.getLayer(String(o.mapLayerID)))
+								{
+									//should check to see if layer is active
+									var layer3:WMSUserEDS=map.getLayer(String(o.mapLayerID)) as WMSUserEDS;
+									layer3.visible=true;
+									layer3.refresh();
+									layer3.visible=false;
+									drawstrURL=layer3.getparamsString();
+								}
+								else{
+									layOn = false;
+								}
+							}
+							
+							var parameters:String=o.imageSize_Str + "," + o.timeInterval + "," + o.displayRate + "," + o.repeatPlay + "," + o.generatingAnimationType + "," + o.catalogType + "," + o.showLegend + "," + o.timeStamp + "," + o.animationTitle;
+							
+							map.validateNow();
+							var mapByteArray:ByteArray=ImageSnapshot.captureImage(map).data;
+							
+							if(layOn == true)
+							{
+								srvc.loadWSDL();
+								srvc.addEventListener("result", handleServiceResult);
+								srvc.addEventListener("fault", handleFaultEvent);
+								srvc.GetAnimatedGIFMap(loginUser[0].toString(),loginUser[1].toString(),mapByteArray,o.resource_id_layers,o.startDateString,o.endDateString,drawstrURL,parameters);
+							}
+							else{
+								Alert.show(ResourceManager.getInstance().getString('Response','CreateAnimationAlert'), "Alert");
+								CursorManager.removeBusyCursor();
+								//ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DOWNANIMATIONGIFFILE,"error"));
+							}
+							
+							function handleServiceResult(event:ResultEvent):void
+							{
+								for each(var layerID2:Object in inVisibleLayers)
+								{
+									map.getLayer(String(layerID2)).visible=true;
+								}
+								
+								var resultXML:XML=new XML(event.result.toString());
+								if(resultXML.result.length()>0){
+									if(event.result.indexOf("Success")>0 || event.result.indexOf("成功")>0)
+									{
+										var returnedURL:String=o.getAnimationWSURL.substring(0,o.getAnimationWSURL.lastIndexOf("/"));
+										var charIndex:int=resultXML.result.NewDataSet.toString().indexOf("/");
+										returnedURL+=resultXML.result.NewDataSet.toString().substring(charIndex);
+										//ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DOWNANIMATIONGIFFILE,returnedURL));
+									}
+									else
+									{
+										CursorManager.removeBusyCursor();
+										Alert.show(resultXML.error.toString(),ResourceManager.getInstance().getString('ViewerStrings','msg'));
+										//ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DOWNANIMATIONGIFFILE,"error"));
+									}
+								}
+								else if(resultXML.error.length()>0)
+								{
+									CursorManager.removeBusyCursor();
+									Alert.show(resultXML.error.toString(),ResourceManager.getInstance().getString('ViewerStrings','msg'));
+									//ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DOWNANIMATIONGIFFILE,"error"));
+								}
+							}
+							function handleFaultEvent(event:FaultEvent):void {
+								for each(var layerID2:Object in inVisibleLayers)
+								{
+									map.getLayer(String(layerID2)).visible=true;
+								}
+								CursorManager.removeBusyCursor();
+								Alert.show(event.fault.toString(),ResourceManager.getInstance().getString('ViewerStrings','error'));
+								//ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DOWNANIMATIONGIFFILE,"error"));
+							}				
+						}
+					}
+					else
+					{
+						for each(var layerID2:Object in inVisibleLayers)
+						{
+							map.getLayer(String(layerID2)).visible=true;
+							//ViewerContainer.dispatchEvent(new AppEvent(AppEvent.DOWNANIMATIONGIFFILE,"error"));
+						}
+					}
+				}	
+			}
+			
+			private function downAnimationGifFile(e:AppEvent):void
+			{
+				if(String(e.data).localeCompare("error")==0)
+				{
+					this.initInterface();
+					btnsetupAnimation.enabled=true;
+					return;
+				}
+				
+				CursorManager.removeBusyCursor();
+				lblResult.text=ResourceManager.getInstance().getString('TimeSlider','endcreateAnimation');
+				Alert.show(ResourceManager.getInstance().getString('Response','downloadTipContent'),
+					ResourceManager.getInstance().getString('ViewerStrings','msg'),Alert.YES|Alert.NO,this,alertHandler);
+				function alertHandler(event:CloseEvent):void
+				{
+					if(event.detail == Alert.YES)
+					{
+						CursorManager.setBusyCursor();
+						var fileFullURL:String=String(e.data);
+						var downloadSceRequest:URLRequest=new URLRequest(fileFullURL);
+						var downloadFile:FileReference= new FileReference();
+						downloadFile.addEventListener(Event.CANCEL, cancelHandler);
+						downloadFile.addEventListener(Event.COMPLETE, completeHandler);
+						downloadFile.addEventListener(IOErrorEvent.IO_ERROR, ioErrorHandler);
+						downloadFile.addEventListener(Event.OPEN, openHandler);
+						downloadFile.addEventListener(ProgressEvent.PROGRESS, progressHandler);
+						downloadFile.addEventListener(SecurityErrorEvent.SECURITY_ERROR, securityErrorHandler);
+						downloadFile.addEventListener(Event.SELECT, selectHandler);
+						
+						try
+						{
+							downloadFile.download(downloadSceRequest);
+						}
+						catch (error:Error)
+						{
+							Alert.show(error.toString(),ResourceManager.getInstance().getString('ViewerStrings','msg'));
+						}
+
+						function cancelHandler(event:Event):void {
+							CursorManager.removeBusyCursor();
+							loader.visible=false;
+							btnsetupAnimation.enabled=true;
+							lblResult.text="";
+						}
+						function completeHandler(event:Event):void {
+							CursorManager.removeBusyCursor();
+							loader.visible=false;
+							btnsetupAnimation.enabled=true;
+							lblResult.text=ResourceManager.getInstance().getString('TimeSlider','downloadAnimation');	
+						}
+						function ioErrorHandler(event:IOErrorEvent):void {
+							CursorManager.removeBusyCursor();
+							loader.visible=false;
+							btnsetupAnimation.enabled=true;
+							lblResult.text="";
+							Alert.show(event.toString(),ResourceManager.getInstance().getString('ViewerStrings','error'));
+							return;
+						}
+						function openHandler(event:Event):void {
+							CursorManager.removeBusyCursor();
+							loader.visible=false;
+							btnsetupAnimation.enabled=true;
+							lblResult.text="";
+						}
+						function progressHandler(event:ProgressEvent):void {
+							//var file:FileReference = FileReference(event.target);
+						}
+						function securityErrorHandler(event:SecurityErrorEvent):void {
+							CursorManager.removeBusyCursor();
+							loader.visible=false;
+							btnsetupAnimation.enabled=true;
+							lblResult.text="";
+							Alert.show(event.toString(),ResourceManager.getInstance().getString('ViewerStrings','error'));
+							return;
+						}
+						function selectHandler(event:Event):void {
+							CursorManager.removeBusyCursor();
+							loader.visible=false;
+							btnsetupAnimation.enabled=true;
+							lblResult.text="";
+						}
+					}
+					else
+					{
+						this.parent.initInterface();
+						loader.visible=false;
+						btnsetupAnimation.enabled=true;
+						loader.validateNow();
+					}
+				}
+			}
+			
+			private function getDate(timePicker:AsaDateTimePicker):Date
+			{
+				var date:Date = new Date();
+				date.fullYear = timePicker.dateASA.selectedDate.fullYear;
+				date.month = timePicker.dateASA.selectedDate.month;
+				date.date = timePicker.dateASA.selectedDate.date;
+				date.hours = timePicker.hours.value;
+				date.minutes = timePicker.minutes.value;
+				date.seconds = 0;
+				date.milliseconds = 0;
+				
+				return date;
+			}
+			
+			private function close():void
+			{
+				this.initInterface();
+			}
+			public function initInterface():void
+			{
+				loader.visible=false;
+				btnsetupAnimation.enabled=true;
+				lblResult.text="";
+			}
+			private function animationTypeList_change():void
+			{
+				if(generatingAnimationTypeList.selectedIndex!=0)
+				{
+					repeatePlay_Checkbox.selected=false;
+					repeatePlay_Checkbox.enabled=false;
+				}
+				else
+				{
+					repeatePlay_Checkbox.enabled=true;
+				}
+			}
+			private function setLayerUp_Click():void
+			{
+				if(metOceanlayer_Tree.selectedIndex!=-1)
+				{
+					var selectItem:Object = metOceanlayer_Tree.selectedItem;
+					var selectIndex:int = metOceanlayer_Tree.selectedIndex;
+					catalogIDListArray.removeItemAt(selectIndex);
+					if(selectIndex!=0)
+						catalogIDListArray.addItemAt(selectItem,selectIndex-1);
+					else
+						catalogIDListArray.addItemAt(selectItem,selectIndex);
+					
+					activeLayerObject = null;
+					for(var i:int;i<catalogIDListArray.length;i++)
+					{
+						if(catalogIDListArray.getItemAt(i).selected)
+						{
+							activeLayerObject = catalogIDListArray.getItemAt(i);
+							break;
+						}
+					}
+					
+					if(activeLayerObject!=null)
+						catalogIDList_change();
+				}
+			}
+			private function setLayerDown_Click():void
+			{
+				if(metOceanlayer_Tree.selectedIndex!=-1)
+				{
+					var selectItem:Object = metOceanlayer_Tree.selectedItem;
+					var selectIndex:int = metOceanlayer_Tree.selectedIndex;
+					catalogIDListArray.removeItemAt(selectIndex);
+					if(selectIndex!=catalogIDListArray.length)
+						catalogIDListArray.addItemAt(selectItem,selectIndex+1);
+					else
+						catalogIDListArray.addItemAt(selectItem,selectIndex);
+					
+					activeLayerObject = null;
+					for(var i:int;i<catalogIDListArray.length;i++)
+					{
+						if(catalogIDListArray.getItemAt(i).selected)
+						{
+							activeLayerObject = catalogIDListArray.getItemAt(i);
+							break;
+						}
+					}
+					
+					if(activeLayerObject!=null)
+						catalogIDList_change();
+				}
+			}
+			private function toggleLayer(event:Event):void
+			{
+				var isSelected:Boolean = (TreeCheckBoxRenderer(event.target).data).selected;
+				
+				var selectedLayerNum:int=0;
+				activeLayerObject = null;
+				for(var i:int;i<catalogIDListArray.length;i++)
+				{
+					if(catalogIDListArray.getItemAt(i).selected)
+					{
+						activeLayerObject = catalogIDListArray.getItemAt(i);
+						selectedLayerNum++;
+					}
+				}
+				if(isSelected)
+				{
+					if(selectedLayerNum>3)
+					{
+						(TreeCheckBoxRenderer(event.target).data).selected=false;
+						Alert.show(ResourceManager.getInstance().getString('TimeSlider','lessthan3layers'),"Message");
+					}
+				}	
+				
+				if(activeLayerObject!=null)
+					catalogIDList_change();
+			}
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<viewer:WidgetTemplate id="addBoomWT" width="380" height="460" enableMinimizeButton="false" enableIcon="false" closed="close()">
+		<s:VGroup width="100%" height="100%" paddingLeft="10" paddingTop="5" paddingRight="10" paddingBottom="5">
+			<s:HGroup width="100%" height="25" verticalAlign="middle" paddingRight="10">
+				<s:Label text="{ResourceManager.getInstance().getString('TimeSlider','Animationtitle')}"  width="100" id="userNameLabel"/>
+				<s:TextInput id="animationTitleTextInput" width="100%" text="Animation Title"/>
+			</s:HGroup>
+			<s:HGroup width="100%" height="22" verticalAlign="middle">
+				<s:Label text="{ResourceManager.getInstance().getString('TimeSlider','AnimationLayer')}" fontSize="12" fontWeight="bold"/>
+			</s:HGroup>
+			<s:HGroup width="100%" height="60" verticalAlign="middle">
+				<mx:Tree id="metOceanlayer_Tree" width="100%" height="70" labelField="label"
+						 itemRenderer="widgets.animation.TreeCheckBoxRenderer" dataProvider="{catalogIDListArray}"
+						 folderClosedIcon="{null}" folderOpenIcon="{null}" defaultLeafIcon="{null}" />
+				<s:VGroup width="30" height="100%" verticalAlign="middle">
+					<s:Button icon="@Embed('widgets/Boom/assets/images/bring_to_front.png')" id="setLayerUp" fontSize="11" width="22" height="22" click="setLayerUp_Click()"/>
+					<s:Button icon="@Embed('widgets/Boom/assets/images/send_to_back.png')" id="setLayerDown" fontSize="11" width="22" height="22" click="setLayerDown_Click()"/>
+				</s:VGroup>
+			</s:HGroup>
+			<s:Label text="{ResourceManager.getInstance().getString('TimeSlider','topLayerTip')}" width="100%"/>
+			<mx:HRule width="100%"/>
+			<s:HGroup width="100%" height="25" verticalAlign="middle">
+				<s:Label width="100" text="{ResourceManager.getInstance().getString('IdentifyMetOcean','startDate')}"/>
+				<util:AsaDateTimePicker id="startMapDate"/>
+			</s:HGroup>
+			<s:HGroup width="100%" height="25" verticalAlign="middle">
+				<s:Label width="100" text="{ResourceManager.getInstance().getString('IdentifyMetOcean','endDate')}"/>
+				<util:AsaDateTimePicker id="endMapDate"/>
+			</s:HGroup>
+			<s:HGroup width="100%" verticalAlign="middle">
+				<s:Label text="{ResourceManager.getInstance().getString('OilSpill','imageSize')}" width="100"/>
+				<s:NumericStepper height="24" minimum="10" maximum="100" id="imageSize" 
+								  stepSize="5" snapInterval="5" value="100" width="60"/>
+				<s:Label id="l7"  text="{ResourceManager.getInstance().getString('OilSpill','imageSizeUnit')}" fontSize="11"/>
+			</s:HGroup>
+			<!--<s:HGroup width="100%" verticalAlign="middle">
+				<s:Label text="{ResourceManager.getInstance().getString('OilSpill','stepNum')}" width="100%"/>
+				<s:NumericStepper height="24" minimum="1" maximum="10" id="stepNum" 
+								  stepSize="1" snapInterval="1" value="1" width="60"/>
+			</s:HGroup>-->
+			<s:HGroup width="100%" verticalAlign="middle">
+				<s:Label text="{ResourceManager.getInstance().getString('TimeSlider','timeInterval')}" width="100"/>
+				<s:DropDownList id="timeIntervalList" selectedIndex="0" dataProvider="{timeIntervalArrayC}" labelField="label" width="60" cornerRadius="3" lineThrough="false" textDecoration="none" height="24">
+				</s:DropDownList>
+				<s:Label id="modelTimeStepTip"  text="{ResourceManager.getInstance().getString('TimeSlider','timeIntervalTip')}" fontSize="11"/>
+			</s:HGroup>
+			<s:HGroup width="100%" verticalAlign="middle">
+				<s:Label text="{ResourceManager.getInstance().getString('TimeSlider','rate2')}" width="100"/>
+				<s:NumericStepper height="24" minimum="0.25" maximum="10" id="rateList" 
+								  stepSize="0.25" snapInterval="0.25" value="1" width="60">
+				</s:NumericStepper>
+				<s:Label id="rateTip" text="{ResourceManager.getInstance().getString('TimeSlider','rateTip')}" fontSize="11"/>
+			</s:HGroup>
+			<s:HGroup width="100%" verticalAlign="middle">
+				<s:Label text="{ResourceManager.getInstance().getString('TimeSlider','generatingAnimationType')}" width="100"/>
+				<s:DropDownList id="generatingAnimationTypeList" change="animationTypeList_change()" selectedIndex="0" width="170" cornerRadius="3" lineThrough="false" textDecoration="none" height="24">
+					<mx:ArrayCollection>
+						<fx:Object label="{ResourceManager.getInstance().getString('TimeSlider','GIFFile')}" data="0"/>
+						<fx:Object label="{ResourceManager.getInstance().getString('TimeSlider','ZipFile')}" data="1"/>
+						<fx:Object label="{ResourceManager.getInstance().getString('TimeSlider','AVIFile')}" data="2"/>
+						<!--<fx:Object label="{ResourceManager.getInstance().getString('TimeSlider','SWFFile')}" data="3"/>-->
+					</mx:ArrayCollection>
+				</s:DropDownList>
+			</s:HGroup>
+			<s:HGroup width="100%" verticalAlign="middle" gap="10">
+				<s:CheckBox id="repeatePlay_Checkbox" enabled="true" selected="true" label="{ResourceManager.getInstance().getString('TimeSlider','isrepeatePlay')}"/>
+				<s:CheckBox id="showLegend_Checkbox" enabled="true" selected="false" label="{ResourceManager.getInstance().getString('TimeSlider','showLegend')}"/>
+				<s:CheckBox id="timeStamp_Checkbox" enabled="true" selected="false" label="{ResourceManager.getInstance().getString('TimeSlider','timeStamp')}"/>
+			</s:HGroup>
+			<s:HGroup width="100%" height="30" verticalAlign="middle">
+				<s:Label width="200" id="lblResult" color="0xFF0000"/>
+				<mx:SWFLoader id="loader" source="assets/images/loader.swf" horizontalCenter="0" visible="false" width="30" height="30"/>
+			</s:HGroup>
+			<s:VGroup width="100%" height="100%" horizontalAlign="center" verticalAlign="middle">
+				<s:Button id="btnsetupAnimation" label="{ResourceManager.getInstance().getString('OilSpill','create')}" width="80" click="setupAnimation()"/>
+			</s:VGroup>
+		</s:VGroup>
+	</viewer:WidgetTemplate>
+</viewer:BaseWidget>
