@@ -1239,7 +1239,7 @@
 						srvc.loadWSDL();
 						srvc.AddNewScenario.addEventListener("result", newScenarioResult);
 						srvc.AddNewScenario.addEventListener("fault", newScenarioFault);
-						srvc.AddNewScenario(userID, sessionID, runname.text, 1, 1);
+						srvc.AddNewScenario(userID, sessionID, runname.text, 1, 1254);
 						
 						function newScenarioResult(event:ResultEvent):void
 						{
@@ -2620,7 +2620,7 @@
 						srvc.loadWSDL();
 						srvc.CheckSpillSiteByIDString.addEventListener("result", handleServiceResult);
 						srvc.CheckSpillSiteByIDString.addEventListener("fault", handleFaultEvent);
-						srvc.CheckSpillSiteByIDString(userID.toString(),sessionID,spillSiteString,0,spillTimeString);
+						srvc.CheckSpillSiteByIDString(userID.toString(),sessionID,spillSiteString,1254,spillTimeString);
 					}
 					function handleServiceResult(event:ResultEvent):void
 					{
