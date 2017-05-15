@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" ?>
+<!--
+-->
+<configuration>
+	<identifylayeroption>visible</identifylayeroption>
+	<identifytolerance>5</identifytolerance>
+	<defaultzoomscale>5000</defaultzoomscale>
+	<keepidentifyactive>false</keepidentifyactive>
+	<ignorebasemaps>false</ignorebasemaps>
+	<waveURL>http://www.dubaicoast.ae/observations/graph_observations.json?api_key=0b474e686f14ec73714b4e726bbd7074f55dbf1&</waveURL>
+	<ASAMapServices>
+		<ecop>http://forecast.dubaicoast.ae/ecop/wms.aspx?</ecop>
+	</ASAMapServices>
+	<labels>
+		<zoom2message>Click to Zoom to Point</zoom2message>
+		<descriptionlabel>Click map to identify layers.</descriptionlabel>
+		<descriptionlabelafterClick>Click on Layer to create forecast graph.</descriptionlabelafterClick>
+		<descriptionNoData>No data for selected layer location.</descriptionNoData>
+		<pointlabel>Identify</pointlabel>
+		<clearlabel>Clear</clearlabel>
+		<loadinglabel>Loading...</loadinglabel>
+	</labels>
+	<info>widgets/InfoTemplates/InfoPopupWidget.swf</info>
+</configuration>

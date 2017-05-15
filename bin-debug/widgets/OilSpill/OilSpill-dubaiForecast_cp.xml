@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<configuration>	
+	<location>Shannon</location>
+	<clientkey>oilmap_cp</clientkey>
+	<oilWarning>assets/dubai_shp/oil_warning_area.shp</oilWarning>
+	<ASAEDS>
+		<eds>http://services.asascience.com/ModelService/GetEDSSources.aspx</eds>
+	</ASAEDS>
+	
+	<ASAOilString>
+		<oilstring>http://services.asascience.com/ModelService/runmodel.aspx</oilstring>
+	</ASAOilString>
+	
+	<ASAOilModel>
+		<oilmodel>http://services.asascience.com/ecop/wms.aspx</oilmodel>
+		<ecop>http://coastmap.com/ecop/wms.aspx</ecop>
+	</ASAOilModel>
+		
+	<ASALoadSaveSOURCE>
+		<loadSave>http://services.asascience.com/Services/dsOilmap/ds.asmx?WSDL</loadSave>
+	</ASALoadSaveSOURCE>
+	
+	<ASATimeSeries>
+		<timeseries>http://services.asascience.com/ModelService/GetTimeSeries.aspx</timeseries>
+	</ASATimeSeries>
+	<windsLayers>EDS,MANUAL,NONE</windsLayers>
+	<windsLayersLabel>Forecast Data,MANUAL,NONE</windsLayersLabel>
+	<currentsLayers>EDS,MANUAL,NONE</currentsLayers>
+	<currentsLayersLabel>Forecast Data,MANUAL,NONE</currentsLayersLabel>
+	<admi>czwms</admi>
+	<pwor>czwms!</pwor>
+	<!-- This order and more then 4 will have to be adjusted in the code but will work for most clients.  Please test before changing -->
+	<!-- currents : NOWCASTING, label: NOWCASTING -->
+	<!-- needs to adjust viewstack in widget currently to reflect index of layer options-->
+</configuration>

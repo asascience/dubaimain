@@ -470,7 +470,7 @@
 				if(textN!=""||textW!="")
 				{
 					//check to see if the spill point is in the correct extent
-					var oilspillExtent:WebMercatorExtent = new WebMercatorExtent(54,24.9,55.4,25.8);
+					var oilspillExtent:WebMercatorExtent = new WebMercatorExtent(47.671,23.62,57.58,30.31);//minlon:Number=0, minlat:Number=0, maxlon:Number=0, maxlat:Number=0
 					var latzz:Number = Number(textN);
 					var longzz:Number =Number(textW);
 					var spillpoint:WebMercatorMapPoint = new WebMercatorMapPoint(longzz,latzz);

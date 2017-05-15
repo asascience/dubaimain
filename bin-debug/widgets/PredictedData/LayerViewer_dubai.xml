@@ -1,0 +1,33 @@
+<?xml version="1.0" ?>
+<configuration>
+	<landMask>assets/dubai_shp/landmask.shp</landMask>
+	<ASAMapServices>
+		<ecop>http://forecast.dubaicoast.ae/ecop/wms.aspx?</ecop>
+	</ASAMapServices>
+	<areaFile>http://dcproduction.s3.amazonaws.com/warnings/warn/</areaFile>
+	<filelocation>assets/dubai_shp/</filelocation>
+	<labels>
+		<zoom2message>Click to Zoom to Point</zoom2message>
+		<descriptionlabel>Select Single Location by Clicking on the Map</descriptionlabel>
+		<descriptionlabelarea>Select Area from Warning Area List or by Clicking on the Map</descriptionlabelarea>
+		<descriptionlabelafterClick>Click on Layer to create forecast graph.</descriptionlabelafterClick>
+		<descriptionNoData>No data for selected layer location.</descriptionNoData>
+		<pointlabel>Identify</pointlabel>
+		<clearlabel>Clear</clearlabel>
+		<loadinglabel>Loading...</loadinglabel>
+	</labels>
+	<xmlforLayerList>
+				 <Layerguest>
+				   <Layer pId="1" pName="Forecast Layers" pParentID="0" open="true" checked="0">
+				   	 <Layer pId="8" type="forecast" pName="Arabian Gulf-Dubai Currents" styles="" wmsLayerID="ARG_DUB_CURRENTS" pParentID="1" checked="0"/>	
+				  	 <Layer pId="9" type="forecast" pName="Water Level" styles="" wmsLayerID="DUB_ELEVATION" pParentID="1" checked="0"/>
+				 	 <Layer pId="2" type="forecast" pName="Winds" styles="" wmsLayerID="DUBAIWND_WINDS" pParentID="1" checked="0"/>
+				  	 <!--<Layer pId="3" type="forecast" pName="Global Winds" styles="" wmsLayerID="GFS_WINDS" pParentID="1" checked="0"/>
+				 	 <Layer pId="5" type="forecast" pName="Arabian Gulf Currents" styles="" wmsLayerID="ARABIANGULFCUR_CURRENTS" pParentID="1" checked="0"/>
+				  	 <Layer pId="4" type="forecast" pName="Coastal Currents" styles="" wmsLayerID="DUBAICUR_CURRENTS" pParentID="1" checked="0"/>-->
+				  	  <Layer pId="6" type="forecast" pName="Wave Height" styles="" wmsLayerID="DUBAI_WAVE_HEIGHT" pParentID="1" checked="0"/>
+				   	 <Layer pId="7" type="forecast" pName="Wave Direction" styles="" wmsLayerID="DUBAI_WAVE_DIRECTION" pParentID="1" checked="0"/>			   	
+				   </Layer>
+				 </Layerguest>
+		</xmlforLayerList>
+</configuration>

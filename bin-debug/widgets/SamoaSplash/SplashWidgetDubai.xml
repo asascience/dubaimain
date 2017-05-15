@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" ?>
+<configuration>
+    <!--
+        Refer to the doc below for valid HTML tags that can be used for the content
+        http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/flashx/textLayout/conversion/TextConverter.html#TEXT_FIELD_HTML_FORMAT
+    -->
+    <width>510</width>
+    <height>565</height>
+    <title>Dubai Forecasting</title>
+    <btnlabel>Login</btnlabel>
+    <btnlabel2>Guest</btnlabel2>
+    <admi>czwms</admi>
+	<pwor>czwms!</pwor>
+    <tabs>
+    	<entry>
+    		<label>Welcome</label>
+    		<content>Welcome to the Dubai Coastal Zone Monitoring Programme forecasting website. This site is launched as part of the new operational forecasting system being operated and maintained by Dubai Municipality. This forecasting system, under development for the past year, is a suite of coupled meteorological and ocean models and is a landmark effort by DM to provide accurate and detailed information on metocean forecasts and extreme conditions along the entire Dubai coastline. We hope you will find the site to be an informative source of wind (speed and direction), wave (height and direction), water level and current (speed and direction) forecasts. The site also provides warnings when the forecasts predict extreme conditions. These warnings are generated automatically by computer models and are not validated by forecast professionals. They are not intended for decision-making purposes.<br/><br/><a href="http://www.dubaicoast.ae/en-GB/sites/manual/map-navigation.html" target="_blank"><font color="blue"><u>Help Page</u></font></a></content>
+    	</entry>
+    	<entry>
+    		<label>Oil Spill</label>
+    		<content><p/>Users with administrator privileges can access an operational web based oil spill prediction system through the Dubai Coastal Zone Monitoring Programme forecasting website.  This web-based version of Applied Science Associates’ OILMAP system is automatically connected to the winds and currents forecast by the DM operational forecast system.  <br/><br/>
+<p/>Users of the web-based oil spill system can generate spill predictions directly through a web site with no software needed other than a web browser with the Adobe Flash Player.  The user can enter information on the location and time of the spill, the oil type, and an estimate of the spill volume.  The web-based system automatically accesses the latest forecast data for winds and currents and connects these to the oil spill scenario.  This information is passed to the model server and the model simulates the weathering and trajectory of the spill.  Results of the model include an average trajectory, estimates of oil mass, contour lines, mass balance graphs, and tabular data.  Geospatial results, such as the oil mass and contours, have a temporal component and can be animated over time using the TimeSlider tool.  
+<br/><br/><a href="http://www.dubaicoast.ae/en-GB/sites/manual/oil-spill.html" target="_blank"><font color="blue"><u>Oil Spill Help</u></font></a></content>
+    	</entry>
+    	<entry>
+    		<label>Inundation</label>
+    		<content><p/>Users with administrator privileges can access inundation predictions for coastal Dubai through the Dubai Coastal Zone Monitoring Programme forecasting website.  
+<br/><br/>Of the hazards associated with coastal storms, storm surge often poses the largest threat to personal safety and property.  Dubai in particular has many large, expensive, and heavily populated developments along its coast potentially at risk to flooding.  Being able to predict potential flooding can be extremely useful for a wide variety of purposes, including evacuation, emergency management, planning & zoning, and minimization of environmental impacts.
+<br/><br/>The inundation layers provided in the Dubai Coastal Zone Monitoring Programme forecasting website represent 12 hypothetical scenarios that combine various levels of storm surge flooding with wave runup estimates and projected sea level rise.  All 12 scenarios were taken directly from the Coastal Development Guidelines for Dubai Coast.  These guidelines define three extreme high water levels of varying exceedance probability (1-year, 50-year, and 100-year).  The exceedance probability of a water level is the chance of it being equaled or exceeded in any single year.  For example, the 100-year water level has a 1% chance of being equaled or exceeded in a given year, the 50-year flood has a 2% chance, and the 1-year flood has a 100% chance. Each of these extreme high water levels was modeled alone, and in combination with estimated wave runup and projected sea level rise to give the 12 scenarios available in the Data Layers tab of the Data Viewer widget.  When turned on, these layers provide transparent blue overlays on the forecasting website basemap.  By zooming and panning around the shoreline of Dubai, areas at risk to potential flooding from each scenario can be easily identified.  The water level in each scenario is referenced to the Dubai Municipal Datum (DMD).<br/><br/><a href="http://www.dubaicoast.ae/en-GB/sites/manual/inundation.html" target="_blank"><font color="blue"><u>Inundation Help</u></font></a></content>
+    	</entry>
+    	<entry>
+    		<label>Warnings</label>
+    		<content><p/>The forecasts generated by the Dubai Municipality operational forecasting system are automatically compared to a series of predefined warning thresholds. If forecast environmental conditions exceed these thresholds then warnings are automatically posted to the Dubai Coastal Zone Monitoring Programme forecasting website. These statements will appear in the Warnings widget as well as in the map itself. Warnings are issued for one or more of the warning areas that subdivide the Dubai coastal zone; the Warnings widget will contain a table of warnings valid for the next 24-hours, organized in coastal, nearshore, and offshore areas. Users can click on the warning area name or on the map to get warning details.   
+<br/><br/>The following weather warnings have been defined for the Dubai Coastal Zone:<br/><br/>
+		<pre>
+			<font color="#FFFFFF">empty    text</font><b>Warning Type<font color="#FFFFFF">  white      text adfadfasdf</font>Criteria</b><br/>
+			<font color="#FFFFFF">empty    text</font>Swimming             <font color="#FFFFFF">  e mp  ty w hite te x      tad fasd</font>Wave Height >= 1 m<br/>
+			<font color="#FFFFFF">empty    text</font>Nearshore Wind Warning <font color="#FFFFFF"> empty texdf</font>Wind Speed >= 12 m/s<br/>
+			<font color="#FFFFFF">empty    text</font>Nearshore Wave Warning <font color="#FFFFFF"> empty exta</font>Wave Height >= 1.6 m<br/>
+			<font color="#FFFFFF">empty    text</font>Offshore Wind Warning<font color="#FFFFFF"> empty textadf</font>Wind Speed >= 18 m/s<br/>
+			<font color="#FFFFFF">empty    text</font>Offshore Wave Warning<font color="#FFFFFF"> mpty etsdsfa</font>Wave Height >= 2 m
+		</pre>	
+<br/><br/>Advisories are intended to alert the public about weather conditions that may have some modest impacts or cause moderate disruptions, but that usually will cause little threat to life and property.  Warnings are serious weather events that may lead to property damage and/or potentially to injuries or death.  A warning indicates that the event is imminent or underway.<br/><br/><a href="http://www.dubaicoast.ae/en-GB/sites/manual/warnings.html" target="_blank"><font color="blue"><u>Warnings Help</u></font></a></content>
+    	</entry>
+    </tabs>
+	<image1>assets/images/dubai-gov-logo.jpg</image1>
+	<image2>assets/images/dm-logo.jpg</image2>
+</configuration>

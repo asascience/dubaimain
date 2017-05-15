@@ -1,0 +1,6 @@
+<?xml version="1.0" ?>
+<configuration>
+    <layerlist label="More..." visible="false">
+        <!-- <excludelayer>TheLabelOfSomeLayerInMainConfig</excludelayer> -->
+    </layerlist>
+</configuration>

@@ -1,0 +1,39 @@
+<?xml version="1.0" ?>
+<configuration>
+	<ASAOilModel>
+		<oilmodel>http://services.asascience.com/ecop/wms.aspx?</oilmodel>
+	</ASAOilModel>
+	<MapLayers>
+		<PolygonLayers>
+		</PolygonLayers>
+		<PolylineLayers>
+		</PolylineLayers>
+		<PointLayers>
+		</PointLayers>
+	</MapLayers>
+	<windadvisory>>14 m/s</windadvisory>
+	<windadvisoryNumber>1</windadvisoryNumber>
+	<windwarning>>18 m/s</windwarning>
+	<windwarningNumber>2</windwarningNumber>
+	<waveadvisory>>1.5m</waveadvisory>
+	<waveadvisoryNumber>1</waveadvisoryNumber>
+	<wavewarning>>2m</wavewarning>
+	<wavewarningNumber>2</wavewarningNumber>
+	<craftadvisory>Winds>11m/s</craftadvisory>
+	<craftadvisory2>Waves>1.5m</craftadvisory2>
+	<swimadvisoryNumber>1</swimadvisoryNumber>
+	<swimadvisory>Waves >2m</swimadvisory>
+	<filelocation>assets/dubai_shp/</filelocation>
+	
+	<wrfURL>http://dcproduction.s3.amazonaws.com/warnings/wrf/current.txt</wrfURL>
+	<waveURL>http://dcproduction.s3.amazonaws.com/warnings/swan/current.txt</waveURL>
+	<areaFile>http://dcproduction.s3.amazonaws.com/warnings/warn/</areaFile>
+	<!--
+	assets/warning.txt
+	<wrfURL>assets/wrf.txt</wrfURL>
+	<waveURL>assets/swan.txt</waveURL>
+	-->
+	<areaNames>Offshore,Dubai Waterfront,Palm Jebel Ali,Palm Jebel Ali Offshore,Jebel Ali Port,Palm Jumeirah Offshore,Palm Jumeirah,Umm Suqeim 3,Umm Suqeim 1,Jumeirah 3,Jumeirah Open Beach,The World,Jumeirah Beach Park,Umm Suqeim 2,Maritime City,Deira/Al Mamzar,Palm Deira</areaNames>
+	<warningdisclaimer>Warnings are generated automatically by computer models and are not validated by forecast professionals. Do not use for decision making purposes.</warningdisclaimer>
+	<userkey>dubai20110301</userkey>
+</configuration>
